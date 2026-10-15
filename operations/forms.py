@@ -105,19 +105,30 @@ class VisitCreateForm(BootstrapMixin, forms.Form):
 
 
 class CompleteInvoiceForm(VisitCreateForm):
-    invoice_number = forms.CharField(max_length=50, required=True)
+    invoice_number = forms.RegexField(
+        regex=r'\A[0-9]+\Z', max_length=50 - len(Invoice.NUMBER_PREFIX),
+        label='Invoice number',
+        help_text=f'Enter only the final digits, for example 977. Saved as {Invoice.NUMBER_PREFIX}977.',
+        error_messages={'invalid': 'Enter only the digits after the final slash, for example 977.'},
+        widget=forms.TextInput(attrs={'inputmode': 'numeric', 'pattern': '[0-9]+', 'placeholder': '977'}),
+    )
 
-    def __init__(self, *args, invoice=None, **kwargs):
+    def __init__(self, *args, branch, invoice=None, **kwargs):
+        self.branch = branch
         self.invoice = invoice
         super().__init__(*args, **kwargs)
+        value = self.initial.get('invoice_number', '')
+        if value.startswith(Invoice.NUMBER_PREFIX):
+            self.initial['invoice_number'] = value[len(Invoice.NUMBER_PREFIX):]
 
     def clean_invoice_number(self):
-        value = self.cleaned_data["invoice_number"].strip()
-        invoices = Invoice.objects.filter(invoice_number=value)
+        digits = self.cleaned_data['invoice_number'].lstrip('0') or '0'
+        value = Invoice.NUMBER_PREFIX + digits
+        invoices = Invoice.objects.filter(branch=self.branch, invoice_number=value)
         if self.invoice and self.invoice.pk:
             invoices = invoices.exclude(pk=self.invoice.pk)
         if invoices.exists():
-            raise forms.ValidationError("This invoice number is already in use.")
+            raise forms.ValidationError("This invoice number is already in use in this branch.")
         return value
 
 

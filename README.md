@@ -97,6 +97,12 @@ The employee sees only their assigned jobs. Inside a job, the page shows one cur
 
 ## Production deployment
 
+Invoice entry accepts the numeric suffix only: entering `977` saves
+`INV/26-27/977`. A number is reserved within its branch across all invoice
+statuses; another branch may use the same number. Leading zeroes are normalized.
+Migration `0012_invoice_branch_number` assigns existing invoices to their visit's
+branch and preserves their saved invoice numbers and amounts.
+
 Follow [the deployment and recovery guide](docs/production-deployment.md) for
 `dev` / `main` branches, GitHub Actions runners, dedicated Docker PostgreSQL,
 HTTPS via the company proxy or optional Caddy, encrypted off-server backups and

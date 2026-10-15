@@ -465,14 +465,36 @@ class TaskTimingSegment(models.Model):
 
 
 class Invoice(TimeStamped):
+    NUMBER_PREFIX = 'INV/26-27/'
     STATUS = [("DRAFT", "Draft"), ("COMPLETED", "Completed"), ("VOID", "Void")]
     visit = models.OneToOneField(Visit, on_delete=models.CASCADE, related_name="invoice")
-    invoice_number = models.CharField(max_length=50, unique=True)
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='invoices', editable=False)
+    invoice_number = models.CharField(max_length=50)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=50, blank=True)
     entered_by = models.ForeignKey(User, on_delete=models.PROTECT)
     status = models.CharField(max_length=20, choices=STATUS, default="COMPLETED")
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=['branch', 'invoice_number'], name='unique_invoice_number_per_branch',
+        )]
+
+    def clean(self):
+        super().clean()
+        if self.visit_id:
+            from django.core.exceptions import ValidationError
+
+            self.branch_id = self.visit.branch_id
+            if Invoice.objects.filter(branch_id=self.branch_id, invoice_number=self.invoice_number).exclude(pk=self.pk).exists():
+                raise ValidationError({'invoice_number': 'This invoice number is already in use in this branch.'})
+
+    def save(self, *args, **kwargs):
+        self.branch_id = self.visit.branch_id
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'branch'}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.invoice_number} - {self.visit.customer.name} (Visit #{self.visit_id})"

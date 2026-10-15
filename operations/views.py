@@ -724,7 +724,7 @@ def add_invoice(request,visit_id):
     if not visit.is_invoice_ready:
         messages.error(request,'Verify every service in the order before creating the invoice.')
         return redirect('manager_dashboard')
-    form=CompleteInvoiceForm(request.POST or None, invoice=existing, initial={
+    form=CompleteInvoiceForm(request.POST or None, branch=visit.branch, invoice=existing, initial={
         'customer_name': visit.customer.name,
         'mobile': visit.customer.mobile,
         'invoice_number': existing.invoice_number if existing else '',
@@ -755,12 +755,12 @@ def add_invoice(request,visit_id):
                 Feedback.objects.get_or_create(visit=locked)
         except IntegrityError:
             # A different visit may claim the number after form validation.
-            duplicates = Invoice.objects.filter(invoice_number=form.cleaned_data['invoice_number'])
+            duplicates = Invoice.objects.filter(branch=visit.branch, invoice_number=form.cleaned_data['invoice_number'])
             if existing:
                 duplicates = duplicates.exclude(pk=existing.pk)
             if not duplicates.exists():
                 raise
-            form.add_error('invoice_number', 'This invoice number is already in use.')
+            form.add_error('invoice_number', 'This invoice number is already in use in this branch.')
         else:
             messages.success(request, 'Invoice completed. Feedback can now be collected.')
             return redirect('manager_dashboard')

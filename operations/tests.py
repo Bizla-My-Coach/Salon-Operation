@@ -454,10 +454,11 @@ class CombinedServiceWorkflowTests(TestCase):
         response = self.client.post(invoice_url, {
             "customer_name": self.customer.name,
             "mobile": "9876543210",
-            "invoice_number": "INV-COMBINED-1",
+            "invoice_number": "977",
         })
         self.assertRedirects(response, reverse("manager_dashboard"))
         self.assertEqual(Invoice.objects.filter(visit=visit).count(), 1)
+        self.assertEqual(Invoice.objects.get(visit=visit).invoice_number, 'INV/26-27/977')
         self.assertEqual(Feedback.objects.filter(visit=visit).count(), 1)
         self.assertEqual(
             Invoice.objects.get(visit=visit).amount,
@@ -467,7 +468,7 @@ class CombinedServiceWorkflowTests(TestCase):
         response = self.client.post(invoice_url, {
             "customer_name": self.customer.name,
             "mobile": "9876543210",
-            "invoice_number": "INV-COMBINED-2",
+            "invoice_number": "978",
         })
         self.assertRedirects(response, reverse("manager_dashboard"))
         self.assertEqual(Invoice.objects.filter(visit=visit).count(), 1)
