@@ -224,7 +224,7 @@ PostgreSQL backups and SSH-tunnel access only; production protections are unchan
 For `operations.shahinanalytics.com`, use the
 [test HTTPS/Caddy and local-backup guide](docs/test-https-deployment.md) instead.
 
-The canonical remote is `https://github.com/Bizla-Analytics/salon-operation.git`.
+The canonical remote is `https://github.com/Bizla-My-Coach/Salon-Operation.git`.
 The two permanent branches are `dev` (your test server) and `main` (company
 production and GitHub's default branch). Promote tested changes from `dev` into
 `main` through a reviewed pull request. Optional temporary feature branches can

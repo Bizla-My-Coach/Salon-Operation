@@ -724,36 +724,46 @@ def add_invoice(request,visit_id):
     if not visit.is_invoice_ready:
         messages.error(request,'Verify every service in the order before creating the invoice.')
         return redirect('manager_dashboard')
-    form=CompleteInvoiceForm(request.POST or None, initial={
+    form=CompleteInvoiceForm(request.POST or None, invoice=existing, initial={
         'customer_name': visit.customer.name,
         'mobile': visit.customer.mobile,
         'invoice_number': existing.invoice_number if existing else '',
     })
     if request.method=='POST' and form.is_valid():
-        with transaction.atomic():
-            locked = Visit.objects.select_for_update().get(pk=visit.pk)
-            locked_existing = Invoice.objects.filter(visit=locked).first()
-            if locked_existing and locked_existing.status == 'COMPLETED':
-                messages.info(request, 'This visit already has a completed invoice.')
-                return redirect('manager_dashboard')
-            if not locked.is_invoice_ready:
-                messages.error(request, 'Verify every service before creating the invoice.')
-                return redirect('manager_dashboard')
-            customer = locked.customer
-            customer.name = form.cleaned_data['customer_name']
-            customer.mobile = form.cleaned_data['mobile']
-            customer.save(update_fields=['name', 'mobile', 'updated_at'])
-            total=sum((item.service.base_price for item in locked.services.exclude(status='CANCELLED').select_related('service')),start=0)
-            inv = locked_existing or Invoice(visit=locked, entered_by=request.user)
-            inv.invoice_number = form.cleaned_data['invoice_number']
-            inv.amount = total
-            inv.status = 'COMPLETED'
-            inv.completed_at = timezone.now()
-            inv.save()
-            locked.status='INVOICED'; locked.save(update_fields=['status'])
-            Feedback.objects.get_or_create(visit=locked)
-        messages.success(request, 'Invoice completed. Feedback can now be collected.')
-        return redirect('manager_dashboard')
+        try:
+            with transaction.atomic():
+                locked = Visit.objects.select_for_update().get(pk=visit.pk)
+                locked_existing = Invoice.objects.filter(visit=locked).first()
+                if locked_existing and locked_existing.status == 'COMPLETED':
+                    messages.info(request, 'This visit already has a completed invoice.')
+                    return redirect('manager_dashboard')
+                if not locked.is_invoice_ready:
+                    messages.error(request, 'Verify every service before creating the invoice.')
+                    return redirect('manager_dashboard')
+                customer = locked.customer
+                customer.name = form.cleaned_data['customer_name']
+                customer.mobile = form.cleaned_data['mobile']
+                customer.save(update_fields=['name', 'mobile', 'updated_at'])
+                total=sum((item.service.base_price for item in locked.services.exclude(status='CANCELLED').select_related('service')),start=0)
+                inv = locked_existing or Invoice(visit=locked, entered_by=request.user)
+                inv.invoice_number = form.cleaned_data['invoice_number']
+                inv.amount = total
+                inv.status = 'COMPLETED'
+                inv.completed_at = timezone.now()
+                inv.save()
+                locked.status='INVOICED'; locked.save(update_fields=['status'])
+                Feedback.objects.get_or_create(visit=locked)
+        except IntegrityError:
+            # A different visit may claim the number after form validation.
+            duplicates = Invoice.objects.filter(invoice_number=form.cleaned_data['invoice_number'])
+            if existing:
+                duplicates = duplicates.exclude(pk=existing.pk)
+            if not duplicates.exists():
+                raise
+            form.add_error('invoice_number', 'This invoice number is already in use.')
+        else:
+            messages.success(request, 'Invoice completed. Feedback can now be collected.')
+            return redirect('manager_dashboard')
     total=sum((item.service.base_price for item in visit.services.exclude(status='CANCELLED').select_related('service')),start=0)
     return render(request,'operations/invoice_form.html',{'form':form,'visit':visit,'total':total})
 

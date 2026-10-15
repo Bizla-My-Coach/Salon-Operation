@@ -22,7 +22,7 @@ GitHub → **Settings → Actions → Runners → New self-hosted runner → Lin
 Run its current download/checksum/extraction commands here, then:
 
 ```bash
-./config.sh --url https://github.com/Bizla-Analytics/salon-operation \
+./config.sh --url https://github.com/Bizla-My-Coach/Salon-Operation \
   --name salonops-production-01 --labels salonops-production --work _work
 ```
 
@@ -105,7 +105,7 @@ Continue as **salonops-deploy**. Replace the digest with the approved main CI di
 ```bash
 OPS=(/etc/salonops/prod.env salonops-prod /opt/salonops-prod/compose.production.yaml
      /var/lib/salonops-prod/backups /etc/salonops/prod.restic.env)
-REGISTRY=ghcr.io/bizla-analytics/salon-operation
+REGISTRY=ghcr.io/bizla-my-coach/salon-operation
 IMAGE="$REGISTRY@sha256:REPLACE_WITH_APPROVED_64_HEX_DIGEST"
 export SALONOPS_USE_CADDY=false
 bash /opt/salonops-prod/scripts/restic_admin.sh "${OPS[@]}" init

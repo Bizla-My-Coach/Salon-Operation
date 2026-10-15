@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
+from django.contrib.auth.password_validation import validate_password
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.db.models import Q
 from datetime import timedelta
@@ -106,9 +107,16 @@ class VisitCreateForm(BootstrapMixin, forms.Form):
 class CompleteInvoiceForm(VisitCreateForm):
     invoice_number = forms.CharField(max_length=50, required=True)
 
+    def __init__(self, *args, invoice=None, **kwargs):
+        self.invoice = invoice
+        super().__init__(*args, **kwargs)
+
     def clean_invoice_number(self):
         value = self.cleaned_data["invoice_number"].strip()
-        if Invoice.objects.filter(invoice_number=value, status="COMPLETED").exists():
+        invoices = Invoice.objects.filter(invoice_number=value)
+        if self.invoice and self.invoice.pk:
+            invoices = invoices.exclude(pk=self.invoice.pk)
+        if invoices.exists():
             raise forms.ValidationError("This invoice number is already in use.")
         return value
 
@@ -236,7 +244,7 @@ class InvoiceForm(BootstrapMixin, forms.ModelForm):
 class UserCreateForm(BootstrapMixin, forms.Form):
     username = forms.CharField(max_length=150, validators=User._meta.get_field('username').validators)
     first_name = forms.CharField()
-    password = forms.CharField(widget=forms.PasswordInput)
+    password = forms.CharField(widget=forms.PasswordInput, strip=False)
     role = forms.ChoiceField(choices=Profile.ROLE_CHOICES)
     branch = forms.ModelChoiceField(queryset=Branch.objects.filter(active=True), required=False, label="Home branch")
     employee_code = forms.CharField(required=False)
@@ -252,6 +260,13 @@ class UserCreateForm(BootstrapMixin, forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        password = cleaned.get('password')
+        if password:
+            user = User(username=cleaned.get('username', ''), first_name=cleaned.get('first_name', ''))
+            try:
+                validate_password(password, user=user)
+            except forms.ValidationError as exc:
+                self.add_error('password', exc)
         if cleaned.get("role") in ("MANAGER", "EMPLOYEE") and not cleaned.get("branch"):
             self.add_error("branch", "Choose a home branch for a manager or employee.")
         return cleaned

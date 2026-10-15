@@ -215,7 +215,7 @@ in this workflow run only on GitHub-hosted machines and cannot deploy.
 ## 6. First release and normal updates
 
 The first push to `dev`/`main` runs CI and publishes
-`ghcr.io/bizla-analytics/salon-operation:<commit>`; find the immutable digest in
+`ghcr.io/bizla-my-coach/salon-operation:<commit>`; find the immutable digest in
 the publish log. Save it in the external env file. Manually deploy the approved
 digest as the deployment user (optionally `export SALONOPS_USE_CADDY=true` first):
 
@@ -223,8 +223,8 @@ digest as the deployment user (optionally `export SALONOPS_USE_CADDY=true` first
 bash /opt/salonops-prod/scripts/deploy.sh \
   /etc/salonops/prod.env salonops-prod /opt/salonops-prod/compose.production.yaml \
   /var/lib/salonops-prod/backups /etc/salonops/prod.restic.env \
-  ghcr.io/bizla-analytics/salon-operation@sha256:REPLACE_WITH_64_HEX_DIGEST \
-  ghcr.io/bizla-analytics/salon-operation
+  ghcr.io/bizla-my-coach/salon-operation@sha256:REPLACE_WITH_64_HEX_DIGEST \
+  ghcr.io/bizla-my-coach/salon-operation
 ```
 
 Sequence: pull approved image → start DB → verify restricted role → successful

@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 
-LABEL org.opencontainers.image.source="https://github.com/Bizla-Analytics/salon-operation"
+LABEL org.opencontainers.image.source="https://github.com/Bizla-My-Coach/Salon-Operation"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
