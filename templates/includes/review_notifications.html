@@ -1,0 +1,18 @@
+{% if review_alerts %}
+<details class="review-notifications" data-review-notifications data-feed-url="{{ review_alert_feed_url }}">
+  <summary class="notification-bell" aria-label="Ticket notifications{% if review_alerts.unread_count %}, {{ review_alerts.unread_count }} unread{% endif %}">
+    <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+    <span class="notification-count" data-notification-count {% if not review_alerts.unread_count %}hidden{% endif %}>{% if review_alerts.unread_count > 99 %}99+{% else %}{{ review_alerts.unread_count }}{% endif %}</span>
+  </summary>
+  <section class="notification-dropdown" aria-label="Assigned review notifications">
+    <div class="notification-heading"><strong>Ticket notifications</strong><span data-notification-total>{{ review_alerts.unread_count }} unread</span></div>
+    <p class="notification-hint">Reviews assigned to you · {% if request.GET.demo == '1' %}demo only{% else %}in-app alerts{% endif %}</p>
+    <form method="post" action="{{ review_alert_read_all_url }}" data-notifications-read-all>{% csrf_token %}<button type="submit" class="notification-read-all" {% if not review_alerts.unread_count %}disabled{% endif %}>Mark all as read</button></form>
+    <div class="notification-list" data-notification-list>
+      {% for alert in review_alerts.items %}<form method="post" action="{{ alert.open_url }}">{% csrf_token %}<button class="notification-item {% if alert.unread %}is-unread{% endif %}" type="submit"><strong>{{ alert.subject }}</strong><span>{{ alert.branch }} · {{ alert.time }}</span><small>{% if alert.unread %}Unread{% else %}Read{% endif %} · Open review</small></button></form>{% empty %}<p class="notification-empty">No review notifications yet.</p>{% endfor %}
+    </div>
+    <p class="notification-error" data-notification-error role="status" hidden></p>
+    <a class="notification-view-all" href="{{ review_alert_inbox_url }}">View reviews →</a>
+  </section>
+</details>
+{% endif %}
