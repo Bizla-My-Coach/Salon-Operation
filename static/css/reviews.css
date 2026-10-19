@@ -69,3 +69,85 @@
 [data-theme=dark] .state-closed_unresolved,[data-theme=dark] .tag-urgent{background:#482d27;color:#f5c0b0;border-color:#6c493c}
 [data-theme=dark] .tag-sensitive{background:#3e3323;color:#e8ca9a;border-color:#66533a}
 [data-theme=dark] .review-unassigned{color:#e8bd7b}
+
+/* Larger, confident typography for daily review handling. */
+@font-face {
+  font-family: Manrope;
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../fonts/manrope-latin-wght-normal.woff2') format('woff2');
+}
+.reviews-workspace {
+  --muted: #4c625c;
+  font-family: Manrope, 'Segoe UI', sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.65;
+}
+[data-theme=dark] .reviews-workspace { --muted: #baccc4; }
+.sidebar, .desktop-session-bar, .mobile-appbar { font-family: Manrope, 'Segoe UI', sans-serif; }
+.reviews-workspace .eyebrow { font-size: .875rem; font-weight: 800; letter-spacing: .08em; }
+.reviews-workspace h1 { font-size: clamp(2rem, 3.4vw, 2.75rem); font-weight: 800; line-height: 1.2; letter-spacing: -.035em; }
+.reviews-workspace h2 { font-size: 1.375rem; font-weight: 800; line-height: 1.35; }
+.reviews-workspace h3 { font-size: 1.125rem; font-weight: 800; line-height: 1.45; }
+.review-section-heading, .review-inbox-heading { flex-wrap: wrap; }
+.review-page-head p, .review-excerpt, .review-issue-report,
+.review-action-summary, .review-close-panel>p, .review-report-grid .muted,
+.review-timeline li p, .review-report-values>div, .review-workload>div,
+.review-create-page .panel>p, .review-followup-facts dd {
+  font-size: 1rem;
+  line-height: 1.65;
+  font-weight: 500;
+}
+.review-excerpt { color: var(--ink); }
+.review-source blockquote { font-size: 1.125rem; font-weight: 600; line-height: 1.75; }
+.review-card-meta, .review-card-footer, .review-reference,
+.review-reference>span, .review-count, .review-tag, .review-state,
+.review-followup-facts dt, .review-followup-help, .review-care-note,
+.review-no-issues, .review-demo, .review-back, .review-metrics small,
+.review-timeline time, .review-timeline small, .review-report-table th,
+.review-inbox-heading p, .review-section-heading p {
+  font-size: .875rem;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.review-state, .review-tag { font-weight: 750; }
+.review-footnote { font-size: .875rem!important; font-weight: 600; }
+.review-metrics article>span { font-size: 1rem; font-weight: 750; }
+.review-metrics strong { font-size: 2.5rem; font-weight: 800; }
+.review-tabs { gap: 20px; }
+.review-tabs a, .review-priority-filters a { font-size: 1rem; font-weight: 750; }
+.review-tabs a>span { font-size: .875rem; font-weight: 750; }
+.review-filters label, .reviews-workspace .form-grid label { font-size: 1rem; font-weight: 750; }
+.review-filters input, .review-filters select,
+.reviews-workspace .form-grid input:not([type=hidden]),
+.reviews-workspace .form-grid select, .reviews-workspace .form-grid textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.reviews-workspace .form-grid .helptext { font-size: .875rem; font-weight: 500; }
+.reviews-workspace .button, .review-update>summary,
+.review-add-issue>summary, .review-simple-history>summary {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.5;
+  min-height: 44px;
+}
+.review-issue-number { font-size: .875rem; font-weight: 800; width: 30px; height: 30px; flex-basis: 30px; }
+.review-report-table table { font-size: 1rem; }
+.review-timeline strong { font-size: 1rem; font-weight: 800; }
+@media(max-width:650px) {
+  .reviews-workspace h1 { font-size: 2rem; }
+  .review-metrics article { padding: 16px 13px; }
+  .review-metrics strong { font-size: 2.25rem; }
+  .review-reference>span { display: block; }
+  .review-card-main h3 { font-size: 1.125rem; }
+  .review-rating { min-width: 46px; flex-basis: 46px; }
+  .review-rating strong { font-size: 1.4rem; }
+  .review-rating small { font-size: .875rem; }
+  .review-card-main { flex-basis: calc(100% - 58px); }
+  .review-open { margin-left: 58px; }
+}
