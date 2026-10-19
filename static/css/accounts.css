@@ -30,6 +30,11 @@
 .topbar{position:relative;z-index:20}
 .profile-grid,.staff-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 .account-summary{margin-bottom:22px}
+.password-page{max-width:640px;width:100%;margin:0 auto;min-width:0}
+.password-page .form-grid p{min-width:0;overflow-wrap:anywhere}
+.password-page .form-grid input{width:100%;min-width:0;min-height:44px;font-size:1rem}
+.password-actions{display:flex;flex-wrap:wrap;gap:10px}
+.password-actions .button{flex:1 1 180px;min-height:44px;text-align:center;white-space:normal}
 .account-summary h2,.profile-grid h2,.staff-card h2{margin-top:0}
 .staff-card h2{margin:0;overflow-wrap:anywhere;font-size:1.15rem;line-height:1.35;flex:1 1 140px;min-width:0}
 .staff-grid{gap:12px}

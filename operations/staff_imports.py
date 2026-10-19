@@ -4,6 +4,7 @@ import hashlib
 import io
 import re
 import secrets
+import string
 import unicodedata
 from collections import defaultdict
 from datetime import timedelta
@@ -31,6 +32,16 @@ HEADERS = {
 
 class StaffImportProblem(Exception):
     pass
+
+
+def generate_staff_password():
+    """Generate eight unpredictable characters, including each character type."""
+    groups = (string.ascii_uppercase, string.ascii_lowercase, string.digits, '!#$%&*?')
+    alphabet = ''.join(groups)
+    while True:
+        password = ''.join(secrets.choice(alphabet) for _ in range(8))
+        if all(any(char in group for char in password) for group in groups):
+            return password
 
 
 def normalized(value):
@@ -197,7 +208,7 @@ def apply_staff_import(identifier, actor):
             credentials = []
             content_type = ContentType.objects.get_for_model(User)
             for row in stage.rows:
-                password = 'Hs!' + secrets.token_urlsafe(18)
+                password = generate_staff_password()
                 person = User(username=row['username'], first_name=row['name'])
                 validate_password(password, user=person)
                 person.set_password(password)

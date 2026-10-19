@@ -15,7 +15,8 @@ The same uploader is also available through **Import data → Staff CSV**. Use
    creates a manager. Other sections create employees, never Admin/General Manager.
 4. Enter your own current password, tick the confirmation and create the accounts.
    Save the **one-time credentials CSV** securely. Give each person only their own
-   username and individual generated password; ask them to change it in Profile.
+   username and individual random 8-character password (uppercase, lowercase,
+   numbers and symbols); ask them to open **Change password** from the profile icon.
    Keep the page open until the download starts; secure password hashing takes
    longer for large batches. A company HTTPS proxy should allow up to 180 seconds
    for the confirmation response (Nginx: `proxy_read_timeout 180s;`).

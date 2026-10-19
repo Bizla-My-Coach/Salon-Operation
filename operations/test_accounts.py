@@ -113,6 +113,64 @@ class AccountTests(TestCase):
         self.assertEqual(protected.post(reverse('my_profile'), self.password()).status_code, 403)
 
 
+    def test_change_password_page_and_menu_for_all_roles_without_branch_duty(self):
+        for role in ['ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE']:
+            self.user.profile.role = role
+            self.user.profile.save()
+            response = self.client.get(reverse('change_password'))
+            self.assertEqual(response.status_code, 200)
+            self.assertTemplateUsed(response, 'operations/change_password.html')
+            # Admin/manager layouts have separate desktop and mobile profile menus.
+            self.assertContains(response, f'href="{reverse("change_password")}"',
+                                count=1 if role == 'EMPLOYEE' else 2)
+            self.assertContains(response, 'autocomplete="current-password"')
+            self.assertContains(response, 'autocomplete="new-password"', count=2)
+            self.assertIn('no-store', response['Cache-Control'])
+
+    def test_dedicated_password_page_changes_only_self_and_preserves_session(self):
+        other_session = Client()
+        other_session.force_login(self.user)
+        data = self.password(new='R7!mQ2#x')
+        data.update(user_id=self.other.pk, first_name='Must not change', role='ADMIN')
+        response = self.client.post(reverse('change_password'), data)
+        self.assertRedirects(response, reverse('change_password'))
+        self.user.refresh_from_db()
+        self.other.refresh_from_db()
+        self.assertTrue(self.user.check_password('R7!mQ2#x'))
+        self.assertEqual(self.user.first_name, 'Original')
+        self.assertEqual(self.user.profile.role, 'EMPLOYEE')
+        self.assertTrue(self.other.check_password('Other-test-pass!27'))
+        self.assertEqual(self.client.get(reverse('my_profile')).status_code, 200)
+        self.assertEqual(other_session.get(reverse('my_profile')).status_code, 302)
+        self.assertFalse(Client().login(username=self.user.username, password='Old-test-pass!27'))
+        self.assertTrue(Client().login(username=self.user.username, password='R7!mQ2#x'))
+
+    def test_dedicated_password_page_rejects_invalid_passwords(self):
+        for data in [self.password(old='wrong'), self.password(confirmation='different'),
+                     self.password(new='short'), self.password(new='12345678')]:
+            response = self.client.post(reverse('change_password'), data)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.context['password_form'].errors)
+            self.user.refresh_from_db()
+            self.assertTrue(self.user.check_password('Old-test-pass!27'))
+
+    def test_dedicated_password_page_requires_active_login_and_csrf(self):
+        url = reverse('change_password')
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.post(url, self.password()).status_code, 302)
+        self.client.force_login(self.user)
+        self.user.profile.active = False
+        self.user.profile.save()
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(url, self.password()).status_code, 403)
+        self.user.profile.active = True
+        self.user.profile.save()
+        protected = Client(enforce_csrf_checks=True)
+        protected.force_login(self.user)
+        self.assertEqual(protected.post(url, self.password()).status_code, 403)
+
+
 @override_settings(STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
 class ManagerStaffTests(TestCase):
     def setUp(self):

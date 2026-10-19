@@ -33,6 +33,8 @@ from .workflow import (
 def user_branch(user): return working_branch(user)
 
 
+@sensitive_post_parameters()
+@never_cache
 @roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE')
 @require_http_methods(['GET', 'POST'])
 def my_profile(request):
@@ -58,6 +60,22 @@ def my_profile(request):
     return render(request, 'operations/profile.html', {
         'details_form': details_form, 'password_form': password_form,
     })
+
+
+@sensitive_post_parameters()
+@never_cache
+@roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE')
+@require_http_methods(['GET', 'POST'])
+def change_password(request):
+    form = SelfPasswordChangeForm(
+        request.user, data=request.POST if request.method == 'POST' else None,
+    )
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        messages.success(request, 'Your password has been changed.')
+        return redirect('change_password')
+    return render(request, 'operations/change_password.html', {'password_form': form})
 
 
 @roles_required('MANAGER')

@@ -1,5 +1,6 @@
 import csv
 import io
+import string
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.files.uploadhandler import StopUpload
 from django.db import IntegrityError, transaction
-from django.test import Client, RequestFactory, TestCase, override_settings
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -18,9 +19,19 @@ from .models import Branch, BranchDuty, Customer, Profile, StaffCSVImport, Visit
 from .admin import ProfileAdmin
 from .staff_imports import (
     MAX_STAFF_ROWS, MAX_STAFF_UPLOAD, StaffImportProblem, apply_staff_import,
-    credentials_csv, parse_staff_csv, stage_staff_import,
+    credentials_csv, generate_staff_password, parse_staff_csv, stage_staff_import,
 )
 from .upload_limits import StaffCSVUploadLimit
+
+
+class GeneratedStaffPasswordTests(SimpleTestCase):
+    def test_passwords_are_eight_random_characters_with_all_character_types(self):
+        passwords = {generate_staff_password() for _ in range(100)}
+        self.assertEqual(len(passwords), 100)
+        for password in passwords:
+            self.assertEqual(len(password), 8)
+            for group in (string.ascii_uppercase, string.ascii_lowercase, string.digits, '!#$%&*?'):
+                self.assertTrue(any(char in group for char in password))
 
 
 def staff_csv(rows=None, headers=None, delimiter=',', bom=True):
@@ -97,6 +108,7 @@ class StaffCSVImportTests(TestCase):
         self.assertNotEqual(rows[0]['PASSWORD'], rows[1]['PASSWORD'])
         for row, expected_role, expected_branch in zip(rows, ['MANAGER', 'EMPLOYEE'], [self.a, self.b]):
             person = User.objects.get(username=row['USERNAME'])
+            self.assertEqual(len(row['PASSWORD']), 8)
             self.assertTrue(person.check_password(row['PASSWORD']))
             self.assertNotEqual(person.password, row['PASSWORD'])
             self.assertEqual(person.profile.role, expected_role)

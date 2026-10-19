@@ -5,6 +5,7 @@
   <div class="account-dropdown">
     <div class="account-identity"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{{ user.profile.get_role_display }}</small></div>
     <a class="button primary account-profile-link" href="{% url 'my_profile' %}">Profile</a>
+    <a class="button outline" href="{% url 'change_password' %}">Change password</a>
     <label class="theme-control"><span>Dark mode</span><input type="checkbox" role="switch" aria-label="Dark mode" data-theme-toggle><span class="theme-track" aria-hidden="true"></span></label>
     <a class="account-signout" href="{% url 'logout' %}">Sign out</a>
   </div>
