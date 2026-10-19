@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="{% static 'css/workflows.css' %}">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'js/accounts.js' %}" defer></script>
+  <script src="{% static 'js/review-notifications.js' %}" defer></script>
 </head>
 <body data-theme-key="hairship-theme-{{ user.pk|default:'guest' }}">
 {% if not plain_layout and user.is_authenticated and user.is_superuser or not plain_layout and user.is_authenticated and user.profile.role == 'ADMIN' or not plain_layout and user.is_authenticated and user.profile.role == 'GENERAL_MANAGER' or not plain_layout and user.is_authenticated and user.profile.role == 'MANAGER' %}
@@ -62,8 +63,8 @@
   </aside>
   <button class="sidebar-backdrop" type="button" aria-label="Close menu" data-menu-close></button>
   <div class="workspace">
-    <header class="desktop-session-bar">{% include 'includes/profile_menu.html' %}</header>
-    <header class="mobile-appbar"><button type="button" class="menu-toggle" aria-label="Open menu" aria-controls="app-sidebar" aria-expanded="false" data-menu-open>{% include 'includes/nav_icon.html' with icon='menu' only %}</button><a class="brand" href="{% url 'dashboard' %}" aria-label="Hair Ship home"><img class="brand-mark" src="{% static 'img/hairship-logo.png' %}" alt=""><strong>HAIR SHIP</strong></a>{% include 'includes/profile_menu.html' %}</header>
+    <header class="desktop-session-bar"><div class="session-actions">{% include 'includes/review_notifications.html' %}{% include 'includes/profile_menu.html' %}</div></header>
+    <header class="mobile-appbar"><button type="button" class="menu-toggle" aria-label="Open menu" aria-controls="app-sidebar" aria-expanded="false" data-menu-open>{% include 'includes/nav_icon.html' with icon='menu' only %}</button><a class="brand" href="{% url 'dashboard' %}" aria-label="Hair Ship home"><img class="brand-mark" src="{% static 'img/hairship-logo.png' %}" alt=""><strong>HAIR SHIP</strong></a><div class="session-actions">{% include 'includes/review_notifications.html' %}{% include 'includes/profile_menu.html' %}</div></header>
 {% else %}
 <header class="topbar"><a class="brand" href="{% url 'dashboard' %}" aria-label="Hair Ship home"><img class="brand-mark" src="{% static 'img/hairship-logo.png' %}" alt=""><strong>HAIR SHIP</strong></a>{% if user.is_authenticated %}{% include 'includes/profile_menu.html' %}{% endif %}</header><div class="workspace plain">
 {% endif %}

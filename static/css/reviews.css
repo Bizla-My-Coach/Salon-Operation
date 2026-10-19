@@ -151,3 +151,30 @@
   .review-card-main { flex-basis: calc(100% - 58px); }
   .review-open { margin-left: 58px; }
 }
+
+/* Dense inbox rows keep more reviews in view while retaining readable text. */
+.review-metrics { gap: 10px; margin-bottom: 18px; }
+.review-metrics article { padding: 12px 16px; gap: 2px; }
+.review-metrics strong { font-size: 2rem; }
+.review-metrics small { display: none; }
+.review-case-list { gap: 10px; }
+.review-case-top { padding: 9px 14px 0; }
+.review-card-content { padding: 8px 14px 10px; gap: 12px; align-items: center; }
+.review-rating { min-width: 46px; flex-basis: 46px; min-height: 48px; gap: 0; }
+.review-rating strong { font-size: 1.25rem; }
+.review-rating>span { display: none; }
+.review-card-main h3 { margin-bottom: 2px; }
+.review-excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; margin: 3px 0 6px; font-size: .9375rem; line-height: 1.5; }
+.review-tags { gap: 5px; }
+.review-tag { padding: 2px 7px; }
+.review-card-footer { padding: 7px 14px; gap: 3px 18px; }
+.review-open { margin-left: 0; }
+@media(max-width:650px) {
+  .review-metrics article { padding: 10px 12px; }
+  .review-case-top { padding: 8px 12px 0; align-items: flex-start; }
+  .review-reference>span { display: inline; }
+  .review-card-content { padding: 7px 12px 9px; align-items: flex-start; }
+  .review-card-main { flex-basis: calc(100% - 58px); }
+  .review-open { margin-left: 58px; padding: 7px 12px; }
+  .review-card-footer>span:first-child { flex-basis: auto; }
+}

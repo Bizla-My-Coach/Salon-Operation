@@ -701,3 +701,7 @@ class ReviewNotification(TimeStamped):
     status = models.CharField(max_length=12, default='PENDING', choices=[
         ('PENDING', 'Pending delivery'), ('PREVIEW', 'Preview only · no delivery'), ('DELIVERED', 'Delivered')])
     delivered_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['recipient', 'read_at', '-created_at'], name='review_alert_rec_read_idx')]

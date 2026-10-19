@@ -11,6 +11,22 @@ Admin and General Manager see every review, including feedback with no reported
 issue, and can combine branch, Open / Closed and priority filters. Priority uses
 staff-confirmed values when available, otherwise the existing suggestion.
 
+The inbox uses compact cards with a one-line review excerpt and up to two issue
+categories; any additional issues are counted and remain fully visible on the
+ticket. Larger text and bold headings are retained.
+
+A notification bell appears beside the profile menu on desktop and mobile.
+Assignment alerts are available in-app immediately after intake commits. The bell
+checks for new alerts every 30 seconds while the app is visible, and on focus or
+opening the bell. Only the recipient's currently assigned, accessible branch
+reviews with issues appear; positive/no-issue reviews stay outside this queue.
+Unread counts persist per manager. Opening an alert or choosing **Mark all as
+read** records read time through a CSRF-protected POST, without accepting or
+closing the review. Reassignment, current branch duty and demo/live isolation are
+rechecked on every feed and read action. The dropdown shows up to 20 alerts, with
+unread alerts first; its badge counts every unread alert. No browser permission is
+required. These are in-app alerts; email, SMS and device push are not connected.
+
 The update form contains customer follow-up (Not contacted / Awaiting reply /
 Contacted), staff follow-up (Not started / In progress / Completed), and one short
 action/service note. Customer contact does not imply confirmed satisfaction. Every
@@ -39,7 +55,8 @@ manager-first-acknowledged time. Updating issue status never rewrites public tex
 
 Assignment and an idempotent notification outbox record commit with intake;
 delivery is not claimed. Synthetic entries are preview-only. Live pending entries
-need a configured dispatcher before delivery. No actual notifications are sent.
+need a configured dispatcher before external delivery. In-app read status is
+separate from external delivery status; no external notifications are sent.
 
 Substantive public follow-ups are editable controlled drafts. Editing resets their
 approval. Neither an acknowledgement nor a follow-up closes operational work.

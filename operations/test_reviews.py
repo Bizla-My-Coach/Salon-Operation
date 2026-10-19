@@ -8,7 +8,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Branch, BranchDuty, ReviewCase, ReviewIssue, ReviewSnapshot
+from .models import Branch, BranchDuty, ReviewCase, ReviewIssue, ReviewSnapshot, ReviewNotification
 from . import review_workflow as workflow
 
 
@@ -77,6 +77,98 @@ class ReviewTests(TestCase):
         self.assertEqual(case.issues.count(), 2)
         with self.assertRaises(ValidationError):
             self.record(source_key='trusted-demo-key', synthetic=True, branch=self.b)
+
+    def test_notification_feed_refreshes_new_assignments_and_deduplicates_intake(self):
+        url = reverse('review_notifications')
+        self.assertEqual(self.client.get(url).json()['unread_count'], 1)
+        new = self.record(subject='New assigned review', source_key='new-alert')
+        self.record(subject='Do not duplicate', source_key='new-alert')
+        feed = self.client.get(url)
+        self.assertEqual(feed.json()['unread_count'], 2)
+        self.assertEqual(feed.json()['items'][0]['subject'], new.subject)
+        self.assertEqual(new.notifications.count(), 1)
+        self.assertIn('no-store', feed['Cache-Control'])
+        self.assertContains(self.client.get(reverse('manager_dashboard')), 'Review notifications, 2 unread')
+
+    def test_notification_open_marks_only_recipient_read_without_accepting_review(self):
+        alert = self.case.notifications.get()
+        url = reverse('review_notification_open', args=[alert.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertIsNone(ReviewNotification.objects.get(pk=alert.pk).read_at)
+        self.assertRedirects(self.client.post(url), self.url())
+        alert.refresh_from_db()
+        self.assertIsNotNone(alert.read_at)
+        self.assertIsNone(alert.delivered_at)
+        self.case.refresh_from_db()
+        self.assertIsNone(self.case.acknowledged_at)
+        read_at = alert.read_at
+        self.client.post(url)
+        alert.refresh_from_db()
+        self.assertEqual(alert.read_at, read_at)
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 0)
+
+    def test_notification_scope_blocks_other_recipient_inactive_and_employee(self):
+        private = self.record(branch=self.b, subject='Private notification')
+        private_alert = private.notifications.get()
+        feed = self.client.get(reverse('review_notifications')).json()
+        self.assertNotIn(private.subject, str(feed))
+        self.assertEqual(self.client.post(reverse('review_notification_open', args=[private_alert.pk])).status_code, 404)
+        for person in [self.employee, self.admin]:
+            self.client.force_login(person)
+            response = self.client.get(reverse('review_notifications'))
+            if person == self.employee:
+                self.assertEqual(response.status_code, 403)
+            else:
+                self.assertEqual(response.json()['items'], [])
+                self.assertEqual(self.client.post(reverse('review_notification_open', args=[private_alert.pk])).status_code, 404)
+        self.client.force_login(self.manager)
+        self.manager.profile.active = False
+        self.manager.profile.save()
+        self.assertEqual(self.client.get(reverse('review_notifications')).status_code, 403)
+
+    def test_mark_all_notifications_read_is_csrf_protected_and_demo_isolated(self):
+        demo = self.record(synthetic=True, subject='Synthetic alert')
+        other = self.record(branch=self.b)
+        url = reverse('review_notifications_read_all')
+        protected = Client(enforce_csrf_checks=True)
+        protected.force_login(self.manager)
+        self.assertEqual(protected.post(url).status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        result = self.client.post(url, HTTP_ACCEPT='application/json')
+        self.assertEqual(result.json()['unread_count'], 0)
+        self.assertIsNone(demo.notifications.get().read_at)
+        self.assertIsNone(other.notifications.get().read_at)
+        demo_feed = self.client.get(reverse('review_notifications') + '?demo=1').json()
+        self.assertEqual(demo_feed['unread_count'], 1)
+        self.assertIn('?demo=1', demo_feed['items'][0]['open_url'])
+        alert = demo.notifications.get()
+        self.assertEqual(self.client.post(reverse('review_notification_open', args=[alert.pk])).status_code, 404)
+        self.assertRedirects(self.client.post(reverse('review_notification_open', args=[alert.pk]) + '?demo=1'), self.url(case=demo, demo=True))
+
+    def test_notifications_follow_current_assignment_and_effective_branch(self):
+        self.record(issues=[], subject='No issue notification')
+        empty = Branch.objects.create(code='REV-NO-OWNER', name='Unassigned branch')
+        unassigned = self.record(branch=empty)
+        self.assertFalse(unassigned.notifications.exists())
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 1)
+        duty = BranchDuty.objects.create(user=self.manager, date=timezone.localdate(), status='WORK', branch=self.b, updated_by=self.admin)
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 0)
+        duty.delete()
+        duty = BranchDuty.objects.create(user=self.other, date=timezone.localdate(), status='WORK', branch=self.a, updated_by=self.admin)
+        workflow.assign_case(self.admin, self.case.pk, self.case.version, self.other, 'Cover manager assigned.')
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 0)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 1)
+
+    def test_notification_feed_limits_rows_and_prioritizes_unread_without_losing_count(self):
+        alert = self.case.notifications.get()
+        for number in range(25):
+            ReviewNotification.objects.create(case=self.case, recipient=self.manager,
+                dedupe_key='feed-test-' + str(number), read_at=timezone.now())
+        feed = self.client.get(reverse('review_notifications')).json()
+        self.assertEqual(len(feed['items']), 20)
+        self.assertEqual(feed['items'][0]['id'], alert.pk)
+        self.assertEqual(feed['unread_count'], 1)
 
     def test_opening_pages_does_not_acknowledge_and_source_is_escaped(self):
         self.case.snapshot.text = '<script>alert("customer input")</script>'

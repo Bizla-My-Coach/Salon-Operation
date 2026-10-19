@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q, Case, When, Value, IntegerField, Max
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -17,8 +17,37 @@ from .models import Branch, ReviewCase, ReviewIssue
 from .review_forms import (AddIssueForm, AssignmentForm, ClosureForm, IssueUpdateForm, ReasonForm,
                            ReplyForm, ReviewIntakeForm, VersionForm, FollowupUpdateForm)
 from . import review_workflow as workflow
+from .review_notifications import notification_feed, visible_notifications
 
 review_roles = roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER')
+
+
+@never_cache
+@review_roles
+@require_GET
+def notifications(request):
+    return JsonResponse(notification_feed(request.user, demo_mode(request)))
+
+
+@never_cache
+@review_roles
+@require_POST
+def notification_open(request, notification_id):
+    demo = demo_mode(request)
+    alert = get_object_or_404(visible_notifications(request.user, demo), pk=notification_id)
+    visible_notifications(request.user, demo).filter(pk=alert.pk, read_at__isnull=True).update(read_at=timezone.now())
+    return redirect(case_url(alert.case, demo))
+
+
+@never_cache
+@review_roles
+@require_POST
+def notifications_read_all(request):
+    demo = demo_mode(request)
+    visible_notifications(request.user, demo).filter(read_at__isnull=True).update(read_at=timezone.now())
+    if request.headers.get('Accept') == 'application/json':
+        return JsonResponse(notification_feed(request.user, demo))
+    return redirect(reverse('review_inbox') + ('?demo=1' if demo else ''))
 
 
 def demo_mode(request):
