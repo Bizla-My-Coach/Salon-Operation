@@ -1,0 +1,5 @@
+{% extends 'reviews/base.html' %}
+{% block title %}Record customer review · Hairship{% endblock %}
+{% block reviews_content %}
+<div class="review-create-page"><a class="review-back" href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">← Customer reviews</a><header class="review-page-head"><div><span class="eyebrow">Customer experience</span><h1>Record a review</h1><p>Create one ticket, then add each reported issue separately.</p></div></header><section class="panel"><p class="muted">For staff-recorded feedback. Automated Google review intake will be connected separately.</p><form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">Create review ticket</button></form></section></div>
+{% endblock %}

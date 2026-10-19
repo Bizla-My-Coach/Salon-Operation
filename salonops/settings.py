@@ -74,6 +74,9 @@ AUTH_PASSWORD_VALIDATORS=[
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+# Additional senior approval is optional; sensitivity alone does not block manager closure.
+REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL', False)
+REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL', False)
 LANGUAGE_CODE='en-us'; TIME_ZONE=os.getenv('TIME_ZONE','Asia/Kolkata'); USE_I18N=True; USE_TZ=True
 STATIC_URL='static/'; STATIC_ROOT=BASE_DIR/'staticfiles'; STATICFILES_DIRS=[BASE_DIR/'static']
 STORAGES={'default':{'BACKEND':'django.core.files.storage.FileSystemStorage'},'staticfiles':{'BACKEND':'whitenoise.storage.CompressedManifestStaticFilesStorage'}}

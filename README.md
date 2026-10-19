@@ -198,6 +198,14 @@ that can still be changed.
 
 ## Personal account and appearance
 
+Managers, Admin and General Manager have **Customer experience → Customer reviews**
+for branch-scoped review tickets and separate issue actions, service descriptions,
+closure outcomes, assignment-confirmed acknowledgement previews, controlled public
+follow-up drafts and operational reporting. See the
+[review ticket verification guide](docs/customer-review-tickets.md). This release
+supports staff-recorded reviews and isolated synthetic verification; automated
+Google intake and public posting are not connected.
+
 Every signed-in role has a profile icon in the navigation bar. Open it to see
 the account name, open **Profile**, switch between light and dark mode, or sign
 out. Light is the default; an explicitly chosen theme is remembered per account

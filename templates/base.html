@@ -13,6 +13,7 @@
   </script>
   <link rel="stylesheet" href="{% static 'css/accounts.css' %}">
   <link rel="stylesheet" href="{% static 'css/workflows.css' %}">
+  {% block extra_css %}{% endblock %}
   <script src="{% static 'js/accounts.js' %}" defer></script>
 </head>
 <body data-theme-key="hairship-theme-{{ user.pk|default:'guest' }}">
@@ -54,6 +55,9 @@
         <a href="{% url 'service_catalog' %}">{% include 'includes/nav_icon.html' with icon='catalogue' only %}<span>Service catalogue</span></a>
         <a href="{% url 'manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<span>All staff</span></a>
       {% endif %}
+      <p>Customer experience</p>
+      <a href="{% url 'review_inbox' %}">{% include 'includes/nav_icon.html' with icon='reviews' only %}<span>Customer reviews</span></a>
+      <a href="{% url 'review_reports' %}">{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Issue reporting</span></a>
     </nav>
   </aside>
   <button class="sidebar-backdrop" type="button" aria-label="Close menu" data-menu-close></button>
