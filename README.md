@@ -34,6 +34,11 @@ Open `http://127.0.0.1:8000/`.
 
 ## Optional development demo accounts
 
+For one-command testing on the **dev** branch in GitHub Codespaces, see the
+[Codespaces setup](docs/codespaces.md). Run `bash scripts/codespaces.sh` inside
+that dev container, then sign in with **admin / admin**. It uses an isolated
+PostgreSQL database and fictional data.
+
 On a disposable development database only, run
 `docker compose exec -T web python manage.py seed_demo` to create these accounts.
 
