@@ -602,6 +602,7 @@ class ReviewIssue(TimeStamped):
                   ('CONDUCT', 'Sensitive conduct'), ('OTHER', 'Other')]
     CONFIRMATION = [('UNKNOWN', 'Unknown'), ('CONFIRMED', 'Customer confirmed'),
                     ('NOT_CONFIRMED', 'Not confirmed'), ('NOT_CONTACTABLE', 'Not contactable')]
+    CUSTOMER_FOLLOWUP = [('NOT_CONTACTED', 'Not contacted'), ('AWAITING_REPLY', 'Awaiting reply'), ('CONTACTED', 'Contacted')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(ReviewCase, on_delete=models.CASCADE, related_name='issues')
     category = models.CharField(max_length=20, choices=CATEGORIES)
@@ -614,6 +615,9 @@ class ReviewIssue(TimeStamped):
     outcome = models.TextField(blank=True, max_length=3000)
     evidence_reference = models.CharField(max_length=250, blank=True)
     customer_confirmation = models.CharField(max_length=20, choices=CONFIRMATION, default='UNKNOWN')
+    customer_followup = models.CharField(max_length=20, choices=CUSTOMER_FOLLOWUP, default='NOT_CONTACTED')
+    followup_submitted_at = models.DateTimeField(null=True, blank=True)
+    followup_submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_followups_submitted')
     waiting_reason = models.CharField(max_length=20, blank=True, choices=[
         ('CUSTOMER', 'Waiting for customer'), ('INTERNAL', 'Internal follow-up'), ('EXTERNAL', 'External assistance')])
     next_review_at = models.DateTimeField(null=True, blank=True)
@@ -633,6 +637,16 @@ class ReviewIssue(TimeStamped):
     @property
     def overdue(self):
         return not self.is_terminal and self.due_at is not None and self.due_at < timezone.now()
+
+    @property
+    def staff_followup_label(self):
+        if self.status == 'RESOLVED':
+            return 'Completed'
+        if self.status in ('NEW', 'ACKNOWLEDGED'):
+            return 'Not started'
+        if self.status in self.TERMINAL:
+            return self.get_status_display()
+        return 'In progress'
 
 
 class ReviewActivity(models.Model):

@@ -212,6 +212,8 @@ def update_issue(user, case_id, issue_id, version, data, synthetic=False):
         setattr(issue, field, data.get(field, ''))
     if target != 'WAITING':
         issue.waiting_reason, issue.next_review_at = '', None
+    issue.followup_submitted_at = timezone.now()
+    issue.followup_submitted_by = user
     issue.save()
     if not case.acknowledged_at:
         case.acknowledged_at = timezone.now()
@@ -228,6 +230,43 @@ def update_issue(user, case_id, issue_id, version, data, synthetic=False):
     log(case, user, 'Issue reopened' if reopening else 'Issue updated', note, issue, previous, target)
     save_change(case)
     return case
+
+
+@transaction.atomic
+def submit_followup(user, case_id, issue_id, version, data, synthetic=False):
+    case = locked_case(user, case_id, version, synthetic)
+    issue = case.issues.get(pk=issue_id)
+    # Keep the existing work/outcome history and server-side transition checks.
+    target = data['staff_followup']
+    if target == 'NEW' and issue.status == 'ACKNOWLEDGED':
+        target = 'ACKNOWLEDGED'
+    values = {name: getattr(issue, name) for name in ['confirmed_priority', 'assignee', 'outcome',
+        'evidence_reference', 'customer_confirmation', 'waiting_reason', 'next_review_at']}
+    values.update(status=target, action_summary=data['action_summary'])
+    if target == 'RESOLVED':
+        values['outcome'] = data['action_summary']
+    case = update_issue(user, case_id, issue_id, version, values, synthetic)
+    issue.refresh_from_db()
+    issue.customer_followup = data['customer_followup']
+    issue.followup_submitted_at = timezone.now()
+    issue.followup_submitted_by = user
+    issue.save(update_fields=['customer_followup', 'followup_submitted_at', 'followup_submitted_by', 'updated_at'])
+    log(case, user, 'Follow-up submitted',
+        f'Customer: {issue.get_customer_followup_display()}\nStaff: {issue.staff_followup_label}\n{issue.action_summary}', issue=issue)
+    return case
+
+
+@transaction.atomic
+def close_from_followups(user, case_id, version, synthetic=False):
+    case = locked_case(user, case_id, version, synthetic)
+    issues = list(case.issues.all())
+    if not issues or any(not issue.is_terminal for issue in issues):
+        raise ValidationError('Complete every staff follow-up before closing this ticket.')
+    if any(not issue.action_summary.strip() for issue in issues):
+        raise ValidationError('Add an action / service note to every issue before closing.')
+    summary = '\n'.join(f'{issue.get_category_display()}: {issue.action_summary}' for issue in issues)[:3000]
+    service = ((case.service_description + '\n') if case.service_description else '') + summary
+    return close_case(user, case_id, version, summary, service[:3000], synthetic)
 
 
 @transaction.atomic

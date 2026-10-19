@@ -5,22 +5,29 @@ their current working branch, including dated cover/leave rules. Admin and Gener
 Manager can see all branches and reassign work to currently eligible branch managers.
 Employees have no access. Opening a page does not acknowledge work.
 
-Each review has one ticket and any number of independent reported issues. Record
-additional issues on its detail page. Updates require an action description.
-Waiting requires a reason and a future follow-up date; terminal outcomes require
-an outcome/reason. Reopening an issue requires In progress plus a recorded reason.
-All mutations carry the ticket version; stale edits return 409 rather than replacing
-another manager's work. The timeline records issue, assignment, reply and closure actions.
+The daily page is deliberately short: **Accept review**, one card per reported
+issue, and **Update follow-up**. Managers' inboxes contain only reviews with issues.
+Admin and General Manager see every review, including feedback with no reported
+issue, and can combine branch, Open / Closed and priority filters. Priority uses
+staff-confirmed values when available, otherwise the existing suggestion.
 
-Close a ticket only after all issues have terminal outcomes, with a resolution
-summary and the service/corrective-service description. The server calculates
-resolved, partially resolved, unresolved or not actionable. Zero-issue reviews
-require a documented disposition and do not count as resolved complaints.
-Customer confirmation remains separate from manager completion. Sensitive health/conduct
-cases still require human investigation, but a branch manager may close them by default.
-Additional senior approval is optional via `REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL`
-and `REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL` (both default false); the chosen policy
-is stored on each ticket. Admin and General Manager are the senior roles when enabled.
+The update form contains customer follow-up (Not contacted / Awaiting reply /
+Contacted), staff follow-up (Not started / In progress / Completed), and one short
+action/service note. Customer contact does not imply confirmed satisfaction. Every
+submission records server time and the actor automatically; there is no date input.
+Existing outcomes, notes, priorities and confirmation history are retained.
+
+Once all staff follow-ups are completed, **Close ticket** saves the issue notes as
+the closure/service record without asking staff to type them again. The server
+still blocks closure if any issue is open, preserves unresolved/not-actionable
+outcomes from existing records, and checks optional company senior-closure policy.
+Closed records can be reopened with a reason. Stale edits return 409.
+
+The manager-facing page omits automatic acknowledgement, ownership-management and
+substantive-response panels. Those backend records remain separate from operational
+work; hiding a panel does not send or delete an external response. Follow-up history
+is collapsed by default. Reviews without issues have no empty issue cards; HQ may
+mark them reviewed with a short note, without counting them as solved complaints.
 
 Automatic acknowledgements and substantive follow-ups are separate. A persisted
 manager assignment prepares a fixed, generic acknowledgement, including for
@@ -68,7 +75,7 @@ repeat runs. Open `/reviews/?demo=1` after signing in as `review.manager` or
   a different branch's case, and a branch needing manager assignment.
 
 Verification: update one of two issues and confirm the parent stays open; complete
-both and close with the service description; reopen with a reason. Try saving an
+both and close; the action/service notes are retained; reopen with a reason. Try saving an
 old tab after another update and expect a conflict. Confirm a reply approval does
 not close the ticket. Confirm that a manager can close a completed sensitive case
 under the default policy, the generic acknowledgement contains no sensitive details,

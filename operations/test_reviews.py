@@ -85,7 +85,10 @@ class ReviewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '&lt;script&gt;')
         self.assertNotContains(response, '<script>alert')
-        self.assertContains(response, 'SLA not configured', count=2)
+        self.assertContains(response, 'Accept review')
+        self.assertNotContains(response, 'Automatic public acknowledgement')
+        self.assertNotContains(response, 'Accountability')
+        self.assertNotContains(response, 'Optional controlled response')
         self.case.refresh_from_db()
         self.assertIsNone(self.case.acknowledged_at)
         self.assertIn('no-store', response['Cache-Control'])
@@ -378,7 +381,7 @@ class ReviewTests(TestCase):
         snapshot.save()
         response = self.client.get(self.url())
         self.assertNotContains(response, snapshot.text)
-        self.assertContains(response, 'source review has expired')
+        self.assertContains(response, 'original review is no longer available')
         call_command('expire_review_snapshots', stdout=StringIO())
         snapshot.refresh_from_db()
         self.assertEqual(snapshot.text, '')
@@ -394,5 +397,77 @@ class ReviewTests(TestCase):
         response = self.client.get(self.url(case=case))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'System')
-        self.assertContains(response, 'Unassigned')
-        self.assertContains(response, 'Held · manager assignment needed')
+        self.assertContains(response, 'Customer follow-up')
+
+    def test_simplified_form_has_only_followup_statuses_and_note(self):
+        response = self.client.get(self.url())
+        form = response.context['issues'][0].form
+        self.assertEqual(list(form.fields), ['version', 'customer_followup', 'staff_followup', 'action_summary'])
+        self.assertNotContains(response, 'datetime-local')
+        self.assertContains(response, 'The submission time is saved automatically.')
+
+    def test_followup_submission_records_server_time_actor_and_contact_separately(self):
+        issue = self.case.issues.first()
+        before = timezone.now()
+        response = self.client.post(self.url('review_action'), dict(action='followup', issue_id=str(issue.pk),
+            version=self.case.version, customer_followup='CONTACTED', staff_followup='IN_PROGRESS',
+            action_summary='Spoke with customer; staff are checking the finish.',
+            followup_submitted_at='1900-01-01T00:00', followup_submitted_by=self.other.pk))
+        self.assertEqual(response.status_code, 302)
+        issue.refresh_from_db()
+        self.assertEqual(issue.customer_followup, 'CONTACTED')
+        self.assertEqual(issue.customer_confirmation, 'UNKNOWN')
+        self.assertGreaterEqual(issue.followup_submitted_at, before)
+        self.assertLessEqual(issue.followup_submitted_at, timezone.now())
+        self.assertEqual(issue.followup_submitted_by, self.manager)
+        self.assertIsNone(issue.completed_at)
+        self.assertTrue(self.case.activities.filter(action='Follow-up submitted', note__contains='Contacted').exists())
+
+    def test_simple_closure_keeps_service_notes_and_requires_every_issue_completed(self):
+        for index, issue in enumerate(self.case.issues.all()):
+            self.case.refresh_from_db()
+            response = self.client.post(self.url('review_action'), dict(action='followup', issue_id=str(issue.pk),
+                version=self.case.version, customer_followup='AWAITING_REPLY', staff_followup='RESOLVED',
+                action_summary='Corrective styling and reception follow-up completed.'))
+            self.assertEqual(response.status_code, 302)
+            self.case.refresh_from_db()
+            if index == 0:
+                self.assertEqual(self.client.post(self.url('review_action'), {'action': 'close_simple', 'version': self.case.version}).status_code, 400)
+        self.assertEqual(self.client.post(self.url('review_action'), {'action': 'close_simple', 'version': self.case.version}).status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, 'CLOSED')
+        self.assertIn('Corrective styling', self.case.service_description)
+        self.assertFalse(self.case.issues.exclude(customer_confirmation='UNKNOWN').exists())
+
+    def test_manager_queue_excludes_no_issue_reviews_and_general_manager_sees_every_review(self):
+        positive = self.record(subject='Positive with no issues', rating=5, issues=[])
+        low = self.record(subject='Low rating with no text', rating=1, text='', issues=[])
+        other = self.record(branch=self.b, subject='Another branch review')
+        response = self.client.get(reverse('review_inbox') + '?tab=all')
+        self.assertNotContains(response, positive.subject)
+        self.assertNotContains(response, low.subject)
+        self.assertContains(response, self.case.subject)
+        self.client.force_login(self.gm)
+        response = self.client.get(reverse('review_inbox'))
+        self.assertEqual(response.context['active_tab'], 'all')
+        for case in [positive, low, other, self.case]:
+            self.assertContains(response, case.subject)
+
+    def test_general_manager_filters_combine_branch_open_closed_and_highest_effective_priority(self):
+        urgent = self.record(subject='Urgent case', issues=[{'category': 'HEALTH', 'reported_issue': 'Customer concern.', 'ai_priority': 'URGENT'}])
+        other = self.record(branch=self.b, subject='Different branch urgent', issues=[{'category': 'OTHER', 'reported_issue': 'Concern.', 'ai_priority': 'URGENT'}])
+        self.client.force_login(self.gm)
+        response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'open', 'priority': 'URGENT'})
+        self.assertContains(response, urgent.subject)
+        self.assertNotContains(response, other.subject)
+        self.assertNotContains(response, self.case.subject)
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+        # A staff-confirmed normal priority takes precedence over the AI suggestion.
+        urgent.issues.update(confirmed_priority='NORMAL')
+        response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'all', 'priority': 'URGENT'})
+        self.assertEqual(response.context['page_obj'].paginator.count, 0)
+        urgent.issues.update(status='RESOLVED', action_summary='Follow-up finished.', outcome='Recorded.')
+        workflow.close_from_followups(self.gm, urgent.pk, urgent.version)
+        response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'closed', 'priority': 'NORMAL'})
+        self.assertContains(response, urgent.subject)
+        self.assertNotContains(response, self.case.subject)
