@@ -15,7 +15,7 @@
       var count = menu.querySelector('[data-notification-count]');
       count.textContent = feed.unread_count > 99 ? '99+' : String(feed.unread_count);
       count.hidden = feed.unread_count === 0;
-      menu.querySelector('summary').setAttribute('aria-label', 'Review notifications, ' + feed.unread_count + ' unread');
+      menu.querySelector('summary').setAttribute('aria-label', 'Ticket notifications, ' + feed.unread_count + ' unread');
       menu.querySelector('[data-notification-total]').textContent = feed.unread_count + ' unread';
       menu.querySelector('[data-notifications-read-all] button').disabled = !feed.unread_count;
       var list = menu.querySelector('[data-notification-list]');

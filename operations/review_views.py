@@ -110,7 +110,7 @@ def inbox(request):
         'closed': query.filter(status='CLOSED').count(),
         'total': query.count(),
     }
-    tabs = [('all', 'All reviews' if senior else 'All tickets', query.count()),
+    tabs = [('all', 'All tickets', query.count()),
             ('open', 'Open', query.exclude(status='CLOSED').count()),
             ('closed', 'Closed', query.filter(status='CLOSED').count())]
     active_tab = request.GET.get('tab', 'all' if senior else 'open')

@@ -1,8 +1,8 @@
 {% extends 'reviews/base.html' %}
-{% block title %}{{ case.reference }} · Customer reviews{% endblock %}
+{% block title %}{{ case.reference }} · Tickets{% endblock %}
 {% block reviews_content %}
 <div class="review-simple-page">
-<a class="review-back" href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">← Customer reviews</a>
+<a class="review-back" href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">← Tickets</a>
 <header class="review-page-head review-detail-head"><div><span class="eyebrow">{{ case.reference }} · {{ case.branch.name }}</span><h1>{{ case.subject }}</h1><p>{{ case.customer_label|default:'Customer review' }} · {{ case.received_at|date:'d M Y, H:i' }}</p></div><span class="review-state state-{{ case.status|lower }}">{% if case.status == 'CLOSED' %}Closed{% elif case.acknowledged_at %}Accepted{% else %}New{% endif %}</span></header>
 {% if action_error %}<div class="notice error" role="alert">Your update was not saved. Check the form below.</div>{% endif %}
 <section class="panel review-source">

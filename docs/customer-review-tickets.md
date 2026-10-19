@@ -1,6 +1,6 @@
 # Customer review tickets — verification release
 
-Open **Customer experience → Customer reviews** in the sidebar. Managers see only
+Open **Customer experience → Tickets** in the sidebar. Managers see only
 their current working branch, including dated cover/leave rules. Admin and General
 Manager can see all branches and reassign work to currently eligible branch managers.
 Employees have no access. Opening a page does not acknowledge work.

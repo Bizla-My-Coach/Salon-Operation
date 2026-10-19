@@ -88,7 +88,7 @@ class ReviewTests(TestCase):
         self.assertEqual(feed.json()['items'][0]['subject'], new.subject)
         self.assertEqual(new.notifications.count(), 1)
         self.assertIn('no-store', feed['Cache-Control'])
-        self.assertContains(self.client.get(reverse('manager_dashboard')), 'Review notifications, 2 unread')
+        self.assertContains(self.client.get(reverse('manager_dashboard')), 'Ticket notifications, 2 unread')
 
     def test_notification_open_marks_only_recipient_read_without_accepting_review(self):
         alert = self.case.notifications.get()

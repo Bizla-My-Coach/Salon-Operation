@@ -1,18 +1,18 @@
 {% extends 'reviews/base.html' %}
-{% block title %}Customer reviews · Hairship{% endblock %}
+{% block title %}Tickets · Hairship{% endblock %}
 {% block reviews_content %}
 <header class="review-page-head">
-  <div><span class="eyebrow">Customer experience</span><h1>Customer reviews</h1><p>Listen, follow up, and put things right.</p></div>
+  <div><span class="eyebrow">Customer experience</span><h1>Tickets</h1><p>Listen, follow up, and put things right.</p></div>
   <div class="review-head-actions"><a class="button outline" href="{% url 'review_reports' %}{% if demo %}?demo=1{% endif %}">Issue reporting</a><a class="button primary" href="{% url 'review_create' %}{% if demo %}?demo=1{% endif %}">+ Record review</a></div>
 </header>
 <div class="review-metrics">
   <article><span>Open tickets</span><strong>{{ metrics.open_cases }}</strong><small>Reviews needing follow-up</small></article>
   <article><span>Open issues</span><strong>{{ metrics.open_issues }}</strong><small>Individual concerns to follow up</small></article>
-  <article><span>Closed reviews</span><strong>{{ metrics.closed }}</strong><small>Follow-up history is kept</small></article>
-  <article><span>Total reviews</span><strong>{{ metrics.total }}</strong><small>In the current filters</small></article>
+  <article><span>Closed tickets</span><strong>{{ metrics.closed }}</strong><small>Follow-up history is kept</small></article>
+  <article><span>Total tickets</span><strong>{{ metrics.total }}</strong><small>In the current filters</small></article>
 </div>
 <section class="panel review-inbox">
-  <div class="review-inbox-heading"><div><h2>{% if senior %}Review inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Every review, across all branches.{% else %}Only reviews with issues are shown here.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} ticket{{ page_obj.paginator.count|pluralize }}</span></div>
+  <div class="review-inbox-heading"><div><h2>{% if senior %}Ticket inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Every review, across all branches.{% else %}Only reviews with issues are shown here.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} ticket{{ page_obj.paginator.count|pluralize }}</span></div>
   <nav class="review-tabs" aria-label="Review status">
     {% for key,label,count in tabs %}<a href="?{{ tab_prefix }}tab={{ key }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ label }} <span>{{ count }}</span></a>{% endfor %}
   </nav>
@@ -37,7 +37,7 @@
       </div>
       <footer class="review-card-footer"><span>{% if case.issue_count %}<strong>{{ case.open_issue_count }}</strong> open / {{ case.issue_count }} issue{{ case.issue_count|pluralize }}{% else %}No follow-up issues{% endif %}</span><span>{% if case.acknowledged_at %}Accepted {{ case.acknowledged_at|date:'d M, H:i' }}{% elif case.issue_count %}Not accepted yet{% endif %}</span></footer>
     </article>
-  {% empty %}<div class="review-empty"><span class="review-empty-icon" aria-hidden="true">✓</span><h3>No tickets here</h3><p>No reviews match this view. Check another status or record a customer concern.</p><a class="button outline" href="?{% if demo %}demo=1&{% endif %}tab=all">View all reviews</a></div>{% endfor %}
+  {% empty %}<div class="review-empty"><span class="review-empty-icon" aria-hidden="true">✓</span><h3>No tickets here</h3><p>No reviews match this view. Check another status or record a customer concern.</p><a class="button outline" href="?{% if demo %}demo=1&{% endif %}tab=all">View all tickets</a></div>{% endfor %}
   </div>
   {% if page_obj.has_other_pages %}<nav class="staff-pagination" aria-label="Ticket pages">{% if page_obj.has_previous %}<a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
 </section>

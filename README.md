@@ -198,7 +198,7 @@ that can still be changed.
 
 ## Personal account and appearance
 
-Managers, Admin and General Manager have **Customer experience → Customer reviews**
+Managers, Admin and General Manager have **Customer experience → Tickets**
 for branch-scoped review tickets and separate issue actions, service descriptions,
 closure outcomes, assignment-confirmed acknowledgement previews, controlled public
 follow-up drafts and operational reporting. See the
