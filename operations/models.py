@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -532,3 +533,175 @@ class FeedbackAnswer(models.Model):
 
     def __str__(self):
         return f"{self.feedback.visit.customer.name} - {self.rating}/5 (Visit #{self.feedback.visit_id})"
+
+
+def review_snapshot_expiry():
+    return timezone.now() + timedelta(days=30)
+
+
+class ReviewCase(TimeStamped):
+    """Internal work record; source review content lives in an expiring snapshot."""
+    STATUS = [('NEW', 'New'), ('ACKNOWLEDGED', 'Acknowledged'), ('IN_PROGRESS', 'In progress'),
+              ('WAITING', 'Waiting'), ('READY', 'Ready to close'), ('CLOSED', 'Closed')]
+    OUTCOMES = [('RESOLVED', 'Resolved'), ('PARTIAL', 'Partially resolved'),
+                ('UNRESOLVED', 'Unresolved'), ('NOT_ACTIONABLE', 'Not actionable')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='review_cases')
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='review_cases')
+    source_key = models.CharField(max_length=200, unique=True, default=uuid.uuid4)
+    synthetic = models.BooleanField(default=False, db_index=True)
+    subject = models.CharField(max_length=180)
+    customer_label = models.CharField(max_length=120, blank=True)
+    service_description = models.TextField(blank=True, max_length=3000)
+    status = models.CharField(max_length=20, choices=STATUS, default='NEW', db_index=True)
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    sensitive = models.BooleanField(default=False)
+    case_followup_requires_human = models.BooleanField(default=True)
+    requires_senior_closure = models.BooleanField(default=False)
+    requires_senior_followup = models.BooleanField(default=False)
+    ai_requires_human_review = models.BooleanField(default=False)
+    version = models.PositiveIntegerField(default=1)
+    closure_summary = models.TextField(blank=True, max_length=3000)
+    closure_outcome = models.CharField(max_length=20, choices=OUTCOMES, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_cases_closed')
+
+    class Meta:
+        ordering = ['received_at', 'id']
+        indexes = [models.Index(fields=['branch', 'synthetic', 'status'])]
+
+    @property
+    def reference(self):
+        return f'RV-{str(self.pk)[:8].upper()}'
+
+    def __str__(self):
+        return f'{self.reference} · {self.subject}'
+
+
+class ReviewSnapshot(models.Model):
+    case = models.OneToOneField(ReviewCase, on_delete=models.CASCADE, related_name='snapshot')
+    text = models.TextField(blank=True, max_length=6000)
+    rating = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    fetched_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(default=review_snapshot_expiry)
+
+    @property
+    def available(self):
+        return self.expires_at > timezone.now()
+
+
+class ReviewIssue(TimeStamped):
+    STATUS = [('NEW', 'New'), ('ACKNOWLEDGED', 'Acknowledged'), ('IN_PROGRESS', 'In progress'),
+              ('WAITING', 'Waiting'), ('RESOLVED', 'Resolved'),
+              ('CLOSED_UNRESOLVED', 'Closed unresolved'), ('NOT_ACTIONABLE', 'Not actionable')]
+    TERMINAL = ('RESOLVED', 'CLOSED_UNRESOLVED', 'NOT_ACTIONABLE')
+    PRIORITIES = [('LOW', 'Low'), ('NORMAL', 'Normal'), ('HIGH', 'High'), ('URGENT', 'Urgent')]
+    CATEGORIES = [('WAITING', 'Waiting time'), ('SERVICE', 'Service quality'), ('STAFF', 'Staff communication'),
+                  ('BILLING', 'Billing'), ('HYGIENE', 'Hygiene'), ('HEALTH', 'Injury / health'),
+                  ('CONDUCT', 'Sensitive conduct'), ('OTHER', 'Other')]
+    CONFIRMATION = [('UNKNOWN', 'Unknown'), ('CONFIRMED', 'Customer confirmed'),
+                    ('NOT_CONFIRMED', 'Not confirmed'), ('NOT_CONTACTABLE', 'Not contactable')]
+    CUSTOMER_FOLLOWUP = [('NOT_CONTACTED', 'Not contacted'), ('AWAITING_REPLY', 'Awaiting reply'), ('CONTACTED', 'Contacted')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    case = models.ForeignKey(ReviewCase, on_delete=models.CASCADE, related_name='issues')
+    category = models.CharField(max_length=20, choices=CATEGORIES)
+    reported_issue = models.TextField(max_length=2000)
+    ai_priority = models.CharField(max_length=10, choices=PRIORITIES, blank=True)
+    confirmed_priority = models.CharField(max_length=10, choices=PRIORITIES, blank=True)
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='review_issues')
+    status = models.CharField(max_length=24, choices=STATUS, default='NEW', db_index=True)
+    action_summary = models.TextField(blank=True, max_length=3000)
+    outcome = models.TextField(blank=True, max_length=3000)
+    evidence_reference = models.CharField(max_length=250, blank=True)
+    customer_confirmation = models.CharField(max_length=20, choices=CONFIRMATION, default='UNKNOWN')
+    customer_followup = models.CharField(max_length=20, choices=CUSTOMER_FOLLOWUP, default='NOT_CONTACTED')
+    followup_submitted_at = models.DateTimeField(null=True, blank=True)
+    followup_submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_followups_submitted')
+    waiting_reason = models.CharField(max_length=20, blank=True, choices=[
+        ('CUSTOMER', 'Waiting for customer'), ('INTERNAL', 'Internal follow-up'), ('EXTERNAL', 'External assistance')])
+    next_review_at = models.DateTimeField(null=True, blank=True)
+    due_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_issues_completed')
+    cycle = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    @property
+    def is_terminal(self):
+        return self.status in self.TERMINAL
+
+    @property
+    def overdue(self):
+        return not self.is_terminal and self.due_at is not None and self.due_at < timezone.now()
+
+    @property
+    def staff_followup_label(self):
+        if self.status == 'RESOLVED':
+            return 'Completed'
+        if self.status in ('NEW', 'ACKNOWLEDGED'):
+            return 'Not started'
+        if self.status in self.TERMINAL:
+            return self.get_status_display()
+        return 'In progress'
+
+
+class ReviewActivity(models.Model):
+    case = models.ForeignKey(ReviewCase, on_delete=models.CASCADE, related_name='activities')
+    issue = models.ForeignKey(ReviewIssue, on_delete=models.SET_NULL, null=True, blank=True)
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
+    action = models.CharField(max_length=60)
+    note = models.TextField(blank=True, max_length=6000)
+    from_status = models.CharField(max_length=24, blank=True)
+    to_status = models.CharField(max_length=24, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+
+class ReviewReply(TimeStamped):
+    STATUS = [('NONE', 'No draft'), ('DRAFT', 'Draft'), ('AWAITING_APPROVAL', 'Awaiting approval'),
+              ('APPROVED', 'Approved internally'), ('NO_REPLY', 'No public reply planned')]
+    case = models.OneToOneField(ReviewCase, on_delete=models.CASCADE, related_name='reply')
+    text = models.TextField(blank=True, max_length=4000)
+    revision = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=24, choices=STATUS, default='NONE')
+    author = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_reply_drafts')
+    approved_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_replies_approved')
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+
+class ReviewAcknowledgement(TimeStamped):
+    """Trusted template intent; preview never dispatches it to Google."""
+    STATUS = [('HELD', 'Pending manager assignment'), ('PREVIEW', 'Ready in preview · not sent'),
+              ('QUEUED', 'Queued'), ('SUBMITTED', 'Submitted · visibility unconfirmed'),
+              ('PUBLISHED', 'Publication confirmed'), ('FAILED', 'Failed'),
+              ('UNKNOWN', 'Unknown · reconcile before retry'), ('NO_REPLY', 'No acknowledgement planned')]
+    case = models.OneToOneField(ReviewCase, on_delete=models.CASCADE, related_name='acknowledgement')
+    intent_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    template_key = models.CharField(max_length=60)
+    policy_version = models.CharField(max_length=40, default='ack-preview-v1')
+    text = models.TextField(blank=True, max_length=1000)
+    status = models.CharField(max_length=20, choices=STATUS, default='HELD')
+    assignment_confirmed_at = models.DateTimeField(null=True, blank=True)
+    assigned_manager = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
+    source_fetched_at = models.DateTimeField(null=True, blank=True)
+    acknowledgement_sent_at = models.DateTimeField(null=True, blank=True)
+    publication_confirmed_at = models.DateTimeField(null=True, blank=True)
+
+
+class ReviewNotification(TimeStamped):
+    case = models.ForeignKey(ReviewCase, on_delete=models.CASCADE, related_name='notifications')
+    recipient = models.ForeignKey(User, on_delete=models.PROTECT)
+    dedupe_key = models.CharField(max_length=200, unique=True)
+    status = models.CharField(max_length=12, default='PENDING', choices=[
+        ('PENDING', 'Pending delivery'), ('PREVIEW', 'Preview only · no delivery'), ('DELIVERED', 'Delivered')])
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['recipient', 'read_at', '-created_at'], name='review_alert_rec_read_idx')]

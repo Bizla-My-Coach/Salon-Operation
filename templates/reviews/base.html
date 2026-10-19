@@ -1,0 +1,8 @@
+{% extends 'base.html' %}{% load static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/reviews.css' %}">{% endblock %}
+{% block content %}
+<div class="reviews-workspace">
+{% if demo %}<div class="review-demo"><strong>Demo workspace</strong><span>Fictional reviews and tickets for verification. Excluded from live reporting. Nothing is posted to Google.</span><a href="{% url 'review_inbox' %}">Exit demo</a></div>{% endif %}
+{% block reviews_content %}{% endblock %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'reviews/base.html' %}
+{% block title %}{{ case.reference }} · Tickets{% endblock %}
+{% block reviews_content %}
+<div class="review-simple-page">
+<a class="review-back" href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">← Tickets</a>
+<header class="review-page-head review-detail-head"><div><span class="eyebrow">{{ case.reference }} · {{ case.branch.name }}</span><h1>{{ case.subject }}</h1><p>{{ case.customer_label|default:'Customer review' }} · {{ case.received_at|date:'d M Y, H:i' }}</p></div><span class="review-state state-{{ case.status|lower }}">{% if case.status == 'CLOSED' %}Closed{% elif case.acknowledged_at %}Accepted{% else %}New{% endif %}</span></header>
+{% if action_error %}<div class="notice error" role="alert">Your update was not saved. Check the form below.</div>{% endif %}
+<section class="panel review-source">
+  <div class="review-section-heading"><h2>Customer review</h2>{% if case.snapshot.available and case.snapshot.rating %}<span class="review-star">★ {{ case.snapshot.rating }} / 5</span>{% endif %}</div>
+  {% if case.snapshot.available %}<blockquote>{{ case.snapshot.text|default:'No written review provided.'|linebreaksbr }}</blockquote>{% else %}<p class="muted">The original review is no longer available. Your follow-up history is kept below.</p>{% endif %}
+  {% if case.sensitive %}<p class="review-care-note">Sensitive feedback — handle the customer's details privately.</p>{% endif %}
+  {% if issues %}{% if not case.acknowledged_at and case.status != 'CLOSED' %}<form method="post" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="acknowledge">{{ version_form }}<button class="button primary" type="submit">Accept review</button></form>{% elif case.acknowledged_at %}<p class="review-footnote">Accepted {{ case.acknowledged_at|date:'d M Y, H:i' }}</p>{% endif %}{% else %}<p class="review-no-issues">No issues reported.</p>{% endif %}
+</section>
+{% if issues %}
+<div class="review-section-heading review-simple-heading"><div><h2>Issues to follow up</h2><p class="muted">{{ complete_count }} of {{ issues|length }} completed</p></div></div>
+<p class="review-followup-help"><strong>Customer follow-up</strong> tracks contact with the customer. <strong>Staff follow-up</strong> tracks the team's work. Contacted does not mean the customer confirmed the solution.</p>
+<div class="review-simple-issues">
+{% for issue in issues %}
+<article class="panel review-issue-card" id="issue-{{ issue.pk }}">
+  <div class="review-section-heading"><h3><span class="review-issue-number">{{ forloop.counter }}</span>{{ issue.get_category_display }}</h3><span class="review-state state-{{ issue.status|lower }}">{{ issue.staff_followup_label }}</span></div>
+  <p class="review-issue-report">{{ issue.reported_issue|linebreaksbr }}</p>
+  <dl class="review-followup-facts"><div><dt>Customer follow-up</dt><dd>{{ issue.get_customer_followup_display }}</dd></div><div><dt>Staff follow-up</dt><dd>{{ issue.staff_followup_label }}</dd></div></dl>
+  {% if issue.action_summary %}<div class="review-action-summary"><p>{{ issue.action_summary|linebreaksbr }}</p></div>{% endif %}
+  {% if issue.followup_submitted_at %}<p class="review-footnote">Updated {{ issue.followup_submitted_at|date:'d M Y, H:i' }}{% if issue.followup_submitted_by %} · {{ issue.followup_submitted_by.get_full_name|default:issue.followup_submitted_by.username }}{% endif %}</p>{% endif %}
+  {% if case.status != 'CLOSED' %}<details class="review-update" {% if issue.expanded %}open{% endif %}><summary>Update follow-up</summary><form method="post" class="form-grid review-followup-form" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="followup"><input type="hidden" name="issue_id" value="{{ issue.pk }}">{{ issue.form.as_p }}<p class="review-footnote">The submission time is saved automatically.</p><button class="button primary" type="submit">Save update</button></form></details>{% endif %}
+</article>
+{% endfor %}
+</div>
+{% if case.status != 'CLOSED' %}<details class="panel review-add-issue"><summary>+ Add another reported issue</summary><form method="post" class="form-grid" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="add_issue">{{ add_issue_form.as_p }}<button class="button primary" type="submit">Add issue</button></form></details>{% endif %}
+{% endif %}
+{% if issues or senior %}
+<section class="panel review-close-panel review-simple-close">
+  {% if case.status == 'CLOSED' %}<h2>Review closed</h2><p>{{ case.closure_summary|linebreaksbr }}</p><p class="review-footnote">{{ case.closed_at|date:'d M Y, H:i' }} · {{ case.get_closure_outcome_display }}</p><details class="review-update"><summary>Reopen review</summary><form method="post" class="form-grid" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="reopen">{{ reason_form.as_p }}<button class="button outline" type="submit">Reopen with reason</button></form></details>
+  {% elif open_issues %}<h2>Finish the follow-up</h2><p class="muted">{{ open_issues }} staff follow-up{{ open_issues|pluralize }} still open. Complete each one before closing this review.</p>
+  {% elif case.requires_senior_closure and not senior %}<h2>Ready for final review</h2><p class="muted">Your company requires Admin or General Manager approval to close this review.</p>
+  {% elif issues %}<h2>Ready to close</h2><p class="muted">All staff follow-ups are completed. Your action / service notes will be kept with the closed review.</p><form method="post" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="close_simple">{{ version_form }}<button class="button primary" type="submit">Close ticket</button></form>
+  {% else %}<h2>Mark as reviewed</h2><form method="post" class="form-grid" action="{% url 'review_action' case.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="close_no_issue">{{ reason_form.as_p }}<button class="button primary" type="submit">Mark reviewed</button></form>{% endif %}
+</section>
+{% endif %}
+<details class="panel review-timeline review-simple-history"><summary>Follow-up history</summary><ol>{% for activity in activities %}<li><div><strong>{{ activity.action }}</strong><time>{{ activity.created_at|date:'d M Y, H:i' }}</time></div><small>{% if activity.actor %}{{ activity.actor.get_full_name|default:activity.actor.username }}{% else %}System{% endif %}{% if activity.issue %} · {{ activity.issue.get_category_display }}{% endif %}</small>{% if activity.note %}<p>{{ activity.note|linebreaksbr }}</p>{% endif %}</li>{% empty %}<li>No follow-ups yet.</li>{% endfor %}</ol></details>
+</div>
+{% endblock %}

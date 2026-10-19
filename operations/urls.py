@@ -4,7 +4,16 @@ from . import views
 from . import workbook_views
 from . import staff_import_views
 from . import import_views
+from . import review_views
 urlpatterns=[
+path('reviews/', review_views.inbox, name='review_inbox'),
+path('reviews/new/', review_views.create, name='review_create'),
+path('reviews/reports/', review_views.reports, name='review_reports'),
+path('reviews/notifications/', review_views.notifications, name='review_notifications'),
+path('reviews/notifications/read-all/', review_views.notifications_read_all, name='review_notifications_read_all'),
+path('reviews/notifications/<int:notification_id>/open/', review_views.notification_open, name='review_notification_open'),
+path('reviews/<uuid:case_id>/', review_views.detail, name='review_detail'),
+path('reviews/<uuid:case_id>/action/', review_views.action, name='review_action'),
 path('imports/', import_views.import_data, name='import_data'),
 path('imports/branches/', import_views.branch_csv_import, name='branch_csv_import'),
 path('imports/branches/template/', import_views.branch_csv_template, name='branch_csv_template'),
