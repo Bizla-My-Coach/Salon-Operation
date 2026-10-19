@@ -203,8 +203,9 @@ the account name, open **Profile**, switch between light and dark mode, or sign
 out. Light is the default; an explicitly chosen theme is remembered per account
 in that browser. Sign out is available in the profile menu, not the sidebar. The profile
 page edits first/last name, email and mobile; roles and branch assignments remain
-administrator-controlled. Password changes require the current password and
-keep the current session signed in.
+administrator-controlled. **Change password** opens a dedicated page directly
+from the profile icon on desktop and mobile. Password changes require the current
+password and keep the current session signed in.
 
 Managers have an **All staff** sidebar link for their current branch's employees,
 including home-branch staff on leave or working elsewhere and today's visiting
@@ -212,7 +213,8 @@ cover staff. General managers can use it while rostered as acting branch manager
 
 Admin and General Manager can onboard staff through **All staff → Upload staff
 CSV**, including experience and salary. Validate and review before confirming;
-each new account gets individual credentials in a one-time download. See the
+each new account gets an individual random 8-character password (uppercase,
+lowercase, numbers and symbols) in a one-time download. See the
 [staff CSV guide](docs/staff-csv-import.md) for the format and safeguards.
 
 The **Import data** sidebar section brings branch/chair CSV, staff CSV and SOP
