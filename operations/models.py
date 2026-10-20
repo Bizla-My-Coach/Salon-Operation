@@ -626,9 +626,13 @@ class ReviewIssue(TimeStamped):
     completed_at = models.DateTimeField(null=True, blank=True)
     completed_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='review_issues_completed')
     cycle = models.PositiveIntegerField(default=1)
+    aws_issue_id = models.CharField(max_length=120, blank=True)
+    source_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['created_at', 'id']
+        constraints = [models.UniqueConstraint(fields=['case', 'aws_issue_id'],
+            condition=~models.Q(aws_issue_id=''), name='unique_aws_issue_per_case')]
 
     @property
     def is_terminal(self):
@@ -646,6 +650,8 @@ class ReviewIssue(TimeStamped):
             return 'Not started'
         if self.status in self.TERMINAL:
             return self.get_status_display()
+        if self.status == 'WAITING':
+            return 'Awaiting follow-up'
         return 'In progress'
 
 
@@ -705,3 +711,122 @@ class ReviewNotification(TimeStamped):
 
     class Meta:
         indexes = [models.Index(fields=['recipient', 'read_at', '-created_at'], name='review_alert_rec_read_idx')]
+
+
+REVIEW_ENVIRONMENTS = [('production', 'Production'), ('sandbox', 'Sandbox')]
+PUBLICATION_STATES = [(s, s.replace('_', ' ').title()) for s in
+    ('pending', 'published', 'failed', 'skipped', 'human_review')]
+
+
+class GoogleReviewLocation(TimeStamped):
+    """Trusted server-side location mapping; AWS/AI cannot choose the branch."""
+    environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS)
+    location_name = models.CharField(max_length=300)
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['environment', 'location_name'], name='unique_google_location_env')]
+
+    def __str__(self):
+        return f'{self.environment}: {self.location_name} → {self.branch}'
+
+
+class GoogleReview(TimeStamped):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS, db_index=True)
+    review_name = models.CharField(max_length=400)
+    account_name = models.CharField(max_length=120)
+    location_name = models.CharField(max_length=300)
+    google_review_id = models.CharField(max_length=160)
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='google_reviews')
+    case = models.OneToOneField(ReviewCase, on_delete=models.PROTECT, null=True, blank=True, related_name='google_review')
+    star_rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    review_text = models.TextField(blank=True, max_length=6000)
+    reviewer_display_name = models.CharField(max_length=120, blank=True)
+    google_created_at = models.DateTimeField()
+    google_updated_at = models.DateTimeField(db_index=True)
+    analysis_version = models.CharField(max_length=160)
+    analysis = models.JSONField(default=dict)
+    processing = models.JSONField(default=dict)
+    analyzed_at = models.DateTimeField()
+    profile_key = models.CharField(max_length=120, blank=True)
+    version_fingerprint = models.CharField(max_length=64)
+    sentiment = models.CharField(max_length=12, choices=[(s, s.title()) for s in ('positive', 'negative', 'mixed', 'neutral', 'unknown')])
+    priority = models.CharField(max_length=10, choices=ReviewIssue.PRIORITIES, default='NORMAL')
+    requires_human_review = models.BooleanField(default=False)
+    needs_followup = models.BooleanField(default=False)
+    generated_reply = models.TextField(blank=True, max_length=4000)
+    publication_status = models.CharField(max_length=16, choices=PUBLICATION_STATES, default='pending')
+    published_text = models.TextField(blank=True, max_length=4000)
+    published_at = models.DateTimeField(null=True, blank=True)
+    publication_failure_code = models.CharField(max_length=120, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='google_reviews_closed')
+    closed_review_version = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-google_updated_at', 'id']
+        constraints = [models.UniqueConstraint(fields=['environment', 'review_name'], name='unique_google_review_env')]
+        indexes = [models.Index(fields=['environment', 'branch', 'sentiment'])]
+
+    @property
+    def simple_closed(self):
+        return bool(self.closed_at and self.closed_review_version == self.google_updated_at)
+
+    @property
+    def handling_status(self):
+        if self.case_id:
+            if self.case.closure_outcome in ('UNRESOLVED', 'PARTIAL'):
+                return 'Unresolved'
+            if self.case.closed_at:
+                return 'Resolved' if self.case.closure_outcome == 'RESOLVED' else 'Closed after follow-up'
+            if self.case.issues.filter(status='CLOSED_UNRESOLVED').exists():
+                return 'Unresolved'
+            return {'NEW': 'Open', 'ACKNOWLEDGED': 'In progress', 'IN_PROGRESS': 'In progress',
+                    'WAITING': 'Awaiting follow-up', 'READY': 'Ready to close'}.get(self.case.status, 'Open')
+        return 'Closed' if self.simple_closed else 'Open'
+
+
+class GoogleReviewEvent(models.Model):
+    """Immutable source payload and original receipt, including quarantined events."""
+    environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS)
+    event_id = models.CharField(max_length=160)
+    kind = models.CharField(max_length=16, choices=[('review', 'Review ingestion'), ('publication', 'Publication outcome')])
+    fingerprint = models.CharField(max_length=64)
+    payload = models.JSONField()
+    review_name = models.CharField(max_length=400)
+    review = models.ForeignKey(GoogleReview, on_delete=models.PROTECT, null=True, blank=True, related_name='events')
+    status = models.CharField(max_length=20, default='committed')
+    receipt = models.JSONField(default=dict)
+    received_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-received_at', '-id']
+        constraints = [models.UniqueConstraint(fields=['environment', 'event_id'], name='unique_google_event_env')]
+
+
+class GoogleReplyPublication(models.Model):
+    event = models.OneToOneField(GoogleReviewEvent, on_delete=models.PROTECT, related_name='publication')
+    environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS)
+    review_name = models.CharField(max_length=400)
+    review_updated_at = models.DateTimeField()
+    analysis_version = models.CharField(max_length=160)
+    occurred_at = models.DateTimeField()
+    status = models.CharField(max_length=16, choices=PUBLICATION_STATES)
+    actual_reply_text = models.TextField(blank=True, max_length=4000)
+    published_at = models.DateTimeField(null=True, blank=True)
+    failure_code = models.CharField(max_length=120, blank=True)
+    reply_kind = models.CharField(max_length=60, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['environment', 'review_name', 'review_updated_at'])]
+
+
+class GoogleReviewAction(models.Model):
+    review = models.ForeignKey(GoogleReview, on_delete=models.PROTECT, related_name='actions')
+    actor = models.ForeignKey(User, on_delete=models.PROTECT)
+    action = models.CharField(max_length=30)
+    note = models.TextField(blank=True, max_length=1500)
+    review_version = models.DateTimeField()
+    created_at = models.DateTimeField(default=timezone.now)

@@ -17,6 +17,7 @@ fi
 python manage.py seed_codespaces --check-environment
 python manage.py migrate --noinput
 python manage.py seed_codespaces
+python manage.py seed_google_review_demo
 python manage.py collectstatic --noinput
 printf '\nSalonOps test is starting: %s\nAdmin login: admin / admin\nStop with Ctrl+C; run this command again to resume.\n\n' "${SALONOPS_CODESPACES_ORIGIN:-http://127.0.0.1:8000}"
 exec python manage.py runserver 0.0.0.0:8000 --noreload

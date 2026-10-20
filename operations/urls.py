@@ -5,7 +5,16 @@ from . import workbook_views
 from . import staff_import_views
 from . import import_views
 from . import review_views
+from . import google_review_api
+from . import google_review_views
 urlpatterns=[
+path('api/v1/google-reviews/ingest/', google_review_api.reviews, name='google_review_ingest'),
+path('api/v1/google-reviews/publications/', google_review_api.publications, name='google_review_publications'),
+path('reviews/google/', google_review_views.inbox, name='google_review_inbox'),
+path('reviews/google/analytics/', google_review_views.analytics, name='google_review_analytics'),
+path('reviews/google/assignments/', google_review_views.assignment_queue, name='google_review_assignments'),
+path('reviews/google/<uuid:review_id>/', google_review_views.detail, name='google_review_detail'),
+path('reviews/google/<uuid:review_id>/action/', google_review_views.action, name='google_review_action'),
 path('reviews/', review_views.inbox, name='review_inbox'),
 path('reviews/new/', review_views.create, name='review_create'),
 path('reviews/reports/', review_views.reports, name='review_reports'),

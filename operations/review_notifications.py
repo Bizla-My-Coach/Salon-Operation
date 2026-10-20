@@ -18,7 +18,7 @@ def visible_notifications(user, synthetic=False):
         return ReviewNotification.objects.none()
     return ReviewNotification.objects.filter(
         recipient=user, case__owner=user, case__synthetic=synthetic,
-        case__in=review_scope(user).filter(issues__isnull=False),
+        case__in=review_scope(user).filter(case_followup_requires_human=True),
     )
 
 

@@ -77,6 +77,9 @@ AUTH_PASSWORD_VALIDATORS=[
 # Additional senior approval is optional; sensitivity alone does not block manager closure.
 REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL', False)
 REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL', False)
+# Dedicated receive-only AWS API credentials. No session or demo-password fallback.
+REVIEW_API_TOKENS={'production': os.getenv('REVIEW_API_TOKEN_PRODUCTION', ''), 'sandbox': os.getenv('REVIEW_API_TOKEN_SANDBOX', '')}
+REVIEW_API_REQUIRE_HTTPS=env_bool('REVIEW_API_REQUIRE_HTTPS', not DEBUG)
 LANGUAGE_CODE='en-us'; TIME_ZONE=os.getenv('TIME_ZONE','Asia/Kolkata'); USE_I18N=True; USE_TZ=True
 STATIC_URL='static/'; STATIC_ROOT=BASE_DIR/'staticfiles'; STATICFILES_DIRS=[BASE_DIR/'static']
 STORAGES={'default':{'BACKEND':'django.core.files.storage.FileSystemStorage'},'staticfiles':{'BACKEND':'whitenoise.storage.CompressedManifestStaticFilesStorage'}}

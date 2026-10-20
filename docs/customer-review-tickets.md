@@ -1,118 +1,48 @@
-# Customer review tickets — verification release
+# Customer review tickets
 
-Open **Customer experience → Tickets** in the sidebar. Managers see only
-their current working branch, including dated cover/leave rules. Admin and General
-Manager can see all branches and reassign work to currently eligible branch managers.
-Employees have no access. Opening a page does not acknowledge work.
+Open **Customer experience → Tickets**. All reviews stores Google appreciations,
+complaints, mixed feedback and rating-only reviews. Appreciations have a simple
+**Close ticket** action without an investigation. Investigations contains reported
+issues and cases needing human follow-up, including low ratings without an
+explanation; a rating alone does not invent a complaint.
 
-The daily page is deliberately short: **Accept review**, one card per reported
-issue, and **Update follow-up**. Managers' inboxes contain only reviews with issues.
-Admin and General Manager see every review, including feedback with no reported
-issue, and can combine branch, Open / Closed and priority filters. Priority uses
-staff-confirmed values when available, otherwise the existing suggestion.
+Managers see their current working branch, including dated cover/leave rules.
+Admin/GM see all branches, branch analytics and Needs assignment. Employees have
+no access. Filters cover branch, handling state, sentiment and priority. Cards
+remain compact with larger text and bold headings.
 
-The inbox uses compact cards with a one-line review excerpt and up to two issue
-categories; any additional issues are counted and remain fully visible on the
-ticket. Larger text and bold headings are retained.
+The daily investigation page uses **Accept review**, one card per reported issue,
+and **Update follow-up**. Customer status is Not contacted / Awaiting reply /
+Contacted. Staff status is Not started / In progress / Awaiting follow-up /
+Resolved / Unresolved / Not actionable. Add a short action/service note.
+Submission time and actor are saved automatically. Customer contact does not imply
+confirmed satisfaction. Existing notes, outcomes, confirmations and staff priority
+choices survive AWS edits; health issues always remain urgent.
 
-A notification bell appears beside the profile menu on desktop and mobile.
-Assignment alerts are available in-app immediately after intake commits. The bell
-checks for new alerts every 30 seconds while the app is visible, and on focus or
-opening the bell. Only the recipient's currently assigned, accessible branch
-reviews with issues appear; positive/no-issue reviews stay outside this queue.
-Unread counts persist per manager. Opening an alert or choosing **Mark all as
-read** records read time through a CSRF-protected POST, without accepting or
-closing the review. Reassignment, current branch duty and demo/live isolation are
-rechecked on every feed and read action. The dropdown shows up to 20 alerts, with
-unread alerts first; its badge counts every unread alert. No browser permission is
-required. These are in-app alerts; email, SMS and device push are not connected.
+Every issue needs an explicit outcome and action note before **Close ticket**.
+The notes become the closure/service record without asking staff to retype them.
+Unresolved and partial outcomes remain visibly Unresolved and are excluded from
+successful resolution counts/timing. Closed work can be reopened with a reason.
+Stale edits return 409. Low-rating cases with zero issues use **Record clarification
+outcome** instead of empty issue cards. Company sensitive-closure policy still
+applies to internal work. Admin/GM can expand Assign manager when needed.
 
-The update form contains customer follow-up (Not contacted / Awaiting reply /
-Contacted), staff follow-up (Not started / In progress / Completed), and one short
-action/service note. Customer contact does not imply confirmed satisfaction. Every
-submission records server time and the actor automatically; there is no date input.
-Existing outcomes, notes, priorities and confirmation history are retained.
+The bell beside the profile menu works on desktop and mobile. It polls while the
+app is visible and on focus/open, showing the recipient's accessible assigned
+follow-up cases. Reading an alert does not accept or close the review. Read state
+persists; reassignment and branch scope are rechecked. Appreciations create no
+complaint alert. These are in-app alerts; external SMS/email/push are not connected.
 
-Once all staff follow-ups are completed, **Close ticket** saves the issue notes as
-the closure/service record without asking staff to type them again. The server
-still blocks closure if any issue is open, preserves unresolved/not-actionable
-outcomes from existing records, and checks optional company senior-closure policy.
-Closed records can be reopened with a reason. Stale edits return 409.
+AWS-linked tickets show public reply status separately. The app does not publish
+or approve Google replies. Publication can succeed while an investigation stays
+open, and app downtime or missing assignments must not delay AWS publication.
+Legacy staff-recorded acknowledgement/draft records remain historical internal
+records, without a Google publisher. They do not control the new integration.
 
-The manager-facing page omits automatic acknowledgement, ownership-management and
-substantive-response panels. Those backend records remain separate from operational
-work; hiding a panel does not send or delete an external response. Follow-up history
-is collapsed by default. Reviews without issues have no empty issue cards; HQ may
-mark them reviewed with a short note, without counting them as solved complaints.
-
-Automatic acknowledgements and substantive follow-ups are separate. A persisted
-manager assignment prepares a fixed, generic acknowledgement, including for
-sensitive complaints, without a manual approval wait. A missing manager holds the
-intent and no referral text is prepared. Eligibility rechecks current owner and
-source freshness. AI human-review provenance remains unchanged. The intent has a
-stable ID and template/policy version; acknowledgement-sent time is separate from
-manager-first-acknowledged time. Updating issue status never rewrites public text.
-
-Assignment and an idempotent notification outbox record commit with intake;
-delivery is not claimed. Synthetic entries are preview-only. Live pending entries
-need a configured dispatcher before external delivery. In-app read status is
-separate from external delivery status; no external notifications are sent.
-
-Substantive public follow-ups are editable controlled drafts. Editing resets their
-approval. Neither an acknowledgement nor a follow-up closes operational work.
-No Google credentials, publisher, Lambda calls or machine ingestion are enabled.
-The updated handoff is a reference specification, not a deployed API. The companion
-event and actual integration repository were not attached. The intake page is for
-staff-recorded feedback, not arbitrary Google event JSON. Preview intents are not
-dispatched, and the browser cannot turn on publishing.
-
-Reports show current case and issue counts, separate closure outcomes, current
-owner workload and branch summaries. No historical backlog or rating-trend claims
-are made. Synthetic records are excluded unless the explicitly labelled demo workspace
-is selected. SLA deadlines are not invented; unset targets show “SLA not configured”.
-
-## Local verification
-
-Use an isolated development PostgreSQL database whose name ends in
-`_review_preview`. Run migrations there and pipe a demo-only password to:
-
-```sh
-python manage.py seed_review_demo
-```
-
-The command refuses other databases / nondevelopment environments, creates fictional
-branches and three demo accounts, and preserves existing users and case progress on
-repeat runs. Open `/reviews/?demo=1` after signing in as `review.manager` or
-`review.admin`. `review.other` verifies branch isolation. The fixtures include:
-
-- A five-star review with two issues and a reply awaiting approval.
-- In-progress and waiting work, a sensitive urgent suggestion, a ready-to-close
-  ticket, and a closed ticket with service notes.
-- Positive feedback without a complaint, a one-star review without text,
-  a different branch's case, and a branch needing manager assignment.
-
-Verification: update one of two issues and confirm the parent stays open; complete
-both and close; the action/service notes are retained; reopen with a reason. Try saving an
-old tab after another update and expect a conflict. Confirm a reply approval does
-not close the ticket. Confirm that a manager can close a completed sensitive case
-under the default policy, the generic acknowledgement contains no sensitive details,
-and another branch's guessed URL is denied. Compare demo reporting to the empty live workspace.
-
-## Integration still to connect
-
-Connect trusted Google location → internal branch mapping and machine authentication
-before accepting worker events. Validate every identity/version, deduplicate event
-IDs/payload fingerprints, preserve issue IDs and staff actions through reanalysis,
-and quarantine unknown/stale events. No model may select branch or manager identity.
-Connect the persisted outbox to an approved dispatcher and configure SLA/escalation
-policy before delivery. Connect the fixed-template acknowledgement intent only after
-trusted assignment persistence. Failed assignment must not produce a referral claim.
-
-Source snapshots are separate and expire after 30 days in this initial staff/demo
-workflow. Pages stop exposing expired source text/rating immediately; run
-`python manage.py expire_review_snapshots` to clear stored expired snapshots.
-This is not a claim of approved Google retention. Before live API intake, confirm
-permitted storage/use, apply expiry to every source-derived field (including AI
-issue text), drafts, logs, exports and backups, and add a permitted refresh path.
-Publishing requires a separate approved backend with source/draft freshness checks,
-idempotent intents and reconciliation of unknown writes. The UI cannot enable it.
+See [Google integration](google-review-integration.md) for exact endpoints, secrets,
+request/receipt examples, migrations, retry/version rules and deployment steps.
+Sandbox data is isolated with `?demo=1` and excluded from live analytics and alerts.
+Codespaces seeds the sandbox examples automatically. An isolated development
+`*_review_preview` database can run `seed_review_demo` followed by
+`seed_google_review_demo`; other environments are refused. Demo progress survives
+repeated seeding. No seed command publishes to Google.

@@ -226,7 +226,9 @@ def update_issue(user, case_id, issue_id, version, data, synthetic=False):
     if issue.evidence_reference:
         note += '\nEvidence reference: ' + issue.evidence_reference
     if target == 'WAITING':
-        note += '\n' + issue.get_waiting_reason_display() + '; review ' + timezone.localtime(issue.next_review_at).strftime('%d %b %Y %H:%M')
+        note += '\n' + issue.get_waiting_reason_display()
+        if issue.next_review_at:
+            note += '; review ' + timezone.localtime(issue.next_review_at).strftime('%d %b %Y %H:%M')
     log(case, user, 'Issue reopened' if reopening else 'Issue updated', note, issue, previous, target)
     save_change(case)
     return case
@@ -243,8 +245,10 @@ def submit_followup(user, case_id, issue_id, version, data, synthetic=False):
     values = {name: getattr(issue, name) for name in ['confirmed_priority', 'assignee', 'outcome',
         'evidence_reference', 'customer_confirmation', 'waiting_reason', 'next_review_at']}
     values.update(status=target, action_summary=data['action_summary'])
-    if target == 'RESOLVED':
+    if target in ReviewIssue.TERMINAL:
         values['outcome'] = data['action_summary']
+    if target == 'WAITING':
+        values['waiting_reason'] = 'CUSTOMER' if data['customer_followup'] == 'AWAITING_REPLY' else 'INTERNAL'
     case = update_issue(user, case_id, issue_id, version, values, synthetic)
     issue.refresh_from_db()
     issue.customer_followup = data['customer_followup']
@@ -332,6 +336,8 @@ def reopen_case(user, case_id, version, reason, synthetic=False):
 @transaction.atomic
 def update_reply(user, case_id, version, action, text='', note='', synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
+    if hasattr(case, 'google_review'):
+        raise ValidationError('AWS manages Google replies independently. The application does not approve or publish them.')
     reply = case.reply
     if action != 'no_reply' and not case.snapshot.available:
         raise ValidationError('The source review has expired. Refresh it through an approved source before approving a reply.')

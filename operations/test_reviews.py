@@ -531,13 +531,13 @@ class ReviewTests(TestCase):
         self.assertIn('Corrective styling', self.case.service_description)
         self.assertFalse(self.case.issues.exclude(customer_confirmation='UNKNOWN').exists())
 
-    def test_manager_queue_excludes_no_issue_reviews_and_general_manager_sees_every_review(self):
+    def test_manager_queue_excludes_appreciations_but_includes_rating_only_followup(self):
         positive = self.record(subject='Positive with no issues', rating=5, issues=[])
         low = self.record(subject='Low rating with no text', rating=1, text='', issues=[])
         other = self.record(branch=self.b, subject='Another branch review')
         response = self.client.get(reverse('review_inbox') + '?tab=all')
         self.assertNotContains(response, positive.subject)
-        self.assertNotContains(response, low.subject)
+        self.assertContains(response, low.subject)
         self.assertContains(response, self.case.subject)
         self.client.force_login(self.gm)
         response = self.client.get(reverse('review_inbox'))
@@ -554,12 +554,12 @@ class ReviewTests(TestCase):
         self.assertNotContains(response, other.subject)
         self.assertNotContains(response, self.case.subject)
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
-        # A staff-confirmed normal priority takes precedence over the AI suggestion.
+        # Health concerns remain urgent even if staff select a lower priority.
         urgent.issues.update(confirmed_priority='NORMAL')
         response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'all', 'priority': 'URGENT'})
-        self.assertEqual(response.context['page_obj'].paginator.count, 0)
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
         urgent.issues.update(status='RESOLVED', action_summary='Follow-up finished.', outcome='Recorded.')
         workflow.close_from_followups(self.gm, urgent.pk, urgent.version)
-        response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'closed', 'priority': 'NORMAL'})
+        response = self.client.get(reverse('review_inbox'), {'branch': self.a.pk, 'tab': 'closed', 'priority': 'URGENT'})
         self.assertContains(response, urgent.subject)
         self.assertNotContains(response, self.case.subject)

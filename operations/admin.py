@@ -221,3 +221,41 @@ class FeedbackAnswerAdmin(admin.ModelAdmin):
 admin.site.site_header = "HAIR SHIP Administration"
 admin.site.site_title = "HAIR SHIP Admin"
 admin.site.index_title = "HAIR SHIP operations"
+
+from .models import GoogleReview, GoogleReviewEvent, GoogleReviewLocation, GoogleReplyPublication, GoogleReviewAction
+
+
+@admin.register(GoogleReviewLocation)
+class GoogleReviewLocationAdmin(admin.ModelAdmin):
+    list_display = ('environment', 'location_name', 'branch', 'active')
+    list_filter = ('environment', 'branch', 'active')
+    search_fields = ('location_name', 'branch__name')
+
+
+class ReceivedGoogleDataAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(GoogleReview)
+class GoogleReviewAdmin(ReceivedGoogleDataAdmin):
+    list_display = ('review_name', 'environment', 'branch', 'star_rating', 'sentiment', 'publication_status')
+    list_filter = ('environment', 'branch', 'sentiment', 'publication_status')
+    search_fields = ('review_name', 'reviewer_display_name')
+
+
+@admin.register(GoogleReviewEvent)
+class GoogleReviewEventAdmin(ReceivedGoogleDataAdmin):
+    list_display = ('event_id', 'environment', 'kind', 'status', 'received_at')
+    list_filter = ('environment', 'kind', 'status')
+    search_fields = ('event_id', 'review_name')
+
+
+admin.site.register(GoogleReplyPublication, ReceivedGoogleDataAdmin)
+admin.site.register(GoogleReviewAction, ReceivedGoogleDataAdmin)

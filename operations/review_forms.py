@@ -13,16 +13,15 @@ class VersionForm(BootstrapMixin, forms.Form):
 
 class FollowupUpdateForm(VersionForm):
     customer_followup = forms.ChoiceField(choices=ReviewIssue.CUSTOMER_FOLLOWUP, label='Customer follow-up')
-    staff_followup = forms.ChoiceField(choices=[('NEW', 'Not started'), ('IN_PROGRESS', 'In progress'), ('RESOLVED', 'Completed')], label='Staff follow-up')
+    staff_followup = forms.ChoiceField(choices=[('NEW', 'Not started'), ('IN_PROGRESS', 'In progress'),
+        ('WAITING', 'Awaiting follow-up'), ('RESOLVED', 'Resolved'), ('CLOSED_UNRESOLVED', 'Unresolved'),
+        ('NOT_ACTIONABLE', 'Not actionable')], label='Staff follow-up')
     action_summary = forms.CharField(max_length=3000, label='Action / service note',
         widget=forms.Textarea(attrs={'rows': 3}), help_text='Briefly describe what was done or what happens next.')
 
     def __init__(self, *args, case, issue, **kwargs):
-        status = 'NEW' if issue.status in ['NEW', 'ACKNOWLEDGED'] else 'RESOLVED' if issue.status == 'RESOLVED' else 'IN_PROGRESS'
+        status = 'NEW' if issue.status in ['NEW', 'ACKNOWLEDGED'] else issue.status
         choices = list(self.base_fields['staff_followup'].choices)
-        if issue.status in ['CLOSED_UNRESOLVED', 'NOT_ACTIONABLE']:
-            choices.append((issue.status, issue.get_status_display()))
-            status = issue.status
         super().__init__(*args, initial={'version': case.version, 'customer_followup': issue.customer_followup,
             'staff_followup': status, 'action_summary': issue.action_summary}, auto_id=f'followup-{issue.pk}-%s', **kwargs)
         self.fields['staff_followup'].choices = choices

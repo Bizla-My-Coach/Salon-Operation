@@ -13,7 +13,9 @@
    **stylist**, and **gm**, also with password **admin**, for testing each role.
 
 The command applies migrations, creates the demo accounts and salon/service/SOP
-data, adds three fictional reviews to **Tickets**, and starts the app. The admin
+data, adds fictional staff tickets and sandbox AWS Google reviews, and starts the app.
+Open **Tickets → All reviews** with `?demo=1` to verify appreciations, mixed
+complaints, sensitive issues, review edits and publication reconciliation. The admin
 can see all tickets and use Django Admin; the manager has a sample ticket and its
 notification. Use the same command after Ctrl+C or reopening the Codespace.
 Restart it after editing Python code; the development server uses `--noreload`.
