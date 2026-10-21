@@ -220,7 +220,7 @@ The original synthetic worker examples are in [worker-v2](examples/worker-v2/):
 positive, mixed, rating-only and sensitive. They share one Google identity/version,
 so test them independently or assign distinct synthetic review IDs for batch demos.
 The V3 suite derives queue/moderation scenarios without changing these originals.
-Codespaces still starts with `bash scripts/codespaces.sh`; sample review pages use
+Codespaces still starts with `bash scripts/codespace.sh`; sample review pages use
 `/reviews/google/?demo=1`. Do not give AWS a private Codespaces port URL.
 
 ```sh

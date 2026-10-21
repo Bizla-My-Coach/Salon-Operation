@@ -25,20 +25,22 @@ test('Codespaces initialization creates stable private secrets and exact forward
     } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
 
-test('Startup refreshes trusted origins in existing Codespaces without changing HTTPS cookie settings', () => {
+test('Both startup commands refresh trusted origins without changing HTTPS cookie settings', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'salonops-codespaces-start-'));
     try {
         fs.mkdirSync(path.join(root, 'scripts'));
+        fs.copyFileSync(path.join(__dirname, '../scripts/codespace.sh'), path.join(root, 'scripts/codespace.sh'));
         fs.copyFileSync(path.join(__dirname, '../scripts/codespaces.sh'), path.join(root, 'scripts/codespaces.sh'));
         const bin = path.join(root, 'bin');
         fs.mkdirSync(bin);
         fs.writeFileSync(path.join(bin, 'python'), '#!/bin/sh\nprintf "%s\\n%s\\n%s\\n" "$CSRF_TRUSTED_ORIGINS" "$SESSION_COOKIE_SECURE" "$CSRF_COOKIE_SECURE"\nexit 42\n', {mode: 0o755});
-        for (const name of ['fictional-test-123', '']) {
+        for (const [name, script] of ['fictional-test-123', ''].flatMap(name =>
+            ['codespace.sh', 'codespaces.sh'].map(script => [name, script]))) {
             const env = {...process.env, PATH: `${bin}:${process.env.PATH}`, CODESPACE_NAME: name,
                 GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: 'app.github.dev',
                 CSRF_TRUSTED_ORIGINS: 'https://old-8000.app.github.dev',
                 SESSION_COOKIE_SECURE: 'True', CSRF_COOKIE_SECURE: 'True'};
-            const result = spawnSync('bash', [path.join(root, 'scripts/codespaces.sh')], {env, encoding: 'utf8'});
+            const result = spawnSync('bash', [path.join(root, 'scripts', script)], {env, encoding: 'utf8', cwd: os.tmpdir()});
             assert.equal(result.status, 42);
             const origins = (name ? 'https://fictional-test-123-8000.app.github.dev,' : '') +
                 'http://localhost:8000,http://127.0.0.1:8000';
