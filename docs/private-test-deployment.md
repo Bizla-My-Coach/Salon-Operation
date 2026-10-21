@@ -1,4 +1,9 @@
-# Private test VPS: dev branch, no domain or S3
+# Legacy private test VPS: no domain or S3
+
+Routine testing now runs in Codespaces and GitHub Actions. Actions runs the test
+suite on pull requests and pushes targeting `dev` or `main`; it does not deploy
+to this VPS. The remaining instructions are for operators maintaining an
+existing private test server and are not required for normal development.
 
 If using the new public test domain, follow
 [Caddy HTTPS with local backups](test-https-deployment.md) instead. The old
@@ -89,40 +94,12 @@ in a command-line argument or send it to chat. The workflow supplies the tested
 image's immutable digest, so no image tag/password needs to go in `dev.env`.
 See [GitHub's container-registry authentication instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-## 4. GitHub settings — leave automatic deployment off during preparation
+## 4. GitHub Actions behavior
 
-Repository **Settings → Secrets and variables → Actions → Variables**:
-
-| Repository variable | Preparation value |
-| --- | --- |
-| `SALONOPS_TEST_DEPLOY_MODE` | `local-preview` |
-| `SALONOPS_TEST_AUTODEPLOY` | `false` |
-| `SALONOPS_PROD_AUTODEPLOY` | `false` |
-
-The `testing` environment's selected deployment branch must be **`dev`**.
-Do not add these values to Secrets or the server's `.env`.
-
-When the runner label, directories, env permissions, registry login and SSH
-firewall are ready, deliberately change **only** `SALONOPS_TEST_AUTODEPLOY` to
-`true`. A subsequent `dev` push runs hosted tests, publishes the tested image,
-then deploys on your runner. Nothing deploys merely because you installed a
-runner or created an environment. Until ready, leave both switches false.
-
-For the first deployment, make a normal `dev` commit/push, or ask the maintainer
-to trigger it with an empty commit after checking the settings:
-
-```powershell
-git switch dev
-git pull --ff-only origin dev
-git commit --allow-empty -m "Trigger private test deployment"
-git push origin dev
-```
-
-Watch **GitHub → Actions → SalonOps checks and deployment**. Production remains
-disabled and cannot select preview mode. Do not merge unreviewed changes into
-`main`. To return to the secure test workflow later, set the test mode to `secure`
-only after preparing its HTTPS and Restic configuration; this is not an automatic
-database cutover. Keep preview backups/volume until a reviewed migration succeeds.
+Actions runs checks on GitHub-hosted runners for pull requests and pushes
+targeting `dev` and `main`. There is no test-server deployment job or
+`SALONOPS_TEST_AUTODEPLOY` setting. Use Codespaces for interactive testing; the
+test VPS instructions below are only for maintaining an existing server.
 
 ## 5. Open the site through an SSH tunnel
 

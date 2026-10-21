@@ -201,10 +201,10 @@ need investigation, including disk-space monitoring.
    company grants access to the package. The CI `GITHUB_TOKEN` publishes the
    image; it is **not** a persistent server login. Protect Docker's credential
    store or configure a credential helper. Do not put credentials in workflows.
-5. Keep `SALONOPS_TEST_AUTODEPLOY` and `SALONOPS_PROD_AUTODEPLOY` unset/false until
-   the manual first-deployment and recovery checks pass. Then create repository
-   Actions variables with those names and value `true`, separately. Set each
-   environment's `SALONOPS_USE_CADDY` to `true` only for option B.
+5. Keep `SALONOPS_PROD_AUTODEPLOY` unset/false until the manual first-deployment
+   and recovery checks pass. Then set the production repository Actions variable
+   to `true`. Set the production environment's `SALONOPS_USE_CADDY` to `true`
+   only for option B. Test-server auto-deployment is not configured.
 
 Runner labels and workflow branch conditions route jobs; **they are not a
 security boundary** against someone able to edit workflows. Prefer company-owned

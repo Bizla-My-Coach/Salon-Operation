@@ -18,14 +18,10 @@ test('CI checks pushes and pull requests for the two permanent branches only', (
     assert.match(workflow, /  push:\s+branches: \[dev, main\]/);
     assert.match(workflow, /  pull_request:\s+branches: \[dev, main\]/);
     assert.doesNotMatch(workflow, /refs\/heads\/prod\b/);
-});
-
-test('test deployment requires a dev push and explicit repository opt-in', () => {
-    const block = job('deploy-test');
-    assert.ok(block.includes("if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.SALONOPS_TEST_AUTODEPLOY == 'true'"));
-    assert.match(block, /runs-on: \[self-hosted, Linux, X64, salonops-test\]/);
-    assert.match(block, /environment: testing/);
-    assert.match(block, /needs: checks/);
+    const block = job('checks');
+    assert.match(block, /python manage\.py test/);
+    assert.match(block, /node --test tests\/\*\.test\.cjs/);
+    assert.doesNotMatch(workflow, /deploy-test|SALONOPS_TEST_AUTODEPLOY|SALONOPS_TEST_DEPLOY_MODE/);
 });
 
 test('production deployment targets main without renaming persistent resources', () => {
@@ -38,19 +34,4 @@ test('production deployment targets main without renaming persistent resources',
     assert.match(block, /\/etc\/salonops\/prod\.env salonops-prod/);
     assert.match(block, /\/var\/lib\/salonops-prod\/backups/);
     assert.doesNotMatch(block, /deploy_preview|compose\.preview|SALONOPS_TEST_DEPLOY_MODE|deploy_test_https|compose\.test/);
-});
-
-test('HTTPS with local backups is confined to the dev runner and fixed test stack', () => {
-    const block = job('deploy-test');
-    assert.match(block, /https-local\)\s+bash "\$root\/scripts\/deploy_test_https\.sh"/);
-    assert.match(block, /\/etc\/salonops\/dev\.env salonops-dev "\$root\/compose\.test\.yaml"/);
-    assert.match(block, /cp deploy\/Caddyfile\.test/);
-});
-
-test('private preview is an explicit test-only mode; secure deployment remains the default', () => {
-    const block = job('deploy-test');
-    assert.ok(block.includes("SALONOPS_TEST_DEPLOY_MODE: ${{ vars.SALONOPS_TEST_DEPLOY_MODE || 'secure' }}"));
-    assert.match(block, /local-preview\)\s+bash "\$root\/scripts\/deploy_preview\.sh"/);
-    assert.match(block, /secure\)\s+bash "\$root\/scripts\/deploy\.sh"/);
-    assert.match(block, /Unknown test deployment mode; refusing deployment/);
 });

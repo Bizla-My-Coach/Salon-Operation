@@ -1,5 +1,9 @@
 # Test VPS: Caddy HTTPS and local PostgreSQL backups
 
+Routine testing now runs in Codespaces and GitHub Actions. Actions checks pull
+requests and pushes targeting `dev` and `main`; it does not deploy to this VPS.
+This guide is retained only for operators maintaining an existing test server.
+
 This is the **dev-only** `https-local` mode for
 **https://operations.shahinanalytics.com**, currently pointed at test Elastic IP
 `13.126.12.164`. Production remains on `main` and uses its separate, mandatory
@@ -93,36 +97,13 @@ if required. Do not paste the token into a command argument or chat. The runner
 and subsequent image pulls must run as the same account that logged in.
 See [GitHub container-registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-## 3. GitHub variables and first deployment
+## 3. GitHub Actions behavior
 
-Repository **Settings → Secrets and variables → Actions → Variables**:
-
-| Name | Ready-to-deploy value |
-| --- | --- |
-| `SALONOPS_TEST_DEPLOY_MODE` | `https-local` |
-| `SALONOPS_TEST_AUTODEPLOY` | `true`, ONLY after preparation above |
-| `SALONOPS_PROD_AUTODEPLOY` | **`false`** |
-
-These are repository variables, not Secrets or server env entries. The `testing`
-environment must allow deployment branch `dev`. `SALONOPS_USE_CADDY` is not used
-by `https-local`; Caddy is already in its standalone Compose file.
-
-A subsequent **dev push** runs hosted checks, publishes the tested immutable
-image and sends deployment to `salonops-test`. The job copies reviewed Compose,
-Caddy and scripts into `/opt/salonops-dev`; no manual repository clone is needed.
-
-To deliberately trigger the first deployment from local Windows PowerShell:
-
-```powershell
-git switch dev
-git pull --ff-only origin dev
-git commit --allow-empty -m "Trigger test HTTPS deployment"
-git push origin dev
-```
-
-Do not push this trigger to `main`. Main targets the company runner and remains
-disabled until its separate setup is complete. Watch the run in **GitHub →
-Actions → SalonOps checks and deployment**.
+Actions runs the test suite on GitHub-hosted runners for pull requests and pushes
+targeting `dev` and `main`. It does not publish or deploy a test-server image.
+There is no `SALONOPS_TEST_AUTODEPLOY` setting. The remaining deployment and
+verification instructions are for an existing test VPS and are not part of the
+Codespaces workflow.
 
 The deploy script checks fixed test-only resources, image digest and DB role,
 validates a local dump **before migration**, stops old web/proxy for schema
