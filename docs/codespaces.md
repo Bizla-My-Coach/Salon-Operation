@@ -28,6 +28,16 @@ can see all tickets and use Django Admin; the manager has a sample ticket and it
 notification. Use the same command after Ctrl+C or reopening the Codespace.
 Restart it after editing Python code; the development server uses `--noreload`.
 
+Desktop VS Code can also forward port 8000 to `http://localhost:8000` or
+`http://127.0.0.1:8000`. The startup command trusts these exact origins alongside
+the Codespaces HTTPS URL, so forms work when forwarding preserves HTTPS proxy
+headers. CSRF tokens and secure Codespaces cookies remain enabled. If you see
+“Origin checking failed”, pull the latest `dev`, stop the server with Ctrl+C and
+run `bash scripts/codespaces.sh` again, then reload the login form before submitting.
+No rebuild or deletion of `.devcontainer/.env` is needed. Use the private
+Codespaces HTTPS URL from **Ports → 8000 → Open in Browser** if your browser does
+not accept secure cookies through an HTTP localhost forward.
+
 Repeated starts preserve accounts, changed passwords, ticket progress, and edited
 sample data. PostgreSQL lives in this Codespace's own Docker volume. Deleting the
 Codespace deletes its test environment; there is no production database connection.
