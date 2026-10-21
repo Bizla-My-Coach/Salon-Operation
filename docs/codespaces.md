@@ -27,8 +27,6 @@ complaints, sensitive issues, review edits and publication reconciliation. The a
 can see all tickets and use Django Admin; the manager has a sample ticket and its
 notification. Use the same command after Ctrl+C or reopening the Codespace.
 Restart it after editing Python code; the development server uses `--noreload`.
-The previous command, `bash scripts/codespaces.sh`, also works as a compatibility
-alias for the renamed startup script.
 
 Desktop VS Code can also forward port 8000 to `http://localhost:8000` or
 `http://127.0.0.1:8000`. The startup command trusts these exact origins alongside
