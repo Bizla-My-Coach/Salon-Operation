@@ -15,19 +15,14 @@ backup workflow are unchanged. Use synthetic test records, not company/customer
 data. Local backups survive container replacement but **not loss of the VPS or
 its disk**. Copy important backups to another machine until off-site storage is ready.
 
-## 1. Your existing runner
+## 1. Existing test VPS
 
-You already installed the Ubuntu runner service and Docker. No second runner or
-manual repository clone is needed. In GitHub **Settings → Actions → Runners**,
-select this test runner and add the custom label **`salonops-test`**. It must also
-have the normal `self-hosted`, `Linux`, `X64` labels. Never label it
-`salonops-production`.
+Actions does not use a self-hosted runner or deploy to this VPS. These steps are
+for an authorized operator manually maintaining an existing test server.
 
 On Ubuntu, as `ubuntu`:
 
 ```bash
-cd ~/actions-runner
-sudo ./svc.sh status
 docker version
 docker compose version
 sudo install -d -o ubuntu -g ubuntu -m 700 /etc/salonops
@@ -79,19 +74,20 @@ The HTTP cookies deliberately cannot use the browser's `Secure` flag for
 `http://localhost`; traffic between your computer and the VPS is encrypted by
 SSH. This must never be exposed directly through the Elastic IP.
 
-## 3. Allow the runner to pull the private image
+## 3. Allow manual deployment to pull the private image
 
 Create a GitHub personal access token **classic**, with **`read:packages`**,
 for an account that can read this repository's GHCR package. Authorize company
-SSO if required. On Ubuntu as the runner account (`ubuntu`), **without sudo**:
+SSO if required. On Ubuntu as the deployment account (`ubuntu`), **without sudo**:
 
 ```bash
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
 ```
 
 At the password prompt enter the token, not your GitHub password. Do not put it
-in a command-line argument or send it to chat. The workflow supplies the tested
-image's immutable digest, so no image tag/password needs to go in `dev.env`.
+in a command-line argument or send it to chat. Actions does not publish or
+deploy an image; use only an approved image digest from the separate release
+process.
 See [GitHub's container-registry authentication instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ## 4. GitHub Actions behavior
@@ -182,8 +178,7 @@ managed encrypted off-site backup service with monitored retention.
 
 ## Troubleshooting
 
-- Job skipped: verify the push was to `dev` and test opt-in is exactly `true`.
-- Job queued: runner online and labeled `salonops-test`? Service using `ubuntu`?
+- Automatic deployment: none is configured; use Codespaces for normal testing.
 - Registry denied: recheck package access, token `read:packages`, SSO and login
   as `ubuntu`, not root.
 - Env permissions rejected: owner `ubuntu`, mode 600, outside Git.

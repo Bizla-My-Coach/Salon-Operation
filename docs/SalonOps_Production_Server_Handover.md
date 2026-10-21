@@ -1,45 +1,25 @@
-﻿# SalonOps simple production setup
+﻿# SalonOps production server handover
 
 Ubuntu Linux x64 · **main** branch · **operations.hairship.in**
 
 Company Nginx must already provide HTTPS and proxy to `127.0.0.1:8000`.
-Do not expose 8000/5432. Configure the `production` GitHub environment to allow
-`main` deployments and require approval before connecting the production runner.
+Do not expose 8000/5432. GitHub Actions currently runs checks only; it does not
+deploy to this server or require a production environment or runner.
 
-## 1 Install and authenticate the runner
+## 1 Create the deployment account
 
 As the server administrator:
 
 ```bash
 sudo adduser --disabled-password --gecos "" salonops-deploy
 sudo install -d -o salonops-deploy -g salonops-deploy -m 700 \
-  /home/salonops-deploy/actions-runner /etc/salonops /var/lib/salonops-prod/backups
+  /etc/salonops /var/lib/salonops-prod/backups
 sudo install -d -o salonops-deploy -g salonops-deploy -m 750 /opt/salonops-prod
 sudo -iu salonops-deploy
-cd ~/actions-runner
 ```
 
-GitHub → **Settings → Actions → Runners → New self-hosted runner → Linux → x64**.
-Run its current download/checksum/extraction commands here, then:
-
-```bash
-./config.sh --url https://github.com/Bizla-My-Coach/Salon-Operation \
-  --name salonops-production-01 --labels salonops-production --work _work
-```
-
-Paste the fresh registration token at the prompt. Keep default labels
-`self-hosted, Linux, X64`; add `salonops-production`, not `salonops-test`.
-Return to the administrator and start the service:
-
-```bash
-exit
-cd /home/salonops-deploy/actions-runner
-sudo ./svc.sh install salonops-deploy
-sudo ./svc.sh start
-sudo ./svc.sh status
-```
-
-Expected: service active; GitHub runner **Online/Idle**.
+GitHub Actions does not use a self-hosted runner. Do not register this account
+as a runner for this repository.
 
 ## 2 Install Docker and log in
 
@@ -51,9 +31,6 @@ Review existing installations first. Then, as the administrator:
 sudo systemctl enable --now docker
 sudo groupadd --force docker
 sudo usermod -aG docker salonops-deploy
-cd /home/salonops-deploy/actions-runner
-sudo ./svc.sh stop
-sudo ./svc.sh start
 sudo -iu salonops-deploy
 docker version
 docker compose version
@@ -86,7 +63,7 @@ install -m 600 "$RELEASE_ROOT"/deploy/ops.env.example /etc/salonops/prod.ops.env
 Edit securely and replace all placeholders:
 
 - **prod.env:** independent random `SECRET_KEY`, `POSTGRES_PASSWORD` and
-  `POSTGRES_ADMIN_PASSWORD`; approved CI image digest in `SALONOPS_IMAGE`;
+  `POSTGRES_ADMIN_PASSWORD`; approved release image digest in `SALONOPS_IMAGE`;
   `ALLOWED_HOSTS=operations.hairship.in,localhost,127.0.0.1`;
   `CSRF_TRUSTED_ORIGINS=https://operations.hairship.in`.
   Keep production/secure-cookie settings and volume **salonops-prod-pgdata** unchanged.
@@ -95,13 +72,13 @@ Edit securely and replace all placeholders:
 - **prod.ops.env:** keep the supplied production paths.
 
 Keep files mode **600**, owned by salonops-deploy; save protected copies in the
-company vault. Never commit secrets or DB backups.
-GitHub **production** environment: allow **main only** and set environment variable
-`SALONOPS_USE_CADDY=false`. Leave test settings unchanged.
+company vault. Never commit secrets or DB backups. Set
+`SALONOPS_USE_CADDY=false` in the deployment shell unless the approved Caddy
+configuration is being used.
 
 ## 4 Initialize the backup and deploy
 
-Continue as **salonops-deploy**. Replace the digest with the approved main CI digest:
+Continue as **salonops-deploy**. Replace the digest with the approved published release image:
 
 ```bash
 OPS=(/etc/salonops/prod.env salonops-prod /opt/salonops-prod/compose.production.yaml
@@ -134,7 +111,7 @@ bash /opt/salonops-prod/scripts/rehearse_offsite.sh "${OPS[@]}"
 Choose a new website username/password, **not the DB password**. Verify HTTPS login,
 backup and isolated restore success.
 
-## 6 Enable scheduled backups and automatic updates
+## 6 Enable scheduled backups
 
 Return to the administrator using `exit`; set `RELEASE_ROOT` again to the approved folder:
 
@@ -146,10 +123,10 @@ sudo systemctl enable --now salonops-backup@prod.timer salonops-rehearsal@prod.t
 systemctl list-timers 'salonops-*'
 ```
 
-After verification, a successful push/merge to **main** runs CI and then queues
-production deployment through the runner. The `production` environment's
-protection rules can require company approval before deployment. Check Actions
-and the website after each release.
+After verification, pushes and pull requests targeting **main** run CI only.
+They do not deploy to this server. Production releases must be separately
+approved and deployed by an authorized operator; check Actions and the website
+after the release.
 
 **Never run `docker compose down -v` or prune the production DB volume.**
 The company manages certificate renewal, credentials, monitoring and backup failures.

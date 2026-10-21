@@ -38,16 +38,14 @@ See [Caddy's automatic HTTPS requirements](https://caddyserver.com/docs/automati
 
 ## 1. One-time Ubuntu preparation
 
-Run as the existing runner account, **ubuntu**:
+Run as the authorized deployment account, **ubuntu**. Actions does not connect
+to or deploy this server:
 
 ```bash
 sudo install -d -o ubuntu -g ubuntu -m 700 /etc/salonops
 sudo install -d -o ubuntu -g ubuntu -m 750 /opt/salonops-dev
 sudo install -d -o ubuntu -g ubuntu -m 700 /var/lib/salonops-dev/backups
 sudo systemctl enable --now docker
-cd ~/actions-runner
-sudo ./svc.sh start
-sudo ./svc.sh status
 docker version
 docker compose version
 python3 --version
@@ -79,11 +77,10 @@ for this same test hostname if the VPS does not support that IPv6 address.
 DNS-only temporarily exposes the origin IP and bypasses Cloudflare's proxy.
 Do not change production's DNS or disable SSL.
 
-## 2. Runner label and private-registry access
+## 2. Private-registry access
 
-GitHub **Settings → Actions → Runners**: this server needs the custom label
-**`salonops-test`**, alongside `self-hosted`, `Linux`, `X64`. Never assign the
-production label to this server. Installing a runner alone does not deploy apps.
+The current Actions workflow does not use a self-hosted runner or deploy to this
+server. Do not install a runner solely for this legacy test VPS setup.
 
 As `ubuntu` on the VPS (not root):
 
@@ -93,8 +90,8 @@ docker login ghcr.io --username YOUR_GITHUB_USERNAME
 
 At the password prompt enter a GitHub **classic PAT with `read:packages`**, for
 an account with access to this private GHCR package. Authorize organization SSO
-if required. Do not paste the token into a command argument or chat. The runner
-and subsequent image pulls must run as the same account that logged in.
+if required. Do not paste the token into a command argument or chat. Manual
+image pulls must run as the same account that logged in.
 See [GitHub container-registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ## 3. GitHub Actions behavior
@@ -187,8 +184,8 @@ backup. Never delete volumes, run `down -v`, or prune volumes on the VPS.
 
 ## Troubleshooting
 
-- Queued job: check runner service and `salonops-test` label.
-- Skipped deploy: correct `dev` push and test opt-in exactly `true`?
+- Actions does not deploy this test VPS; use a separate manual process only
+  when maintaining an existing server.
 - GHCR denied: account/package access, PAT scope/SSO and login as `ubuntu`.
 - Port in use: inspect `sudo ss -ltnp`; do not kill unrelated services blindly.
 - TLS not ready: DNS/AAAA, inbound 80/443, host firewall and Caddy logs:

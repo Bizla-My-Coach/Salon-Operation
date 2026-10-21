@@ -21,18 +21,6 @@ test('CI checks pushes and pull requests for the two permanent branches only', (
     const block = job('checks');
     assert.match(block, /python manage\.py test/);
     assert.match(block, /node --test tests\/\*\.test\.cjs/);
-    assert.doesNotMatch(workflow, /deploy-test|SALONOPS_TEST_AUTODEPLOY|SALONOPS_TEST_DEPLOY_MODE/);
-});
-
-test('production deployment targets main without renaming persistent resources', () => {
-    const block = job('deploy-production');
-    assert.ok(block.includes("if: github.event_name == 'push' && github.ref == 'refs/heads/main'"));
-    assert.doesNotMatch(block, /SALONOPS_PROD_AUTODEPLOY/);
-    assert.match(block, /runs-on: \[self-hosted, Linux, X64, salonops-production\]/);
-    assert.match(block, /environment: production/);
-    assert.match(block, /needs: checks/);
-    assert.match(block, /root=\/opt\/salonops-prod/);
-    assert.match(block, /\/etc\/salonops\/prod\.env salonops-prod/);
-    assert.match(block, /\/var\/lib\/salonops-prod\/backups/);
-    assert.doesNotMatch(block, /deploy_preview|compose\.preview|SALONOPS_TEST_DEPLOY_MODE|deploy_test_https|compose\.test/);
+    assert.doesNotMatch(workflow, /deploy-test|deploy-production|SALONOPS_TEST_AUTODEPLOY|SALONOPS_TEST_DEPLOY_MODE|SALONOPS_PROD_AUTODEPLOY|packages:\s*write|Publish only a tested/);
+    assert.deepEqual([...workflow.matchAll(/^  ([\w-]+):/gm)].map((match) => match[1]), ['checks']);
 });
