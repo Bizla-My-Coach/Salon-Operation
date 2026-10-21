@@ -235,18 +235,16 @@ reply cannot lose to an unconfirmed result after upgrade, and reuses the existin
 current-version notification. Migration **0019** creates the ingestion schema.
 Neither deletes manager actions, source events or operational data.
 
-Existing deployment workflow: [salonops.yml](../.github/workflows/salonops.yml),
-job **deploy-test**, using a tested `dev` push image and GitHub environment
-**testing**, on `[self-hosted, Linux, X64, salonops-test]`. The relevant settings are
-`SALONOPS_TEST_AUTODEPLOY=true` and `SALONOPS_TEST_DEPLOY_MODE=https-local` for the
-existing dev domain. No workflow settings were changed or deployment started here.
-The last prior dev deployment job was skipped. See
-[test HTTPS deployment](test-https-deployment.md) for server/runner setup.
+The current [Actions workflow](../.github/workflows/salonops.yml) runs tests on
+GitHub-hosted machines for pull requests and pushes to `dev` and `main`; it does
+not deploy to a test server. Production and legacy test-server deployments are
+separate manual operations. See [test HTTPS deployment](test-https-deployment.md)
+only when maintaining an existing test VPS.
 
 The existing `scripts/deploy_test_https.sh` installs the immutable tested image,
 backs up the test database before migrations and verifies secure HTTPS startup.
 An administrator must install the private key in `/etc/salonops/dev.env`, deploy
-the reviewed dev release through that workflow (or its documented script), and
+the reviewed dev release through a separately approved manual process, and
 configure the sandbox branch mapping. `compose.test.yaml` now passes the key to
 web explicitly. Production remains a separate main-only reviewed deployment.
 

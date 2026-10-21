@@ -1,4 +1,4 @@
-name: SalonOps checks and deployment
+name: SalonOps checks
 on:
   push:
     branches: [dev, main]
@@ -13,12 +13,6 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ steps.publish.outputs.image }}
-      registry_path: ${{ steps.publish.outputs.registry_path }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -53,95 +47,7 @@ jobs:
           # Free CI's port 8000 before the standalone preview smoke test.
           docker compose stop web
           bash tests/preview_smoke.test.sh
-      - name: Publish only a tested branch-push image
-        id: publish
-        if: github.event_name == 'push'
-        env:
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          repository="${GITHUB_REPOSITORY,,}"
-          tag="ghcr.io/$repository:$GITHUB_SHA"
-          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker tag salon-operation:local "$tag"
-          docker push "$tag"
-          image=$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}')
-          echo "image=$image" >> "$GITHUB_OUTPUT"
-          echo "registry_path=ghcr.io/$repository" >> "$GITHUB_OUTPUT"
-          docker logout ghcr.io
       - name: Remove ephemeral CI containers and data
         if: always()
         run: docker compose down -v
         # Safe ONLY on the disposable GitHub-hosted CI VM. Never run this on a VPS.
-  deploy-test:
-    needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.SALONOPS_TEST_AUTODEPLOY == 'true'
-    runs-on: [self-hosted, Linux, X64, salonops-test]
-    environment: testing
-    timeout-minutes: 30
-    concurrency:
-      group: salonops-testing-deployment
-      cancel-in-progress: false
-    env:
-      SALONOPS_TEST_DEPLOY_MODE: ${{ vars.SALONOPS_TEST_DEPLOY_MODE || 'secure' }}
-      SALONOPS_USE_CADDY: ${{ vars.SALONOPS_USE_CADDY || 'false' }}
-      SALONOPS_IMAGE: ${{ needs.checks.outputs.image }}
-      REGISTRY_PATH: ${{ needs.checks.outputs.registry_path }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Install reviewed operational files and deploy test
-        shell: bash
-        run: |
-          root=/opt/salonops-dev
-          mkdir -p "$root/deploy" "$root/scripts"
-          cp compose.production.yaml compose.caddy.yaml compose.preview.yaml compose.test.yaml "$root/"
-          cp -r deploy/postgres "$root/deploy/"
-          chmod 644 "$root/deploy/postgres/10-create-app-user.sh"
-          cp deploy/Caddyfile "$root/deploy/"
-          chmod 644 "$root/deploy/Caddyfile"
-          cp deploy/Caddyfile.test "$root/deploy/"
-          chmod 644 "$root/deploy/Caddyfile.test"
-          cp scripts/*.sh "$root/scripts/"
-          cp scripts/validate_preview.py "$root/scripts/"
-          case "$SALONOPS_TEST_DEPLOY_MODE" in
-            https-local)
-              bash "$root/scripts/deploy_test_https.sh" /etc/salonops/dev.env salonops-dev "$root/compose.test.yaml" /var/lib/salonops-dev/backups "$SALONOPS_IMAGE" "$REGISTRY_PATH"
-              ;;
-            local-preview)
-              bash "$root/scripts/deploy_preview.sh" /etc/salonops/dev.env salonops-dev "$root/compose.preview.yaml" /var/lib/salonops-dev/backups "$SALONOPS_IMAGE" "$REGISTRY_PATH"
-              ;;
-            secure)
-              bash "$root/scripts/deploy.sh" /etc/salonops/dev.env salonops-dev "$root/compose.production.yaml" /var/lib/salonops-dev/backups /etc/salonops/dev.restic.env "$SALONOPS_IMAGE" "$REGISTRY_PATH"
-              ;;
-            *) echo 'Unknown test deployment mode; refusing deployment.' >&2; exit 1 ;;
-          esac
-  deploy-production:
-    needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SALONOPS_PROD_AUTODEPLOY == 'true'
-    runs-on: [self-hosted, Linux, X64, salonops-production]
-    environment: production
-    timeout-minutes: 30
-    concurrency:
-      group: salonops-production-deployment
-      cancel-in-progress: false
-    env:
-      SALONOPS_USE_CADDY: ${{ vars.SALONOPS_USE_CADDY || 'false' }}
-      SALONOPS_IMAGE: ${{ needs.checks.outputs.image }}
-      REGISTRY_PATH: ${{ needs.checks.outputs.registry_path }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Install reviewed operational files and deploy production
-        shell: bash
-        run: |
-          root=/opt/salonops-prod
-          mkdir -p "$root/deploy" "$root/scripts"
-          cp compose.production.yaml compose.caddy.yaml "$root/"
-          cp -r deploy/postgres "$root/deploy/"
-          chmod 644 "$root/deploy/postgres/10-create-app-user.sh"
-          cp deploy/Caddyfile "$root/deploy/"
-          chmod 644 "$root/deploy/Caddyfile"
-          cp scripts/*.sh "$root/scripts/"
-          bash "$root/scripts/deploy.sh" /etc/salonops/prod.env salonops-prod "$root/compose.production.yaml" /var/lib/salonops-prod/backups /etc/salonops/prod.restic.env "$SALONOPS_IMAGE" "$REGISTRY_PATH"

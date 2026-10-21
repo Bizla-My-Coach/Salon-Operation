@@ -12,24 +12,23 @@ standalone production Compose stack runs the app and its **own PostgreSQL
 container**, with a permanent named volume and a restricted application login.
 They are separate containers, not a database baked into the app image.
 
-CI tests on GitHub-hosted machines, publishes a tested image to GHCR, then
-optionally deploys that exact image digest through a server-specific runner.
-`dev` targets your test VPS; `main` targets the company VPS. Neither auto-deploy
-job activates until its opt-in variable is set to `true`.
+GitHub Actions runs checks on GitHub-hosted machines for pull requests and
+pushes to `dev` and `main`. It does not publish images or deploy to a server.
+Production releases described in this guide are performed separately by an
+authorized operator after CI passes. Routine interactive testing uses Codespaces.
 
-The two permanent branches are `dev` and `main`; `main` is GitHub's default
-branch and contains approved production releases. Production still uses the
-`production` environment, `salonops-production` runner label and
-`SALONOPS_PROD_AUTODEPLOY` switch. Existing `/opt/salonops-prod`,
+The two permanent branches are `dev` and `main`; `dev` is used for integration
+and Codespaces testing, while `main` is GitHub's default branch and contains
+approved production releases. Production releases are performed manually;
+GitHub Actions does not use a production environment or runner. Existing `/opt/salonops-prod`,
 `/etc/salonops/prod.env`, backup paths, timer instance names and DB volume names
 do **not** change when the branch changes. Never rename a DB volume to match a
 Git branch. The retired `prod` branch is not needed.
 
 This repository does not install a runner, issue a certificate, create a backup
 bucket, configure GitHub protection rules, or change an existing server. The
-company must approve and supply those first. Installing a runner once enables
-normal code updates without repeated SSH access, but somebody must still handle
-OS/Docker updates, runner maintenance, disk space, certificates and recovery.
+company must approve and supply those first. This guide describes a separate
+manual release process; Actions does not connect to the production server.
 
 ## 1. Company checklist (one-time administrator work)
 
@@ -38,14 +37,12 @@ OS/Docker updates, runner maintenance, disk space, certificates and recovery.
 - A domain pointing to the VPS; decide who owns HTTPS and ports 80/443.
 - Outbound access to GitHub, GHCR, Docker Hub and the backup storage endpoint.
 - Company-controlled GHCR read access and encrypted off-server object storage.
-- A deployment user (`salonops-deploy`), runner directory and permission to
-  manage this stack. Do not share the production runner with untrusted projects.
+- A deployment user (`salonops-deploy`) and permission to manage this stack.
 - Firewall: expose only HTTPS/HTTP as appropriate; never publish PostgreSQL or
   port 8000 to the Internet. Restrict SSH using the company's policy.
 
 **Important:** Docker socket/group access is effectively privileged server
-access. A runner with it is not a harmless limited-access account. The company
-must trust repository maintainers and reviewed workflow/script changes.
+access. Limit it to the authorized deployment operator.
 See [Docker's security warning](https://docs.docker.com/engine/install/linux-postinstall/).
 Keep the repo private; untrusted PR code must never run on the production VPS.
 
@@ -78,7 +75,7 @@ python3 -c 'import secrets; print(secrets.token_hex(64))'
   during ordinary deployments or you will appear to have an empty database.
 - `ALLOWED_HOSTS`: actual hostname plus `localhost,127.0.0.1` for health checks.
 - `CSRF_TRUSTED_ORIGINS`: actual `https://` origin, no wildcards.
-- `SALONOPS_IMAGE`: initial approved GHCR `@sha256:...` digest from CI.
+- `SALONOPS_IMAGE`: approved GHCR `@sha256:...` digest from the manual release process.
 - `SALONOPS_ENV_FILE`: supplied by scripts, not stored inside this file.
 
 Protect configuration with mode 600, readable by the deployment user:
@@ -119,15 +116,15 @@ location / {
 ```
 
 The company still configures its TLS server block, HTTP-to-HTTPS redirect and
-certificate renewal. Leave `SALONOPS_USE_CADDY=false` in GitHub environment vars.
+certificate renewal. Leave `SALONOPS_USE_CADDY=false` in the deployment shell.
 
 ### B. Optional Caddy
 
 If the company has **no** existing proxy and approves using ports 80/443, set
-`SITE_DOMAIN`, `ACME_EMAIL`, and GitHub environment variable
-`SALONOPS_USE_CADDY=true`. The deploy script adds `compose.caddy.yaml` and Caddy
-handles TLS. DNS and public certificate validation must work first. Do not run
-Caddy on ports already owned by another company service.
+`SITE_DOMAIN`, `ACME_EMAIL`, and `SALONOPS_USE_CADDY=true` in the deployment
+shell. The deploy script adds `compose.caddy.yaml` and Caddy handles TLS. DNS
+and public certificate validation must work first. Do not run Caddy on ports
+already owned by another company service.
 
 Both options use HTTPS redirects, secure session/CSRF cookies and SameSite Lax.
 The private `/health/` endpoint alone permits HTTP for container checks. Start
@@ -172,52 +169,20 @@ storage. Remote retention: last 5, daily 14, weekly 8, monthly 6; local successf
 backups older than 7 days are removed. Failed uploads are retained locally and
 need investigation, including disk-space monitoring.
 
-## 5. GitHub and runner setup
+## 5. GitHub checks and manual releases
 
-1. In GitHub create environments **testing** and **production**, restrict their
-   deployment branches to `dev` and `main` respectively. Protect both branches:
-   require CI/reviews, block force pushes; production should require company
-   approval. Review workflow, Compose and scripts via company CODEOWNERS. Some
-   private-repository protection/approval features depend on the GitHub plan;
-   verify availability rather than assuming they are enforced.
-2. Repository **Settings → Actions → Runners → New self-hosted runner → Linux →
-   x64**. Use GitHub's generated download/verification/registration commands,
-   not a hard-coded runner version or token in Git. Add label `salonops-test` on
-   your VPS and `salonops-production` on the company VPS. Keep default
-   `self-hosted`, `Linux`, `X64` labels. Give each runner a distinct name.
-3. Register as the deployment user, then have the administrator install/start
-   the service from its runner directory:
-
-   ```bash
-   sudo ./svc.sh install salonops-deploy
-   sudo ./svc.sh start
-   sudo ./svc.sh status
-   ```
-
-   Confirm Online/Idle in GitHub. [Official runner setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners),
-   [service setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application).
-4. As that same user, perform `docker login ghcr.io` using company-owned
-   read-packages credentials and stdin (not a token on the command line). The
-   company grants access to the package. The CI `GITHUB_TOKEN` publishes the
-   image; it is **not** a persistent server login. Protect Docker's credential
-   store or configure a credential helper. Do not put credentials in workflows.
-5. Keep `SALONOPS_TEST_AUTODEPLOY` and `SALONOPS_PROD_AUTODEPLOY` unset/false until
-   the manual first-deployment and recovery checks pass. Then create repository
-   Actions variables with those names and value `true`, separately. Set each
-   environment's `SALONOPS_USE_CADDY` to `true` only for option B.
-
-Runner labels and workflow branch conditions route jobs; **they are not a
-security boundary** against someone able to edit workflows. Prefer company-owned
-organization runner groups with approved-repository/workflow restrictions where
-available. Do not accept untrusted PR workflows on this runner. Normal PR tests
-in this workflow run only on GitHub-hosted machines and cannot deploy.
+Protect `dev` and `main` with required reviews and CI checks. The Actions
+workflow runs only on GitHub-hosted runners; it does not use deployment
+environments or self-hosted runners, publish images, or deploy. An authorized
+operator must separately publish the reviewed image and follow the manual
+deployment procedure below. Keep deployment credentials outside the workflow.
 
 ## 6. First release and normal updates
 
-The first push to `dev`/`main` runs CI and publishes
-`ghcr.io/bizla-my-coach/salon-operation:<commit>`; find the immutable digest in
-the publish log. Save it in the external env file. Manually deploy the approved
-digest as the deployment user (optionally `export SALONOPS_USE_CADDY=true` first):
+After CI passes, an authorized release operator must build and publish the
+approved image through the separately controlled release process. Obtain its
+immutable digest and manually deploy it as the deployment user (optionally
+`export SALONOPS_USE_CADDY=true` first):
 
 ```bash
 bash /opt/salonops-prod/scripts/deploy.sh \
@@ -231,16 +196,18 @@ Sequence: pull approved image → start DB → verify restricted role → succes
 off-site backup → explicit migrations → start app → health/migration checks.
 On the very first installation the pre-migration backup is an **empty database**.
 Immediately take another backup after migrations and account setup, then rehearse
-that backup before enabling timers/auto-deployment. Create a real administrator
+that backup before enabling scheduled jobs. Create a real administrator
 with `manage.py createsuperuser` through the production Compose configuration;
 never run `seed_demo` on production. Verify HTTPS login, all role dashboards,
 service ordering, verification/invoice/feedback and secure cookies in a browser.
 
 Once configured:
 
-- Work locally on a feature branch → PR into `dev` → tests → your test VPS.
-- Test with synthetic data → approved PR from `dev` into `main` → tests → company
-  approval if configured → company VPS. Branches transfer **code**, not databases.
+- Work in Codespaces or a feature branch → PR into `dev` → checks run on GitHub-hosted
+   runners.
+- After testing, open a PR from `dev` into `main` → checks run again. Merging to
+   `main` runs checks but does not deploy; production release remains a separate
+   manual operation. Branches transfer **code**, not databases.
 - Commit Django migrations alongside model changes. Use backwards-compatible
   expand/contract migrations; plan a write-maintenance window for incompatible
   changes. A backup does not make destructive migrations automatically safe.

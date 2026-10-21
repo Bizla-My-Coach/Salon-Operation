@@ -242,11 +242,11 @@ The account-menu JavaScript unit tests can also be run with
 
 ## Git workflow
 
-For a test VPS without a domain or S3, see the optional
-[private dev deployment guide](docs/private-test-deployment.md). It uses local
-PostgreSQL backups and SSH-tunnel access only; production protections are unchanged.
-For `operations.shahinanalytics.com`, use the
-[test HTTPS/Caddy and local-backup guide](docs/test-https-deployment.md) instead.
+Routine testing runs in Codespaces and GitHub Actions for pull requests and pushes
+to `dev` and `main`. The optional [private test VPS guide](docs/private-test-deployment.md)
+and [test HTTPS/Caddy guide](docs/test-https-deployment.md) are retained only for
+operators maintaining existing test-server infrastructure; Actions does not
+deploy there.
 
 The canonical remote is `https://github.com/Bizla-My-Coach/Salon-Operation.git`.
 The two permanent branches are `dev` (your test server) and `main` (company

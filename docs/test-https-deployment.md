@@ -1,5 +1,9 @@
 # Test VPS: Caddy HTTPS and local PostgreSQL backups
 
+Routine testing now runs in Codespaces and GitHub Actions. Actions checks pull
+requests and pushes targeting `dev` and `main`; it does not deploy to this VPS.
+This guide is retained only for operators maintaining an existing test server.
+
 This is the **dev-only** `https-local` mode for
 **https://operations.shahinanalytics.com**, currently pointed at test Elastic IP
 `13.126.12.164`. Production remains on `main` and uses its separate, mandatory
@@ -34,16 +38,14 @@ See [Caddy's automatic HTTPS requirements](https://caddyserver.com/docs/automati
 
 ## 1. One-time Ubuntu preparation
 
-Run as the existing runner account, **ubuntu**:
+Run as the authorized deployment account, **ubuntu**. Actions does not connect
+to or deploy this server:
 
 ```bash
 sudo install -d -o ubuntu -g ubuntu -m 700 /etc/salonops
 sudo install -d -o ubuntu -g ubuntu -m 750 /opt/salonops-dev
 sudo install -d -o ubuntu -g ubuntu -m 700 /var/lib/salonops-dev/backups
 sudo systemctl enable --now docker
-cd ~/actions-runner
-sudo ./svc.sh start
-sudo ./svc.sh status
 docker version
 docker compose version
 python3 --version
@@ -75,11 +77,10 @@ for this same test hostname if the VPS does not support that IPv6 address.
 DNS-only temporarily exposes the origin IP and bypasses Cloudflare's proxy.
 Do not change production's DNS or disable SSL.
 
-## 2. Runner label and private-registry access
+## 2. Private-registry access
 
-GitHub **Settings → Actions → Runners**: this server needs the custom label
-**`salonops-test`**, alongside `self-hosted`, `Linux`, `X64`. Never assign the
-production label to this server. Installing a runner alone does not deploy apps.
+The current Actions workflow does not use a self-hosted runner or deploy to this
+server. Do not install a runner solely for this legacy test VPS setup.
 
 As `ubuntu` on the VPS (not root):
 
@@ -89,40 +90,17 @@ docker login ghcr.io --username YOUR_GITHUB_USERNAME
 
 At the password prompt enter a GitHub **classic PAT with `read:packages`**, for
 an account with access to this private GHCR package. Authorize organization SSO
-if required. Do not paste the token into a command argument or chat. The runner
-and subsequent image pulls must run as the same account that logged in.
+if required. Do not paste the token into a command argument or chat. Manual
+image pulls must run as the same account that logged in.
 See [GitHub container-registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-## 3. GitHub variables and first deployment
+## 3. GitHub Actions behavior
 
-Repository **Settings → Secrets and variables → Actions → Variables**:
-
-| Name | Ready-to-deploy value |
-| --- | --- |
-| `SALONOPS_TEST_DEPLOY_MODE` | `https-local` |
-| `SALONOPS_TEST_AUTODEPLOY` | `true`, ONLY after preparation above |
-| `SALONOPS_PROD_AUTODEPLOY` | **`false`** |
-
-These are repository variables, not Secrets or server env entries. The `testing`
-environment must allow deployment branch `dev`. `SALONOPS_USE_CADDY` is not used
-by `https-local`; Caddy is already in its standalone Compose file.
-
-A subsequent **dev push** runs hosted checks, publishes the tested immutable
-image and sends deployment to `salonops-test`. The job copies reviewed Compose,
-Caddy and scripts into `/opt/salonops-dev`; no manual repository clone is needed.
-
-To deliberately trigger the first deployment from local Windows PowerShell:
-
-```powershell
-git switch dev
-git pull --ff-only origin dev
-git commit --allow-empty -m "Trigger test HTTPS deployment"
-git push origin dev
-```
-
-Do not push this trigger to `main`. Main targets the company runner and remains
-disabled until its separate setup is complete. Watch the run in **GitHub →
-Actions → SalonOps checks and deployment**.
+Actions runs the test suite on GitHub-hosted runners for pull requests and pushes
+targeting `dev` and `main`. It does not publish or deploy a test-server image.
+There is no `SALONOPS_TEST_AUTODEPLOY` setting. The remaining deployment and
+verification instructions are for an existing test VPS and are not part of the
+Codespaces workflow.
 
 The deploy script checks fixed test-only resources, image digest and DB role,
 validates a local dump **before migration**, stops old web/proxy for schema
@@ -206,8 +184,8 @@ backup. Never delete volumes, run `down -v`, or prune volumes on the VPS.
 
 ## Troubleshooting
 
-- Queued job: check runner service and `salonops-test` label.
-- Skipped deploy: correct `dev` push and test opt-in exactly `true`?
+- Actions does not deploy this test VPS; use a separate manual process only
+  when maintaining an existing server.
 - GHCR denied: account/package access, PAT scope/SSO and login as `ubuntu`.
 - Port in use: inspect `sudo ss -ltnp`; do not kill unrelated services blindly.
 - TLS not ready: DNS/AAAA, inbound 80/443, host firewall and Caddy logs:
