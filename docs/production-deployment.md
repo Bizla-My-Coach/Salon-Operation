@@ -12,15 +12,15 @@ standalone production Compose stack runs the app and its **own PostgreSQL
 container**, with a permanent named volume and a restricted application login.
 They are separate containers, not a database baked into the app image.
 
-CI tests on GitHub-hosted machines, publishes a tested image to GHCR, then
-optionally deploys that exact image digest through a server-specific runner.
-`dev` targets your test VPS; `main` targets the company VPS. Neither auto-deploy
-job activates until its opt-in variable is set to `true`.
+CI tests on GitHub-hosted machines and publishes a tested image to GHCR.
+Successful pushes to `main` then deploy that exact image digest through the
+production runner, subject to the `production` environment's protection rules.
+Routine testing uses Codespaces; Actions does not deploy to a test VPS.
 
-The two permanent branches are `dev` and `main`; `main` is GitHub's default
-branch and contains approved production releases. Production still uses the
-`production` environment, `salonops-production` runner label and
-`SALONOPS_PROD_AUTODEPLOY` switch. Existing `/opt/salonops-prod`,
+The two permanent branches are `dev` and `main`; `dev` is used for integration
+and Codespaces testing, while `main` is GitHub's default branch and contains
+approved production releases. Production uses the
+`production` environment and `salonops-production` runner label. Existing `/opt/salonops-prod`,
 `/etc/salonops/prod.env`, backup paths, timer instance names and DB volume names
 do **not** change when the branch changes. Never rename a DB volume to match a
 Git branch. The retired `prod` branch is not needed.
@@ -201,10 +201,11 @@ need investigation, including disk-space monitoring.
    company grants access to the package. The CI `GITHUB_TOKEN` publishes the
    image; it is **not** a persistent server login. Protect Docker's credential
    store or configure a credential helper. Do not put credentials in workflows.
-5. Keep `SALONOPS_PROD_AUTODEPLOY` unset/false until the manual first-deployment
-   and recovery checks pass. Then set the production repository Actions variable
-   to `true`. Set the production environment's `SALONOPS_USE_CADDY` to `true`
-   only for option B. Test-server auto-deployment is not configured.
+5. Configure the `production` environment to allow deployments from `main` and
+   require company approval if that is part of your release process. Once the
+   production runner and recovery procedures are ready, every successful push
+   to `main` can deploy. Set the production environment's `SALONOPS_USE_CADDY`
+   to `true` only for option B.
 
 Runner labels and workflow branch conditions route jobs; **they are not a
 security boundary** against someone able to edit workflows. Prefer company-owned
@@ -238,9 +239,12 @@ service ordering, verification/invoice/feedback and secure cookies in a browser.
 
 Once configured:
 
-- Work locally on a feature branch → PR into `dev` → tests → your test VPS.
-- Test with synthetic data → approved PR from `dev` into `main` → tests → company
-  approval if configured → company VPS. Branches transfer **code**, not databases.
+- Work in Codespaces or a feature branch → PR into `dev` → checks run on GitHub-hosted
+   runners.
+- After testing, open a PR from `dev` into `main` → checks run again. Merging to
+   `main` triggers checks and production deployment through the production runner,
+   subject to `production` environment approvals. Branches transfer **code**, not
+   databases.
 - Commit Django migrations alongside model changes. Use backwards-compatible
   expand/contract migrations; plan a write-maintenance window for incompatible
   changes. A backup does not make destructive migrations automatically safe.

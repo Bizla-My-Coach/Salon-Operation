@@ -3,7 +3,8 @@
 Ubuntu Linux x64 · **main** branch · **operations.hairship.in**
 
 Company Nginx must already provide HTTPS and proxy to `127.0.0.1:8000`.
-Do not expose 8000/5432. Keep `SALONOPS_PROD_AUTODEPLOY=false` during setup.
+Do not expose 8000/5432. Configure the `production` GitHub environment to allow
+`main` deployments and require approval before connecting the production runner.
 
 ## 1 Install and authenticate the runner
 
@@ -145,10 +146,10 @@ sudo systemctl enable --now salonops-backup@prod.timer salonops-rehearsal@prod.t
 systemctl list-timers 'salonops-*'
 ```
 
-After verification, GitHub → **Settings → Secrets and variables → Actions → Variables →
-Repository variables**: set **SALONOPS_PROD_AUTODEPLOY=true**.
-A new approved push/merge to **main** runs CI and production deployment; check Actions
-and the website. Company approval controls should be used where supported.
+After verification, a successful push/merge to **main** runs CI and then queues
+production deployment through the runner. The `production` environment's
+protection rules can require company approval before deployment. Check Actions
+and the website after each release.
 
 **Never run `docker compose down -v` or prune the production DB volume.**
 The company manages certificate renewal, credentials, monitoring and backup failures.

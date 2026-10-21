@@ -26,7 +26,8 @@ test('CI checks pushes and pull requests for the two permanent branches only', (
 
 test('production deployment targets main without renaming persistent resources', () => {
     const block = job('deploy-production');
-    assert.ok(block.includes("if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SALONOPS_PROD_AUTODEPLOY == 'true'"));
+    assert.ok(block.includes("if: github.event_name == 'push' && github.ref == 'refs/heads/main'"));
+    assert.doesNotMatch(block, /SALONOPS_PROD_AUTODEPLOY/);
     assert.match(block, /runs-on: \[self-hosted, Linux, X64, salonops-production\]/);
     assert.match(block, /environment: production/);
     assert.match(block, /needs: checks/);

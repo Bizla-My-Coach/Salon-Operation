@@ -74,7 +74,7 @@ jobs:
         # Safe ONLY on the disposable GitHub-hosted CI VM. Never run this on a VPS.
   deploy-production:
     needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SALONOPS_PROD_AUTODEPLOY == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Linux, X64, salonops-production]
     environment: production
     timeout-minutes: 30
