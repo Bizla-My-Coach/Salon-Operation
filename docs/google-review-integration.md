@@ -1,125 +1,134 @@
-# Google Business Profile integration (v1)
+# Google review result endpoint — queue worker V3
 
-The application **receives and stores** AWS results. AWS fetches reviews, runs AI,
-and publishes Google replies independently. App downtime, ingestion receipts,
-assignment results, and manager approval must never gate public publication.
-`published: true` and `requires_human_review: true` can coexist: a public
-acknowledgement can be published while the internal investigation remains open.
-The application has no Google publisher or Google credentials.
+The existing Django/PostgreSQL backend receives `hairship.review-result.v1` directly.
+This implements [APP_CONTRACT_V3](contracts/APP_CONTRACT_V3.md) and the common
+[V2 receipt](contracts/APP_CONTRACT_V2.md). AWS owns Google fetching, analysis,
+publication, queue retries and DLQ redrive. The app never approves, republishes or
+regenerates Google replies. No processing lease, Google token, shared database,
+DynamoDB table, EventBridge schedule or app-side AWS integration is required.
 
-## Endpoints and authentication
+## Endpoint and private authentication
 
-After deploying this revision, configure these URLs using your deployed HTTPS origin:
+| Setting | Value |
+| --- | --- |
+| Method/path | `POST /api/integrations/google-reviews/results` |
+| AWS URL variable | `APP_REVIEW_RESULT_API_URL` |
+| Authentication header | `X-Integration-Key` |
+| Request headers | `Content-Type: application/json`, `Idempotency-Key: <event_id>` |
+| Sandbox server variable | `REVIEW_INTEGRATION_KEY_SANDBOX` |
+| Production server variable | `REVIEW_INTEGRATION_KEY_PRODUCTION` |
 
-| Purpose | Method and path | Example using the documented test domain |
-| --- | --- | --- |
-| Review ingestion | `POST /api/v1/google-reviews/ingest/` | `https://operations.shahinanalytics.com/api/v1/google-reviews/ingest/` |
-| Publication outcome | `POST /api/v1/google-reviews/publications/` | `https://operations.shahinanalytics.com/api/v1/google-reviews/publications/` |
+After deploying to the existing **dev HTTPS server**, the target URL is:
 
-These are **deployment targets**, not a claim that this revision or its secrets
-are already installed on that server. Local development uses the same paths at
-`http://127.0.0.1:8000`. The static verification site cannot receive these APIs.
+```text
+https://operations.shahinanalytics.com/api/integrations/google-reviews/results
+```
 
-Both endpoints require `Content-Type: application/json` and
-`Authorization: Bearer <token>`. Set independent `REVIEW_API_TOKEN_SANDBOX` and
-`REVIEW_API_TOKEN_PRODUCTION` server secrets, each at least 32 random characters.
-The credential must match the payload's `environment`. Blank credentials disable
-that environment's endpoints (503). Browser sessions do not authenticate machine
-requests. Set `REVIEW_API_REQUIRE_HTTPS=True` for deployed servers; trusted proxy
-settings must reflect your actual HTTPS proxy. Only isolated local HTTP testing
-should use False. Requests are limited to 512 KiB. Machine endpoints are CSRF
-exempt; all human mutations retain session authentication and CSRF protection.
+**Deployment is pending.** This URL is a deployment target, not a verified live
+endpoint. PR #5 remains `dev` → `main`; merging main is reserved for user review.
+Local verification uses `http://127.0.0.1:8000` with the same path. Neither the
+static preview site nor a private Codespaces port is the permanent AWS endpoint.
 
-### AWS configuration names
+The canonical route accepts POST directly with no login redirect, session-cookie
+requirement or CSRF token. Both slash spellings are registered directly. Wrong or
+missing authentication returns JSON 401; unsupported methods return 405. Public
+HTTPS is required (`REVIEW_API_REQUIRE_HTTPS=True`, also the default when DEBUG is
+False). Only isolated local HTTP development may disable that setting. Keep TLS
+verification enabled and configure only the actual trusted proxy.
 
-- `APP_PROCESSING_API_URL`: the review ingestion URL above. Send the complete result
-  envelope once, after obtaining an AWS result, through an actual HTTP POST.
-- `APP_REVIEW_CASE_API_URL`: no separate case-creation POST is needed. Ingestion
-  atomically creates applicable cases/issues. Remove the old secondary call; if a
-  legacy worker requires this variable, it can reference the same ingestion URL
-  only when sending the **identical event ID and payload**. Do not send a
-  case-only payload to it.
-- `APP_PUBLICATION_STATUS_API_URL`: the publication-outcome URL above, for later
-  publication changes and outcomes arriving before ingestion.
-- `APP_AUTH_SECRET_ARN`: ARN of the AWS Secrets Manager secret containing
-  `{"token":"<same token installed on application server>"}`. This is an ARN
-  returned by your AWS account, not an app-generated ARN. Use separate secrets
-  for sandbox and production and grant the worker `secretsmanager:GetSecretValue`
-  on the matching secret (plus KMS decrypt if required by that secret's key).
+Use independent random keys of at least 32 characters. The key is selected using
+the validated payload environment; sandbox credentials cannot authenticate
+production requests. Blank keys disable that environment (503). Deployed Compose
+files explicitly pass only these app credentials to web, never to the database.
+Do not run `docker compose config` in shared logs: resolved output includes secrets.
 
-### Secure token creation and transfer
+### Secure key preparation and transfer
 
-The command below generates a private JSON file (0600), refuses Git checkouts,
-and never prints the token. Run in the application Python environment, using a
-private directory outside the repository:
+Generate a private JSON file outside any Git checkout in the application Python
+runtime. The command creates a new file with mode 0600, refuses overwrites, and
+prints the path only:
 
 ```sh
-python manage.py create_review_api_secret --output /private/path/review-api-sandbox.json
-aws secretsmanager create-secret --name hairship/sandbox/app-review-api \
-  --secret-string file:///private/path/review-api-sandbox.json \
+python manage.py create_review_api_secret --output /private/path/review-integration.json
+```
+
+It writes this **shape**, with a generated value that must stay private:
+
+```json
+{"headers":{"X-Integration-Key":"<private-generated-value>"}}
+```
+
+In Docker, generate under `/tmp` inside the web container and copy it into your
+private server secret directory with `docker compose cp`. Use the company's
+secret-injection/password-manager process to install the JSON header value as
+`REVIEW_INTEGRATION_KEY_SANDBOX` in `/etc/salonops/dev.env` (0600). Production uses
+its independently generated value in the production environment. Recreate workers
+after changing their environment; an existing container will not reload it.
+
+Transfer that same private JSON through the approved secret channel to AWS Secrets
+Manager `hairship/app/review-integration`, for the selected worker environment.
+For example, on a securely configured AWS CLI host:
+
+```sh
+aws secretsmanager create-secret --name hairship/app/review-integration \
+  --secret-string file:///private/path/review-integration.json \
   --query ARN --output text
 ```
 
-In Docker, run the management command inside the web container with an output
-under `/tmp`, then use `docker compose cp` to copy that private file into your
-server's private secret directory. Transfer it to the configured AWS CLI host
-through your secure administration channel if needed. Install the JSON `token`
-value as the matching server environment secret without printing it. Restart or
-recreate web workers so they load it. Never put secret values in Git, URLs,
-workflow logs, screenshots, or chat. Repeat independently for production. This
-change does not create a secret, assign an ARN, or transfer any live credentials.
+Use the worker's existing secret configuration and scoped access to that ARN.
+Use separate secrets/accounts or environment-specific names for sandbox and
+production. This repository does not create or read live AWS secrets. Never put
+the value in Git, chat, screenshots, command-line headers or workflow logs.
+No live key was installed or transferred as part of local implementation.
 
-## Review result request
+The old `/api/v1/google-reviews/ingest/` and `/publications/` routes remain compatible
+for existing callers. Only those legacy routes also accept Bearer auth. Legacy
+`REVIEW_API_TOKEN_*` server variables remain fallbacks; use the new key names for
+this deployment. V3 needs only the canonical result URL. Do not configure separate
+processing/case/publication POSTs for the queue worker.
 
-[Full sensitive example](examples/google-review-result.json) matches the proposed
-AWS worker payload exactly, including `source.review_snapshot`, `processing`,
-`analysis`, and `publication`. Additional executable examples:
+## Envelope and committed receipt
 
-- [Positive appreciation](examples/google-review-positive.json): saved, no complaint case.
-- [Five-star mixed feedback](examples/google-review-mixed.json): two independent issue tasks.
-- [Rating only](examples/google-review-rating-only.json): clarification case, zero invented issues.
-- [Edited review](examples/google-review-edited.json): updates the sensitive example's existing review.
+The API stores the complete original event, full analysis, processing diagnostics,
+Google reply state, existing reply and unknown optional fields. Dashboard fields
+are normalized separately. `analysis.status` describes draft validation only;
+public state comes from `publication`. Submitted/published and human-investigation
+requirements can coexist without closing internal work.
 
-Use `schema_version: "hairship.review-result.v1"`. Required identity fields are
-`source.provider` (`google_business_profile`), full `review_name`, matching
-`account_name`, `location_name` and `review_id`. `location_name` may be
-`locations/<id>` as in the example, or the full account/location resource name.
-The app normalizes it to `accounts/<account>/locations/<location>` for mapping.
-`profile_key` is stored for tracing but cannot choose a branch or manager.
+Accept Google account/location/review IDs matching the **full** `source.review_name`.
+Normalize `locations/<id>` to the full account/location mapping. `profile_key` cannot
+choose an internal branch or manager. Review text may be empty for rating-only
+feedback. Require timezone-aware Google and processing timestamps. Queue worker
+V2/V3 requests require integer `processing.result_revision` (0 through signed
+64-bit maximum); it is an ordering value, not a consecutive counter.
 
-Require `event_id`, `environment` (`sandbox` or `production`), Google create/update
-times with timezones, `review_snapshot.star_rating` (integer 1–5),
-`processing.analysis_run_id`, and timezone-aware `processing.analyzed_at`.
-`review_snapshot.text` can be empty for rating-only reviews. Optional
-`review_snapshot.reviewer_display_name` is supported. `processing` and the full
-original `analysis` JSON are retained, including prompt/model versions, scope,
-reason and any extra analysis fields. The complete original event is retained too.
+All publication states are supported:
 
-Analysis supports the supplied `sentiment`, `complaint_detected`, `issues`,
-`requires_human_review`, and `case_followup_requires_human` fields. `issues` and
-optional `complaints` contain issue objects with `category`, `reported_issue`
-and optional `priority` (low/normal/high/urgent). Give each issue an optional stable
-`issue_id` across edits/reanalysis for the best continuity. Without it, identity
-is derived from category and normalized issue description; a changed description
-creates a new task while retaining the earlier task and its staff actions. Arrays
-are never matched by their position. At most 100 distinct issues are accepted.
-Unknown categories map to Other; the original taxonomy remains in source JSON.
-`injury_or_health` always becomes an urgent Health task.
+| State | Meaning |
+| --- | --- |
+| `pending` | Confirmed queued rate-limit retry; not published or resolved. |
+| `submitted` | Google accepted submission; visibility is not confirmed. |
+| `published` | Google reports approval; not proof of the exact customer-visible instant. |
+| `failed` | Definite API/moderation failure; retain the error code. |
+| `uncertain` | Unconfirmed write; app never retries Google publication. |
+| `superseded` | Source/reply changed or disappeared; retain prior history. |
+| `skipped` | Existing reply preserved or automatic publication disabled. |
+| `human_review` | No valid automatic reply; human handling remains available. |
 
-A case is created for any reported issue, complaint flag, human follow-up flag,
-or rating of 1–2 without an explanation. Human follow-up alone creates a case
-with zero issue tasks. No complaint is invented from a rating. A positive review
-without follow-up creates no complaint ticket; staff can mark it closed from
-All reviews without an investigation or a manager-assignment requirement.
+`published` must agree with status. Published outcomes require actual text and a
+publication timestamp; failures require an error code. `submitted_at`,
+`google_reply.updateTime`, `reviewReplyState`, visibility, confirmation and future
+optional diagnostics are retained. A moderation timeout can remain `submitted`
+with `moderation_not_confirmed_within_retry_window`; it is never marked resolved.
+The generated draft is stored from `analysis.reply_text` independently of actual
+published text. Actual public text is shown as published only for that state.
 
-### Committed receipt
-
-Success is HTTP 200 only after the transaction commits the review, applicable
-case, issue tasks, history and original receipt. IDs below are illustrative UUIDs:
+HTTP 200 is returned **after** the review, applicable case, incoming issue
+reconciliation, actual assignment, notification outbox and original receipt commit:
 
 ```json
 {
-  "event_id": "example-delivery-001",
+  "event_id": "same-event-id-as-request",
   "status": "committed",
   "committed": true,
   "review_record_id": "e5c195a1-2596-4709-893c-bd247ef7e89f",
@@ -129,161 +138,124 @@ case, issue tasks, history and original receipt. IDs below are illustrative UUID
 }
 ```
 
-An appreciation returns `case_id: null`, count 0, assignment false. An unassigned
-case returns its actual ID and assignment false. `issues_saved_count` includes
-retained tasks from earlier analyses. Assignment true means an actual saved owner
-was eligible for the branch when the receipt was committed; it does not claim
-notification delivery or Google publication. Retrying the same event returns the
-original successful receipt even if staff subsequently change assignments.
+IDs above are illustrative; actual saved UUIDs are returned as strings.
+`issues_saved_count` counts the incoming `analysis.issues` reconciled for this
+event, excluding historical and manually added tasks. A positive review without
+follow-up returns null case, count 0 and assignment false. A saved unassigned case
+returns its actual case ID and assignment false. Assignment means a persisted,
+currently eligible owner, not external notification delivery. A low rating without
+explanation creates a clarification case with zero invented complaint tasks.
 
-## Publication outcomes
-
-Use a **new event ID for each distinct publication outcome**, with
-`schema_version: "hairship.review-publication.v1"`. Send the same source identity
-and processing metadata, plus `publication`. No analysis or snapshot is needed.
-[Published example](examples/google-review-publication.json) and
-[failed example](examples/google-review-publication-failed.json) are complete requests.
-
-Supported statuses: `pending`, `published`, `failed`, `skipped`, `human_review`.
-`published` must agree with status. A published result requires actual `reply_text`
-and `published_at`; a failure requires `error_code`. Include
-`publication.review_update_time` to identify the exact Google version. Always send
-`publication.occurred_at` for later changes/retries, particularly failed/skipped
-outcomes; it represents when the outcome happened, not HTTP retry time. For the
-supplied initial result example it defaults to `published_at`, or to
-`processing.analyzed_at` if unpublished. `reply_kind` is retained.
-
-A pre-ingestion publication is durably saved and returns:
+A durably ignored older version/revision can return:
 
 ```json
-{
-  "event_id": "demo-publication-before-review",
-  "status": "committed",
-  "committed": true,
-  "review_record_id": null,
-  "reconciliation_pending": true
-}
+{"event_id":"older-event-id","status":"stale","committed":true}
 ```
 
-It attaches automatically when the review arrives. This original receipt remains
-unchanged on retries. For an existing review, its real ID is returned and
-`reconciliation_pending` is false. Publication never creates a complaint case or
-changes a manager's issue status. The UI displays the latest outcome for the
-current Google version separately from internal resolution. Actual published
-text, timestamp, error code and every prior outcome remain in publication history.
+No HTTP 202 is used as proof of persistence. Responses stay far below 128 KiB;
+request bodies are limited to 512 KiB. Transaction failure rolls back partial work.
 
-## Idempotency, edits and retries
+## Idempotency, review versions and Google evidence
 
-- Google identity is the full `review_name`, unique within each isolated environment.
-  `review_id` alone is insufficient across locations/accounts.
-- `(environment, event_id)` deduplicates all endpoints. Exact retries return the
-  original receipt; reusing an ID for different content or endpoint kind returns
-  HTTP 409. PostgreSQL transaction locks cover concurrent first deliveries.
-- Source ordering is `(review_update_time, processing.analyzed_at)`. A later analysis
-  of the same Google version can update the source analysis. Older events remain
-  in history but cannot overwrite current source fields. A different source/analysis
-  at the same ordering tuple is a conflict; send a later analysis time.
-- Issue tasks, manager notes, confirmations, priorities, assignments and audit logs
-  survive source edits. Removed source issues are retained, labelled historical,
-  and require an explicit staff outcome. New issues reopen a closed investigation
-  and audit its prior closure. Appreciation closes are tied to the Google version;
-  a customer edit makes the new version open for review again.
-- Publication reduction uses matching environment, review identity and Google
-  version, then the newest `occurred_at` (event ID breaks equal-time ties). Old
-  versions never replace the current version's publication state. Deliver later
-  state transitions with a strictly later occurrence time.
-- Unknown/inactive locations are durably quarantined: HTTP 422,
-  `{"event_id":"...","status":"unmapped_location","committed":false}`.
-  Configure the mapping and retry the exact event; Admin/GM can also retry it
-  from Needs assignment. No successful receipt is claimed before review commit.
-- Invalid JSON/schema: 400; wrong credential: 401; HTTP when HTTPS required: 403;
-  conflicting event/version: 409; oversized body: 413; wrong content type: 415;
-  missing server credential: 503. Transaction failure rolls back all records.
-  AWS should persist undelivered events and retry transient/network failures with
-  backoff using the same event ID and body; investigate validation/conflict errors.
-  This delivery/retry path must remain independent of Google reply publication.
+- `(environment, event_id)` is database-unique. Exact retries return the original
+  successful receipt and repeat no side effects. Reusing an ID with changed JSON
+  returns 409. A supplied `Idempotency-Key` must equal the body event ID.
+  PostgreSQL locks serialize concurrent first deliveries.
+- Business identity is full `review_name` within the isolated environment.
+  Google `review_update_time` determines customer-review versions. Old versions
+  retain raw history but cannot overwrite current source or manager work.
+- Within each analysis run and Google version, only the greatest result revision
+  controls its publication disposition. Revision gaps and higher-first arrival
+  are valid. Lower/equal revisions are durably acknowledged as stale.
+- Across independent analysis runs of the same Google version, compare affirmative
+  Google evidence and timestamps, not UUID ordering. Confirmed approval, observed
+  supersession or explicit Google moderation rejection outrank unconfirmed
+  uncertain/skipped/pending observations. Definite failure outranks weaker results;
+  confirmed submission outranks unconfirmed outcomes. Google update timestamps
+  are used where available; fetch observation time handles state changes/removal.
+  Equal evidence/time ties preserve approval before an arbitrary transport-ID tie.
+- Another analysis of an unchanged review reuses existing tasks: stable issue IDs
+  and exact normalized issue descriptions match first, then unmatched derived
+  tasks reconcile one-to-one within their category. Exact matches are reserved
+  before reworded matches. Additional distinct concerns get separate tasks.
+  Across actual Google review edits, prior task identities/history remain intact.
+- Manager notes, assignees, confirmations, resolutions, administrative closes and
+  actor/time audit records survive edits/reanalysis. New issue tasks can reopen a
+  closed case with its old closure in history; a pure moderation update cannot.
+  Administrative appreciation closes are tied to the Google review version.
+- Alerts deduplicate by review/version/recipient, independently of analysis/run IDs
+  and case edit counters. They become visible only after transaction commit.
+  Sandbox outbox entries remain preview-only and never enter live alert feeds.
 
-A Lambda **return value does not deliver an event**. The worker must load its
-secret and make an HTTP POST, for example:
+Unknown/inactive Google locations are durably quarantined with HTTP 422 and
+`committed:false`. An administrator maps the location and retries the same event.
+Invalid payloads return 400; missing/wrong auth 401; HTTP when HTTPS required 403;
+conflicting IDs/versions 409; oversized body 413; wrong content type 415; missing
+server key 503. No failure response claims a committed review.
 
-```python
-import json
-from urllib.request import Request, urlopen
-import boto3
+V3's SQS delivery buffer is **14 days**, superseding V2's historical 28-day note.
+AWS retries only application delivery; recovery/redrive must not regenerate
+analysis or publish another Google reply. Keep the queue trigger disabled until
+live URL/authentication and committed receipts have been verified.
 
-secret = json.loads(boto3.client("secretsmanager").get_secret_value(
-    SecretId=APP_AUTH_SECRET_ARN)["SecretString"])
-request = Request(APP_PROCESSING_API_URL, data=json.dumps(result_event).encode(),
-    headers={"Content-Type": "application/json",
-             "Authorization": "Bearer " + secret["token"]}, method="POST")
-with urlopen(request, timeout=15) as response:
-    receipt = json.load(response)
-# Persist/dedupe/retry delivery in the worker. Do not make Google publication wait
-# for this HTTP call, receipt or assignment_confirmed.
+## Mapping and staff pages
+
+Django Admin → Google review locations: map the environment and full
+`accounts/<account>/locations/<location>` to the existing branch. For the supplied
+fixtures use `accounts/101013083477743854199/locations/12925644274742814696`.
+No mapping is created automatically for real branches. The existing manager roster
+selects exactly one eligible owner; missing/ambiguous owners go to Needs assignment.
+
+Tickets → All reviews stores appreciations, mixed/negative and rating-only reviews.
+Appreciations can be closed without investigation. Complaints/human follow-up use
+one case with separate issue cards; health issues are urgent. Managers remain
+branch scoped; Admin/GM can inspect/filter all branches, assignments and analytics.
+Unresolved outcomes remain unresolved; public reply success never resolves a case.
+No appreciation topics are invented from positive sentiment. Sandbox views use
+`?demo=1` and are excluded from production analytics and notifications.
+
+## Local verification and deployment pending
+
+The original synthetic worker examples are in [worker-v2](examples/worker-v2/):
+positive, mixed, rating-only and sensitive. They share one Google identity/version,
+so test them independently or assign distinct synthetic review IDs for batch demos.
+The V3 suite derives queue/moderation scenarios without changing these originals.
+Codespaces still starts with `bash scripts/codespaces.sh`; sample review pages use
+`/reviews/google/?demo=1`. Do not give AWS a private Codespaces port URL.
+
+```sh
+docker compose exec -T web python manage.py check
+docker compose exec -T web python manage.py makemigrations --check --dry-run
+docker compose exec -T web python manage.py test operations.test_google_review_contract_v3 operations.test_google_reviews operations.test_reviews --noinput
 ```
 
-## Mapping, manager workflow and analytics
+Migration **0020_review_contract_v3** extends publication states and adds revision
+and evidence ordering. It backfills existing publication history so an old approved
+reply cannot lose to an unconfirmed result after upgrade, and reuses the existing
+current-version notification. Migration **0019** creates the ingestion schema.
+Neither deletes manager actions, source events or operational data.
 
-In Django Admin, add **Google review locations** with the environment, normalized
-full account/location name, and existing branch. For the supplied example:
-`accounts/101013083477743854199/locations/12925644274742814696`.
-Create sandbox and production mappings independently. The application's existing
-branch-manager roster/duty rules select exactly one eligible manager; missing or
-ambiguous managers go to Admin/GM **Needs assignment**. Senior staff can assign an
-eligible manager from the investigation page. AWS/AI cannot supply assignments.
+Existing deployment workflow: [salonops.yml](../.github/workflows/salonops.yml),
+job **deploy-test**, using a tested `dev` push image and GitHub environment
+**testing**, on `[self-hosted, Linux, X64, salonops-test]`. The relevant settings are
+`SALONOPS_TEST_AUTODEPLOY=true` and `SALONOPS_TEST_DEPLOY_MODE=https-local` for the
+existing dev domain. No workflow settings were changed or deployment started here.
+The last prior dev deployment job was skipped. See
+[test HTTPS deployment](test-https-deployment.md) for server/runner setup.
 
-**Tickets → All reviews** stores all feedback. **Investigations** shows actionable
-work, including rating-only clarification cases. Managers are branch scoped;
-Admin/GM see all branches and can filter by branch, handling state and priority.
-The existing bell notifies the assigned manager after committed intake. Synthetic
-cases use preview notifications visible only in the demo workspace.
+The existing `scripts/deploy_test_https.sh` installs the immutable tested image,
+backs up the test database before migrations and verifies secure HTTPS startup.
+An administrator must install the private key in `/etc/salonops/dev.env`, deploy
+the reviewed dev release through that workflow (or its documented script), and
+configure the sandbox branch mapping. `compose.test.yaml` now passes the key to
+web explicitly. Production remains a separate main-only reviewed deployment.
 
-Accept the review, update each issue's customer follow-up and staff follow-up,
-and record action/service notes. Staff statuses support Not started, In progress,
-Awaiting follow-up, Resolved, Unresolved and Not actionable. Server time and actor
-are saved automatically. Every issue must have an outcome before closure.
-Unresolved/partial outcomes remain visibly **Unresolved** and never count as
-resolved cases or successful resolution times. Reopening requires a reason and is
-audited. Public reply controls are absent and rejected for AWS-linked cases.
-Company sensitive-case closure policy still applies to internal investigation only.
-
-**Branch analytics** includes volume, rating distribution/average, sentiment,
-positive feedback, mixed complaints, complaint categories, urgent open cases,
-assignment backlog, unresolved issues, fully resolved case duration and current
-reply outcomes. It uses one current record per Google review, not delivery counts.
-Mixed high-star reviews count in complaint reporting. Positive feedback has no
-invented appreciation categories. Retained historical issue tasks are explicitly
-included in complaint/unresolved reporting. Sandbox (`?demo=1`) and production
-analytics, review records, credentials and notification feeds are separate.
-
-## Migrations, deployment and verification
-
-Migration **0019_google_review_ingestion** adds Google location mappings, current
-reviews, immutable source events/receipts, publication outcomes, administrative
-close history and stable AWS issue identity. It preserves existing staff cases.
-Source events and complete analysis are retained to preserve review-edit history.
-The older staff-intake snapshot expiry job only clears legacy snapshots; it is
-not an expiry policy for these new Google source/event/history records.
-
-1. Deploy the reviewed `dev` build through the existing test workflow; use the
-   established backup/migration deployment scripts for the server. For local Docker:
-   `docker compose up --build -d`, then `docker compose exec -T web python manage.py migrate --noinput`.
-   Normal web startup also applies pending migrations.
-2. Install environment-specific credentials securely and recreate workers. Configure
-   trusted HTTPS and location mappings. Keep the AWS worker in sandbox initially.
-3. Check `/health/`, API authentication, All reviews, Investigations, Needs assignment
-   and Branch analytics using manager and GM accounts. Verify another branch is denied.
-4. Run the PostgreSQL integration suite:
-   `docker compose exec -T web python manage.py test operations.test_google_reviews operations.test_reviews --noinput`.
-   It demonstrates positive, mixed, sensitive, duplicate/concurrent, edited/older,
-   unassigned, rollback and publication-before-ingestion/failure cases.
-5. In Codespaces, `bash scripts/codespaces.sh` now also seeds isolated Google
-   examples. Sign in with the existing **admin/admin**, **manager/admin** or
-   **gm/admin**, then open `/reviews/google/?demo=1`. Repeated startup preserves
-   staff work. In a dedicated development `*_review_preview` database, run
-   `seed_review_demo` first, then `python manage.py seed_google_review_demo`.
-   The seed command refuses other environments/databases and sends no external requests.
-
-Production enablement requires the reviewed revision, migrations, matching token,
-location mapping and an AWS worker that actually POSTs the documented envelope.
-The older draft-only worker ZIP does not provide that delivery automatically.
+After deployment, verify `/health/` and POST a sandbox fixture directly to the full
+HTTPS URL. Supply the private key through a protected client header file/secret
+store; never put it in the command line or chat. Do not follow redirects. Check
+HTTP 200/201, no Location header, event ID echo, `committed:true`, real record/case
+IDs, exact incoming issue count and actual Boolean assignment. Retry the identical
+request and confirm its original receipt and unchanged task/alert counts. A bad
+key must return JSON 401, not a login page. Only then provide the verified full
+HTTPS URL and `X-Integration-Key` header name to the worker operator; transfer the
+actual key through the agreed private channel.

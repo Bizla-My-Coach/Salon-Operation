@@ -178,6 +178,8 @@ class GoogleReviewTests(TestCase):
         close_from_followups(self.people['manager'], record.case_id, record.case.version, synthetic=True)
         data = deepcopy(self.payload)
         data['event_id'] = 'new-issue-after-close'
+        data['source']['review_update_time'] = '2026-10-20T09:01:00Z'
+        data['publication']['review_update_time'] = '2026-10-20T09:01:00Z'
         data['processing'].update(analysis_run_id='run-2', analyzed_at='2026-10-20T09:01:00Z')
         data['analysis']['issues'][0]['reported_issue'] = 'An additional distinct reported injury concern.'
         self.assertEqual(self.send(data).status_code, 200)
@@ -378,7 +380,7 @@ class GoogleReviewTests(TestCase):
             output = io.StringIO()
             path = Path(directory) / 'token.json'
             call_command('create_review_api_secret', output=str(path), stdout=output)
-            token = json.loads(path.read_text())['token']
+            token = json.loads(path.read_text())['headers']['X-Integration-Key']
             self.assertGreaterEqual(len(token), 32)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertNotIn(token, output.getvalue())

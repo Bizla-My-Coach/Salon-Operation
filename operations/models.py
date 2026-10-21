@@ -628,6 +628,7 @@ class ReviewIssue(TimeStamped):
     cycle = models.PositiveIntegerField(default=1)
     aws_issue_id = models.CharField(max_length=120, blank=True)
     source_active = models.BooleanField(default=True)
+    source_review_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['created_at', 'id']
@@ -715,7 +716,7 @@ class ReviewNotification(TimeStamped):
 
 REVIEW_ENVIRONMENTS = [('production', 'Production'), ('sandbox', 'Sandbox')]
 PUBLICATION_STATES = [(s, s.replace('_', ' ').title()) for s in
-    ('pending', 'published', 'failed', 'skipped', 'human_review')]
+    ('pending', 'submitted', 'published', 'failed', 'uncertain', 'superseded', 'skipped', 'human_review')]
 
 
 class GoogleReviewLocation(TimeStamped):
@@ -747,6 +748,7 @@ class GoogleReview(TimeStamped):
     google_created_at = models.DateTimeField()
     google_updated_at = models.DateTimeField(db_index=True)
     analysis_version = models.CharField(max_length=160)
+    result_revision = models.PositiveBigIntegerField(default=0)
     analysis = models.JSONField(default=dict)
     processing = models.JSONField(default=dict)
     analyzed_at = models.DateTimeField()
@@ -812,6 +814,10 @@ class GoogleReplyPublication(models.Model):
     review_name = models.CharField(max_length=400)
     review_updated_at = models.DateTimeField()
     analysis_version = models.CharField(max_length=160)
+    result_revision = models.PositiveBigIntegerField(default=0)
+    evidence_rank = models.PositiveSmallIntegerField(default=0)
+    evidence_at = models.DateTimeField(null=True, blank=True)
+    observed_at = models.DateTimeField(null=True, blank=True)
     occurred_at = models.DateTimeField()
     status = models.CharField(max_length=16, choices=PUBLICATION_STATES)
     actual_reply_text = models.TextField(blank=True, max_length=4000)

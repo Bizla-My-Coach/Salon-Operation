@@ -21,7 +21,7 @@ class Command(BaseCommand):
             parent = parent.parent
         try:
             with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as output:
-                json.dump({'token': secrets.token_urlsafe(48)}, output)
+                json.dump({'headers': {'X-Integration-Key': secrets.token_urlsafe(48)}}, output)
                 output.write('\n')
         except OSError as exc:
             raise CommandError('Could not create a new private secret file; check the directory and choose a new filename.') from exc

@@ -1,0 +1,58 @@
+{
+  "schema_version": "hairship.review-result.v1",
+  "event_id": "example-rating-only-result-1",
+  "environment": "sandbox",
+  "synthetic": true,
+  "source": {
+    "provider": "google_business_profile",
+    "profile_key": "koppam",
+    "account_name": "accounts/101013083477743854199",
+    "location_name": "locations/12925644274742814696",
+    "review_name": "accounts/101013083477743854199/locations/12925644274742814696/reviews/SYNTHETIC_REVIEW_001",
+    "review_id": "SYNTHETIC_REVIEW_001",
+    "review_create_time": "2026-10-20T09:00:00Z",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "fetched_at": "2026-10-20T09:01:00Z",
+    "review_snapshot": {
+      "star_rating": 1,
+      "text": "",
+      "existing_reply": null
+    }
+  },
+  "processing": {
+    "analysis_run_id": "4e6703da7d9847a998a663cc9c5fc58d",
+    "analyzed_at": "2026-10-20T09:01:00Z",
+    "result_revision": 1,
+    "worker_version": "hairship-gmb-sqs-worker-v2",
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "analysis": {
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0",
+    "status": "human_review",
+    "reply_text": "",
+    "star_rating": 1,
+    "sentiment": "negative",
+    "complaint_detected": false,
+    "issues": [],
+    "requires_human_review": true,
+    "review_reason": "insufficient_detail",
+    "case_followup_requires_human": true,
+    "reply_kind": "none",
+    "validation_errors": [],
+    "human_review_scope": "reply_and_case",
+    "model_invoked": false,
+    "model_attempts": 0
+  },
+  "publication": {
+    "status": "human_review",
+    "published": false,
+    "reply_kind": "none",
+    "reply_text": "",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "published_at": null,
+    "error_code": "no_valid_automatic_reply",
+    "google_reply": null
+  }
+}

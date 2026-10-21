@@ -2,15 +2,16 @@
 import hashlib
 import json
 import re
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
+from django.db.models import Max
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import (GoogleReview, GoogleReviewEvent, GoogleReviewLocation, GoogleReplyPublication,
-    ReviewCase, ReviewSnapshot, ReviewReply, ReviewAcknowledgement, ReviewIssue)
+    ReviewCase, ReviewSnapshot, ReviewReply, ReviewAcknowledgement, ReviewIssue, ReviewNotification)
 from . import review_workflow as workflow
 
 
@@ -79,18 +80,23 @@ def envelope(payload):
     processing = payload.get('processing')
     if not isinstance(processing, dict):
         raise ValidationError('processing must be an object.')
+    worker = text(processing, 'worker_version', 120)
+    revision = integer(processing, 'result_revision', 0, 9223372036854775807) if 'result_revision' in processing else 0
+    if worker in ('hairship-gmb-sqs-worker-v2', 'hairship-gmb-sqs-worker-v3') and 'result_revision' not in processing:
+        raise ValidationError('processing.result_revision is required for the queue worker.')
     return {'environment': env, 'event_id': event_id, 'review_name': name,
             'account_name': account, 'location_name': location, 'google_review_id': match[3],
             'profile_key': text(source, 'profile_key', 120), 'processing': processing,
             'analysis_version': text(processing, 'analysis_run_id', 160, True),
-            'analyzed_at': timestamp(processing, 'analyzed_at')}
+            'analyzed_at': timestamp(processing, 'analyzed_at'), 'result_revision': revision,
+            'fetched_at': timestamp(source, 'fetched_at') if source.get('fetched_at') else None}
 
 
 def publication_data(data, context):
     if not isinstance(data, dict):
         raise ValidationError('publication must be an object.')
     state = data.get('status')
-    if state not in ('pending', 'published', 'failed', 'skipped', 'human_review'):
+    if state not in ('pending', 'submitted', 'published', 'failed', 'uncertain', 'superseded', 'skipped', 'human_review'):
         raise ValidationError('Unknown publication status.')
     published_at = timestamp(data, 'published_at') if data.get('published_at') else None
     actual_text = text(data, 'reply_text', 4000)
@@ -101,10 +107,29 @@ def publication_data(data, context):
         raise ValidationError('Published outcomes require reply_text and published_at.')
     if state == 'failed' and not failure:
         raise ValidationError('Failed outcomes require error_code.')
-    occurred = timestamp(data, 'occurred_at') if data.get('occurred_at') else published_at or context['analyzed_at']
+    submitted_at = timestamp(data, 'submitted_at') if data.get('submitted_at') else None
+    google = data.get('google_reply')
+    if google is not None and not isinstance(google, dict):
+        raise ValidationError('publication.google_reply must be an object or null.')
+    google = google or {}
+    google_time = timestamp(google, 'updateTime') if google.get('updateTime') else None
+    observed = context['fetched_at'] or context['analyzed_at']
+    occurred = timestamp(data, 'occurred_at') if data.get('occurred_at') else published_at or submitted_at or observed
+    # Across analysis runs, only affirmative Google evidence can replace an
+    # approved reply. A fresh UUID or a newer uncertain/skipped observation cannot.
+    rank = 0
+    if state in ('published', 'superseded') or state == 'failed' and google.get('reviewReplyState') == 'REJECTED':
+        rank = 3
+    elif state == 'failed':
+        rank = 2
+    elif state == 'submitted':
+        rank = 1
+    evidence_at = (observed if state == 'superseded' else google_time or published_at or submitted_at or occurred)
     return {'review_updated_at': timestamp(data, 'review_update_time'),
-        'analysis_version': context['analysis_version'], 'occurred_at': occurred, 'status': state,
-        'actual_reply_text': actual_text if state == 'published' else '', 'published_at': published_at,
+        'analysis_version': context['analysis_version'], 'result_revision': context['result_revision'],
+        'evidence_rank': rank, 'evidence_at': evidence_at, 'observed_at': observed,
+        'occurred_at': occurred, 'status': state,
+        'actual_reply_text': actual_text if state in ('published', 'submitted') else '', 'published_at': published_at,
         'failure_code': failure, 'reply_kind': text(data, 'reply_kind', 60)}
 
 
@@ -167,15 +192,21 @@ def review_data(payload):
     base.update(star_rating=rating, review_text=review_text,
         reviewer_display_name=text(review, 'reviewer_display_name', 120),
         google_created_at=created, google_updated_at=updated,
-        analysis=analysis, sentiment=sentiment, priority=priority, requires_human_review=human,
+        analysis=analysis, sentiment=sentiment, priority=priority, requires_human_review=human_review,
         needs_followup=bool(issues or human or complaint or (rating <= 2 and not review_text.strip())),
-        generated_reply=text(payload, 'generated_reply', 4000) or text(payload.get('publication', {}), 'reply_text', 4000),
-        issues=issues, sensitive=sensitive)
-    base['version_fingerprint'] = fingerprint([source, analysis])
+        generated_reply=text(analysis, 'reply_text', 4000) or text(payload, 'generated_reply', 4000) or text(payload.get('publication', {}), 'reply_text', 4000),
+        issues=issues, incoming_issue_count=len(analysis.get('issues', [])), sensitive=sensitive)
+    base['version_fingerprint'] = source_fingerprint(created, updated, rating, review_text)
     base['publication'] = publication
     if base['publication'] and base['publication']['review_updated_at'] != updated:
         raise ValidationError('An ingestion publication must describe the ingested review version.')
     return base
+
+
+def source_fingerprint(created, updated, rating, review_text):
+    # fetched_at, existing_reply, analysis diagnostics and moderation results may
+    # legitimately change while the actual Google customer review is unchanged.
+    return fingerprint([created.astimezone(UTC).isoformat(), updated.astimezone(UTC).isoformat(), rating, review_text])
 
 
 def lock(namespace, value):
@@ -203,10 +234,16 @@ def begin_event(payload, values, kind):
 def reconcile_publication(review):
     matching = GoogleReplyPublication.objects.filter(environment=review.environment,
         review_name=review.review_name, review_updated_at=review.google_updated_at)
-    latest = matching.order_by('-occurred_at', '-event__event_id').first()
+    runs = {}
+    for result in matching.select_related('event').order_by('analysis_version', '-result_revision', '-occurred_at', '-event__event_id'):
+        runs.setdefault(result.analysis_version, result)
+    def evidence_order(result):
+        return (result.evidence_rank, result.evidence_at or result.occurred_at,
+                result.observed_at or result.occurred_at, result.status == 'published', result.event.event_id)
+    latest = max(runs.values(), key=evidence_order, default=None)
     review.publication_status = latest.status if latest else 'pending'
-    review.published_text = latest.actual_reply_text if latest else ''
-    review.published_at = latest.published_at if latest else None
+    review.published_text = latest.actual_reply_text if latest and latest.status == 'published' else ''
+    review.published_at = latest.published_at if latest and latest.status == 'published' else None
     review.publication_failure_code = latest.failure_code if latest else ''
     review.save(update_fields=['publication_status', 'published_text', 'published_at', 'publication_failure_code', 'updated_at'])
     GoogleReviewEvent.objects.filter(environment=review.environment, review_name=review.review_name,
@@ -218,7 +255,7 @@ def save_publication(event, values, data):
         'environment': values['environment'], 'review_name': values['review_name'], **data})
 
 
-def sync_case(review, data):
+def sync_case(review, data, same_version=False):
     case = ReviewCase.objects.select_for_update().get(pk=review.case_id) if review.case_id else None
     if case:
         review.case = case
@@ -256,37 +293,53 @@ def sync_case(review, data):
                 case.owner = managers[0]
                 workflow.log(case, None, 'Manager assigned', 'Eligible manager found for the mapped branch.')
     workflow.apply_sensitive_policy(case)
-    incoming = data['issues']
-    case.issues.exclude(aws_issue_id='').exclude(aws_issue_id__in=incoming).update(source_active=False)
+    incoming, reconciled = data['issues'], set()
+    exact = {issue.aws_issue_id: issue for issue in case.issues.filter(aws_issue_id__in=incoming)}
+    reserved = {issue.pk for issue in exact.values()}
     new_issues = 0
     for identity, source in incoming.items():
-        issue, created = case.issues.get_or_create(aws_issue_id=identity,
-            defaults={**source, 'assignee': case.owner})
+        issue = exact.get(identity)
+        if not issue and same_version and identity.startswith('derived:'):
+            # Independent preparation retries can reword the same Google issue.
+            # Reconcile one-to-one within its category rather than cloning tasks.
+            issue = case.issues.filter(source_review_updated_at=review.google_updated_at, category=source['category'],
+                aws_issue_id__startswith='derived:').exclude(pk__in=reconciled | reserved).first()
+        created = issue is None
         if created:
+            issue = ReviewIssue.objects.create(case=case, aws_issue_id=identity, **source, assignee=case.owner,
+                source_review_updated_at=review.google_updated_at)
             new_issues += 1
         else:
             for key, value in source.items():
                 setattr(issue, key, value)
             issue.source_active = True
-            issue.save(update_fields=[*source, 'source_active', 'updated_at'])
+            issue.source_review_updated_at = review.google_updated_at
+            issue.save(update_fields=[*source, 'source_active', 'source_review_updated_at', 'updated_at'])
+        reconciled.add(issue.pk)
+    case.issues.exclude(aws_issue_id='').exclude(pk__in=reconciled).update(source_active=False)
     if case.closed_at and new_issues:
         workflow.log(case, None, 'Case reopened by new issue',
             f'Previous closure: {case.closure_summary}', previous=case.status, current='NEW')
         case.closed_at = case.closed_by = None
         case.closure_summary = case.closure_outcome = ''
     workflow.log(case, None, 'AWS analysis received',
-        f'Analysis version {review.analysis_version}. Prior staff actions retained; {new_issues} new issue(s).')
+        f'Analysis version {data["analysis_version"]}. Prior staff actions retained; {new_issues} new issue(s).')
     workflow.save_change(case)
-    if new_issues or not case.notifications.exists():
-        workflow.assignment_outbox(case, reason='google-ingestion')
+    if case.issues.filter(category='HEALTH').exists() and review.priority != 'URGENT':
+        review.priority = 'URGENT'
+        review.save(update_fields=['priority'])
+    if case.owner_id:
+        ReviewNotification.objects.get_or_create(
+            dedupe_key=f'google:{review.pk}:{review.google_updated_at.astimezone(UTC).isoformat()}:{case.owner_id}',
+            defaults={'case': case, 'recipient': case.owner, 'status': 'PREVIEW' if case.synthetic else 'PENDING'})
 
 
-def receipt(event, review):
+def receipt(event, review, incoming_issue_count):
     case = review.case
     assigned = bool(case and case.owner_id and workflow.branch_managers(case.branch).filter(pk=case.owner_id).exists())
     return {'event_id': event.event_id, 'status': 'committed', 'committed': True,
         'review_record_id': str(review.pk), 'case_id': str(case.pk) if case else None,
-        'issues_saved_count': case.issues.count() if case else 0, 'assignment_confirmed': assigned}
+        'issues_saved_count': incoming_issue_count, 'assignment_confirmed': assigned}
 
 
 @transaction.atomic
@@ -308,27 +361,39 @@ def ingest_review(payload):
     source_fields = ['account_name', 'location_name', 'google_review_id', 'star_rating', 'review_text',
         'reviewer_display_name', 'google_created_at', 'google_updated_at', 'analysis_version', 'analysis',
         'version_fingerprint', 'sentiment', 'priority', 'requires_human_review', 'needs_followup', 'generated_reply',
-        'processing', 'analyzed_at', 'profile_key']
-    incoming = (data['google_updated_at'], data['analyzed_at'])
-    current = (review.google_updated_at, review.analyzed_at) if review else None
+        'processing', 'analyzed_at', 'profile_key', 'result_revision']
+    same_version = bool(review and review.google_updated_at == data['google_updated_at'])
     if review and review.branch_id != mapping.branch_id:
         raise EventConflict('Location branch changed. Resolve the existing review assignment before replaying.')
-    if review and incoming == current and review.version_fingerprint != data['version_fingerprint']:
-        raise EventConflict('Review/analysis version already exists with different content. Use a later processing.analyzed_at.')
+    if same_version and source_fingerprint(review.google_created_at, review.google_updated_at,
+            review.star_rating, review.review_text) != data['version_fingerprint']:
+        raise EventConflict('The same Google review version cannot have different customer text or rating.')
+    highest = GoogleReplyPublication.objects.filter(environment=data['environment'], review_name=data['review_name'],
+        review_updated_at=data['google_updated_at'], analysis_version=data['analysis_version']).aggregate(value=Max('result_revision'))['value']
+    if same_version and review.analysis_version == data['analysis_version']:
+        highest = max(highest if highest is not None else -1, review.result_revision)
+    stale = bool(review and (data['google_updated_at'] < review.google_updated_at or
+        same_version and 'result_revision' in data['processing'] and highest is not None and data['result_revision'] <= highest))
     if not review:
         review = GoogleReview.objects.create(environment=data['environment'], review_name=data['review_name'],
             branch=mapping.branch, **{key: data[key] for key in source_fields})
         sync_case(review, data)
-    elif incoming > current:
-        for key in source_fields:
-            setattr(review, key, data[key])
-        review.save(update_fields=[*source_fields, 'updated_at'])
-        sync_case(review, data)
+    elif not stale:
+        analysis_changed = review.analysis != data['analysis']
+        update_source = (not same_version or data['analyzed_at'] > review.analyzed_at or
+            review.analysis_version == data['analysis_version'] and data['result_revision'] > review.result_revision)
+        if update_source:
+            for key in source_fields:
+                setattr(review, key, data[key])
+            review.save(update_fields=[*source_fields, 'updated_at'])
+        if not same_version or analysis_changed or not review.case_id and data['needs_followup']:
+            sync_case(review, data, same_version=same_version)
     event.review, event.status = review, 'committed'
     if data['publication']:
         save_publication(event, data, data['publication'])
     reconcile_publication(review)
-    event.receipt = receipt(event, review)
+    event.receipt = ({'event_id': event.event_id, 'status': 'stale', 'committed': True} if stale
+        else receipt(event, review, data['incoming_issue_count']))
     event.save(update_fields=['review', 'status', 'receipt'])
     return event.receipt, 200
 

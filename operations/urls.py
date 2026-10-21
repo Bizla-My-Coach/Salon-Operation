@@ -8,6 +8,8 @@ from . import review_views
 from . import google_review_api
 from . import google_review_views
 urlpatterns=[
+path('api/integrations/google-reviews/results', google_review_api.results, name='google_review_results'),
+path('api/integrations/google-reviews/results/', google_review_api.results),
 path('api/v1/google-reviews/ingest/', google_review_api.reviews, name='google_review_ingest'),
 path('api/v1/google-reviews/publications/', google_review_api.publications, name='google_review_publications'),
 path('reviews/google/', google_review_views.inbox, name='google_review_inbox'),

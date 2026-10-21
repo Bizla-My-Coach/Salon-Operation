@@ -18,7 +18,7 @@ def reject_constant(value):
     raise ValueError('Non-finite JSON numbers are not supported.')
 
 
-def receive(request, operation):
+def receive(request, operation, legacy_auth=False):
     if settings.REVIEW_API_REQUIRE_HTTPS and not request.is_secure():
         return JsonResponse({'error': 'https_required', 'committed': False}, status=403)
     if request.content_type != 'application/json':
@@ -40,9 +40,16 @@ def receive(request, operation):
     token = settings.REVIEW_API_TOKENS.get(env, '')
     if not token or len(token) < 32:
         return JsonResponse({'error': 'integration_not_configured', 'committed': False}, status=503)
-    supplied = request.headers.get('Authorization', '')
-    if not hmac.compare_digest(supplied.encode(), ('Bearer ' + token).encode()):
+    supplied = request.headers.get('X-Integration-Key')
+    expected = token
+    if supplied is None and legacy_auth:
+        supplied = request.headers.get('Authorization', '')
+        expected = 'Bearer ' + token
+    if supplied is None or not hmac.compare_digest(supplied.encode(), expected.encode()):
         return JsonResponse({'error': 'invalid_authentication', 'committed': False}, status=401)
+    idempotency = request.headers.get('Idempotency-Key')
+    if idempotency is not None and idempotency != payload.get('event_id'):
+        return JsonResponse({'error': 'idempotency_key_mismatch', 'committed': False}, status=409)
     try:
         result, status = operation(payload)
     except ValidationError as exc:
@@ -57,11 +64,18 @@ def receive(request, operation):
 @never_cache
 @require_POST
 def reviews(request):
-    return receive(request, ingest_review)
+    return receive(request, ingest_review, legacy_auth=True)
 
 
 @csrf_exempt
 @never_cache
 @require_POST
 def publications(request):
-    return receive(request, ingest_publication)
+    return receive(request, ingest_publication, legacy_auth=True)
+
+
+@csrf_exempt
+@never_cache
+@require_POST
+def results(request):
+    return receive(request, ingest_review)

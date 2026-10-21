@@ -207,8 +207,8 @@ Managers, Admin and General Manager have **Customer experience → Tickets**.
 All Google feedback is stored, including appreciations that can be closed without
 an investigation. Complaints and human follow-up use branch-scoped cases with
 separate issue tasks, automatic submission timestamps and audited outcomes.
-AWS ingestion and publication-status endpoints receive the proposed v1 worker
-envelope; AWS owns Google publication independently of the app and managers.
+The authenticated result endpoint receives the V3 queue worker’s v1 JSON
+envelope with revision/evidence ordering; AWS owns Google publication independently of the app and managers.
 Branch analytics, unassigned work and sandbox separation are included. See the
 [Google review integration and deployment guide](docs/google-review-integration.md)
 for API URLs, authentication, examples, migrations and Codespaces verification.

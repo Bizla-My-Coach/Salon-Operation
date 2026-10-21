@@ -1,0 +1,63 @@
+{
+  "schema_version": "hairship.review-result.v1",
+  "event_id": "example-positive-result-1",
+  "environment": "sandbox",
+  "synthetic": true,
+  "source": {
+    "provider": "google_business_profile",
+    "profile_key": "koppam",
+    "account_name": "accounts/101013083477743854199",
+    "location_name": "locations/12925644274742814696",
+    "review_name": "accounts/101013083477743854199/locations/12925644274742814696/reviews/SYNTHETIC_REVIEW_001",
+    "review_id": "SYNTHETIC_REVIEW_001",
+    "review_create_time": "2026-10-20T09:00:00Z",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "fetched_at": "2026-10-20T09:01:00Z",
+    "review_snapshot": {
+      "star_rating": 5,
+      "text": "Great haircut and friendly staff.",
+      "existing_reply": null
+    }
+  },
+  "processing": {
+    "analysis_run_id": "6af4eb05ece84bd3b9c5ea9032c2fb80",
+    "analyzed_at": "2026-10-20T09:01:00Z",
+    "result_revision": 1,
+    "worker_version": "hairship-gmb-sqs-worker-v2",
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "analysis": {
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0",
+    "status": "draft_ready",
+    "reply_text": "Thank you for sharing your kind words about the haircut and our team.",
+    "star_rating": 5,
+    "sentiment": "positive",
+    "complaint_detected": false,
+    "issues": [],
+    "requires_human_review": false,
+    "review_reason": "none",
+    "case_followup_requires_human": false,
+    "reply_kind": "standard",
+    "validation_errors": []
+  },
+  "publication": {
+    "status": "published",
+    "published": true,
+    "reply_kind": "standard",
+    "reply_text": "Thank you for sharing your kind words about the haircut and our team.",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "published_at": "2026-10-20T09:01:00Z",
+    "error_code": null,
+    "google_reply": {
+      "comment": "Thank you for sharing your kind words about the haircut and our team.",
+      "updateTime": "2026-10-20T09:01:00Z",
+      "reviewReplyState": "APPROVED"
+    },
+    "confirmation": "google_update_reply_response",
+    "submitted": true,
+    "submitted_at": "2026-10-20T09:01:00Z",
+    "visibility_confirmed": true
+  }
+}
