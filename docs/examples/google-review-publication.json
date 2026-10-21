@@ -1,0 +1,32 @@
+{
+  "schema_version": "hairship.review-publication.v1",
+  "event_id": "demo-publication-before-review",
+  "environment": "sandbox",
+  "synthetic": true,
+  "source": {
+    "provider": "google_business_profile",
+    "profile_key": "koppam",
+    "account_name": "accounts/101013083477743854199",
+    "location_name": "locations/12925644274742814696",
+    "review_name": "accounts/101013083477743854199/locations/12925644274742814696/reviews/EXAMPLE_PUBLICATION_FIRST",
+    "review_id": "EXAMPLE_PUBLICATION_FIRST",
+    "review_create_time": "2026-10-20T09:00:00Z",
+    "review_update_time": "2026-10-20T09:00:00Z"
+  },
+  "processing": {
+    "analysis_run_id": "example-analysis-001",
+    "analyzed_at": "2026-10-20T09:00:10Z",
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "publication": {
+    "status": "published",
+    "published": true,
+    "reply_kind": "standard_reply",
+    "reply_text": "Thank you for sharing your feedback!",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "published_at": "2026-10-20T09:00:15Z",
+    "error_code": null,
+    "occurred_at": "2026-10-20T09:00:20Z"
+  }
+}

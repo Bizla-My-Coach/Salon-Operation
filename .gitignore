@@ -13,6 +13,7 @@ coverage.xml
 htmlcov/
 
 # Local configuration and secrets
+.devcontainer/.env
 .env
 .env.*
 !.env.example

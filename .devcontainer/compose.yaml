@@ -1,0 +1,29 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    entrypoint: []
+    command: ["sleep", "infinity"]
+    user: root
+    working_dir: /app
+    env_file: .env
+    volumes:
+      - ..:/app:cached
+    depends_on:
+      codespaces-db:
+        condition: service_healthy
+
+  codespaces-db:
+    image: postgres:17-alpine
+    env_file: .env
+    volumes:
+      - codespaces_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  codespaces_pgdata:

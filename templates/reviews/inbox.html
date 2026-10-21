@@ -12,7 +12,7 @@
   <article><span>Total tickets</span><strong>{{ metrics.total }}</strong><small>In the current filters</small></article>
 </div>
 <section class="panel review-inbox">
-  <div class="review-inbox-heading"><div><h2>{% if senior %}Ticket inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Every review, across all branches.{% else %}Only reviews with issues are shown here.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} ticket{{ page_obj.paginator.count|pluralize }}</span></div>
+  <div class="review-inbox-heading"><div><h2>{% if senior %}Ticket inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Investigations and manually recorded feedback across all branches.{% else %}Issues and reviews needing human follow-up.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} ticket{{ page_obj.paginator.count|pluralize }}</span></div>
   <nav class="review-tabs" aria-label="Review status">
     {% for key,label,count in tabs %}<a href="?{{ tab_prefix }}tab={{ key }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ label }} <span>{{ count }}</span></a>{% endfor %}
   </nav>
@@ -26,7 +26,7 @@
   <div class="review-case-list">
   {% for case in page_obj %}
     <article class="review-case-card {% if case.sensitive and case.status != 'CLOSED' %}review-sensitive{% endif %}">
-      <div class="review-case-top"><div class="review-reference">{{ case.reference }} <span>· {{ case.received_at|date:'d M, H:i' }}</span></div><span class="review-state state-{{ case.status|lower }}">{% if case.status == 'CLOSED' %}Closed{% else %}Open{% endif %}</span></div>
+      <div class="review-case-top"><div class="review-reference">{{ case.reference }} <span>· {{ case.received_at|date:'d M, H:i' }}</span></div><span class="review-state state-{{ case.status|lower }}">{% if case.closure_outcome == 'UNRESOLVED' or case.closure_outcome == 'PARTIAL' %}Unresolved{% elif case.status == 'CLOSED' %}{{ case.get_closure_outcome_display }}{% else %}Open{% endif %}</span></div>
       <div class="review-card-content">
         <div class="review-rating" aria-label="Rating {% if case.snapshot.available %}{{ case.snapshot.rating|default:'not provided' }}{% else %}unavailable{% endif %}">{% if case.snapshot.available and case.snapshot.rating %}<strong>{{ case.snapshot.rating }}<small>/5</small></strong><span aria-hidden="true">★</span>{% else %}<strong>—</strong><span>Rating</span>{% endif %}</div>
         <div class="review-card-main"><h3><a href="{% url 'review_detail' case.pk %}{% if demo %}?demo=1{% endif %}">{{ case.subject }}</a></h3><div class="review-card-meta">{{ case.branch.name }} <span>·</span> {{ case.customer_label|default:'Customer review' }}</div>

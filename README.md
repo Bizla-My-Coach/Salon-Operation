@@ -34,6 +34,11 @@ Open `http://127.0.0.1:8000/`.
 
 ## Optional development demo accounts
 
+For one-command testing on the **dev** branch in GitHub Codespaces, see the
+[Codespaces setup](docs/codespaces.md). Run `bash scripts/codespaces.sh` inside
+that dev container, then sign in with **admin / admin**. It uses an isolated
+PostgreSQL database and fictional data.
+
 On a disposable development database only, run
 `docker compose exec -T web python manage.py seed_demo` to create these accounts.
 
@@ -198,13 +203,16 @@ that can still be changed.
 
 ## Personal account and appearance
 
-Managers, Admin and General Manager have **Customer experience → Tickets**
-for branch-scoped review tickets and separate issue actions, service descriptions,
-closure outcomes, assignment-confirmed acknowledgement previews, controlled public
-follow-up drafts and operational reporting. See the
-[review ticket verification guide](docs/customer-review-tickets.md). This release
-supports staff-recorded reviews and isolated synthetic verification; automated
-Google intake and public posting are not connected.
+Managers, Admin and General Manager have **Customer experience → Tickets**.
+All Google feedback is stored, including appreciations that can be closed without
+an investigation. Complaints and human follow-up use branch-scoped cases with
+separate issue tasks, automatic submission timestamps and audited outcomes.
+The authenticated result endpoint receives the V3 queue worker’s v1 JSON
+envelope with revision/evidence ordering; AWS owns Google publication independently of the app and managers.
+Branch analytics, unassigned work and sandbox separation are included. See the
+[Google review integration and deployment guide](docs/google-review-integration.md)
+for API URLs, authentication, examples, migrations and Codespaces verification.
+The [ticket guide](docs/customer-review-tickets.md) describes staff handling.
 
 Every signed-in role has a profile icon in the navigation bar. Open it to see
 the account name, open **Profile**, switch between light and dark mode, or sign

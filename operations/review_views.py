@@ -74,7 +74,7 @@ def assignment_valid(case):
 
 
 def priority_cases(query):
-    rules = []
+    rules = [When(issues__category='HEALTH', then=Value(4))]
     for value, rank in [('URGENT', 4), ('HIGH', 3), ('NORMAL', 2), ('LOW', 1)]:
         rules.append(When(Q(issues__confirmed_priority=value) | Q(issues__confirmed_priority='', issues__ai_priority=value), then=Value(rank)))
     return query.annotate(priority_rank=Max(Case(*rules, When(issues__isnull=False, then=Value(2)), default=Value(0), output_field=IntegerField())))
@@ -89,7 +89,7 @@ def inbox(request):
     branches = Branch.objects.filter(review_cases__in=base).distinct()
     # Positive / empty-issue reviews remain available to HQ, outside the branch work queue.
     if not senior:
-        base = base.filter(issues__isnull=False).distinct()
+        base = base.filter(Q(issues__isnull=False) | Q(case_followup_requires_human=True)).distinct()
     query = priority_cases(base)
     branch_id = request.GET.get('branch', '')
     if branch_id.isdigit() and senior:
@@ -155,6 +155,8 @@ def detail_context(request, case, bound=None, bound_issue=None):
         'case': case, 'issues': issues, 'demo': demo_mode(request), 'senior': workflow.is_review_senior(request.user),
         'owner_valid': assignment_valid(case), 'open_issues': sum(not issue.is_terminal for issue in issues),
         'complete_count': sum(issue.is_terminal for issue in issues),
+        'google_review': getattr(case, 'google_review', None),
+        'unresolved': case.closure_outcome in ('PARTIAL', 'UNRESOLVED') or any(i.status == 'CLOSED_UNRESOLVED' for i in issues),
         'activities': case.activities.select_related('actor', 'issue')[:100],
         'version_form': VersionForm(initial=version),
         'closure_form': ClosureForm(initial={**version, 'service_description': case.service_description}),
@@ -213,7 +215,7 @@ def action(request, case_id):
             elif kind == 'close_simple':
                 workflow.close_from_followups(*args, demo)
             elif kind == 'close_no_issue':
-                if not workflow.is_review_senior(request.user) or case.issues.exists():
+                if case.issues.exists():
                     raise ValidationError('Use the issue follow-up flow for this review.')
                 workflow.close_case(*args, data['reason'], case.service_description or 'No service issue reported.', demo)
             elif kind == 'issue':
@@ -282,7 +284,7 @@ def create(request):
 def reports(request):
     cases = scoped_cases(request)
     if not workflow.is_review_senior(request.user):
-        cases = cases.filter(issues__isnull=False).distinct()
+        cases = cases.filter(Q(issues__isnull=False) | Q(case_followup_requires_human=True)).distinct()
     issues = ReviewIssue.objects.filter(case__in=cases)
     open_cases = cases.exclude(status='CLOSED')
     open_issues = issues.exclude(status__in=ReviewIssue.TERMINAL)

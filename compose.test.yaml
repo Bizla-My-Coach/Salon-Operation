@@ -22,6 +22,8 @@ services:
       POSTGRES_DB: salonops_dev
       POSTGRES_USER: salonops_dev_app
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set the existing app DB password}
+      REVIEW_INTEGRATION_KEY_SANDBOX: ${REVIEW_INTEGRATION_KEY_SANDBOX:-}
+      REVIEW_INTEGRATION_KEY_PRODUCTION: ${REVIEW_INTEGRATION_KEY_PRODUCTION:-}
       AUTO_MIGRATE: "false"
       CHECK_DEPLOY: "true"
     ports:

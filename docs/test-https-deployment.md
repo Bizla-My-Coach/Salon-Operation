@@ -214,3 +214,13 @@ backup. Never delete volumes, run `down -v`, or prune volumes on the VPS.
   `docker logs --tail 100 salonops-dev-proxy-1`. Never hide this with `curl -k`.
 - Failed migration: preserve DB/backup volumes and investigate; app may remain
   stopped, and there is no destructive automatic rollback.
+
+## Google review receiver
+
+The reviewed V3 release adds `POST /api/integrations/google-reviews/results`
+with `X-Integration-Key` authentication. Install
+`REVIEW_INTEGRATION_KEY_SANDBOX` privately in `/etc/salonops/dev.env`; the Compose
+file passes it explicitly to web. Blank keys keep ingestion disabled. Run the
+existing backup/migration deployment and verify a sandbox committed receipt before
+enabling AWS delivery. See [the integration guide](google-review-integration.md)
+for the exact contract, secret format, mapping and pending deployment status.

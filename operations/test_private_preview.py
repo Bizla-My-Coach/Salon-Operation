@@ -17,6 +17,18 @@ preview_config = load_module('preview_fixture', 'tests/preview_config_fixture.py
 
 
 class PrivatePreviewConfigTests(SimpleTestCase):
+    def test_only_https_web_receives_review_integration_credentials(self):
+        config = preview_config(https=True)
+        config['services']['web']['environment'].update(REVIEW_INTEGRATION_KEY_SANDBOX='synthetic-test-key')
+        validate(config, https=True)
+        config['services']['web']['environment']['POSTGRES_ADMIN_PASSWORD'] = 'not-allowed'
+        with self.assertRaises(ValueError):
+            validate(config, https=True)
+        config = preview_config()
+        config['services']['web']['environment']['REVIEW_INTEGRATION_KEY_SANDBOX'] = 'synthetic-test-key'
+        with self.assertRaises(ValueError):
+            validate(config)
+
     def test_https_local_backup_test_mode_requires_explicit_selection(self):
         config = preview_config(https=True)
         validate(config, https=True)

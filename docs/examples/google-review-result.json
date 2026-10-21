@@ -1,0 +1,41 @@
+{
+  "schema_version": "hairship.review-result.v1",
+  "event_id": "example-delivery-001",
+  "environment": "sandbox",
+  "synthetic": true,
+  "source": {
+    "provider": "google_business_profile",
+    "profile_key": "koppam",
+    "account_name": "accounts/101013083477743854199",
+    "location_name": "locations/12925644274742814696",
+    "review_name": "accounts/101013083477743854199/locations/12925644274742814696/reviews/EXAMPLE_REVIEW_001",
+    "review_id": "EXAMPLE_REVIEW_001",
+    "review_create_time": "2026-10-20T09:00:00Z",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "review_snapshot": {"star_rating": 2, "text": "My scalp was burned during the treatment."}
+  },
+  "processing": {
+    "analysis_run_id": "example-analysis-001",
+    "analyzed_at": "2026-10-20T09:00:10Z",
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "analysis": {
+    "sentiment": "negative",
+    "complaint_detected": true,
+    "issues": [{"category": "injury_or_health", "reported_issue": "Customer reported a scalp burn during treatment", "priority": "urgent"}],
+    "requires_human_review": true,
+    "review_reason": "sensitive_allegation",
+    "case_followup_requires_human": true,
+    "human_review_scope": "case_followup_and_substantive_reply"
+  },
+  "publication": {
+    "status": "published",
+    "published": true,
+    "reply_kind": "sensitive_acknowledgement",
+    "reply_text": "We're sorry to hear about your experience. We take concerns like this seriously and appreciate you bringing this to our attention.",
+    "review_update_time": "2026-10-20T09:00:00Z",
+    "published_at": "2026-10-20T09:00:15Z",
+    "error_code": null
+  }
+}

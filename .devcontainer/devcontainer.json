@@ -1,0 +1,19 @@
+{
+  "name": "SalonOps dev testing",
+  "dockerComposeFile": "compose.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/app",
+  "remoteUser": "root",
+  "overrideCommand": false,
+  "initializeCommand": "bash .devcontainer/initialize.sh",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {"label": "SalonOps test", "onAutoForward": "openBrowser", "protocol": "http"}
+  },
+  "otherPortsAttributes": {"onAutoForward": "ignore"},
+  "customizations": {
+    "vscode": {"extensions": ["ms-python.python"]},
+    "codespaces": {"openFiles": ["docs/codespaces.md"]}
+  }
+}

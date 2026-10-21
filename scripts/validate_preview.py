@@ -39,7 +39,9 @@ def validate(config, https=False):
         })
     environment = web.get('environment', {})
     require(all(environment.get(key) == value for key, value in fixed.items()))
-    require(set(environment) == set(fixed) | {'SECRET_KEY', 'POSTGRES_PASSWORD', 'TIME_ZONE'})
+    required = set(fixed) | {'SECRET_KEY', 'POSTGRES_PASSWORD', 'TIME_ZONE'}
+    integration = {'REVIEW_INTEGRATION_KEY_SANDBOX', 'REVIEW_INTEGRATION_KEY_PRODUCTION'} if https else set()
+    require(required <= set(environment) <= required | integration)
     ports = web.get('ports', [])
     require(len(ports) == 1 and ports[0].get('host_ip') == '127.0.0.1' and
             str(ports[0].get('published')) == '8000' and
