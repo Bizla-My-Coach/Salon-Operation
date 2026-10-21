@@ -6,10 +6,10 @@ services:
     entrypoint: []
     command: ["sleep", "infinity"]
     user: root
-    working_dir: /app
+    working_dir: /workspaces/Salon-Operation
     env_file: .env
     volumes:
-      - ..:/app:cached
+      - ..:/workspaces/Salon-Operation:cached
     depends_on:
       codespaces-db:
         condition: service_healthy

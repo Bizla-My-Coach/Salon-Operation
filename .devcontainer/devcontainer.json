@@ -2,10 +2,12 @@
   "name": "SalonOps dev testing",
   "dockerComposeFile": "compose.yaml",
   "service": "workspace",
-  "workspaceFolder": "/app",
-  "remoteUser": "root",
+  "workspaceFolder": "/workspaces/Salon-Operation",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
   "overrideCommand": false,
   "initializeCommand": "bash .devcontainer/initialize.sh",
+  "postCreateCommand": "bash .devcontainer/prepare-workspace.sh",
   "shutdownAction": "stopCompose",
   "forwardPorts": [8000],
   "portsAttributes": {
@@ -13,7 +15,10 @@
   },
   "otherPortsAttributes": {"onAutoForward": "ignore"},
   "customizations": {
-    "vscode": {"extensions": ["ms-python.python"]},
+    "vscode": {
+      "extensions": ["ms-python.python"],
+      "settings": {"terminal.integrated.defaultProfile.linux": "bash"}
+    },
     "codespaces": {"openFiles": ["docs/codespaces.md"]}
   }
 }
