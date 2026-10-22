@@ -107,6 +107,25 @@ processing/case/publication POSTs for the queue worker.
 
 ## Envelope and committed receipt
 
+### Finding a committed sandbox review
+
+Production reviews are shown by default. Use **Tickets → Sandbox reviews** or
+`/reviews/google/?demo=1` to see sandbox events, including positive reviews with
+no complaint ticket. Detail URLs also need `?demo=1`. Sandbox records remain
+excluded from production analytics and live manager alerts; manager branch
+permissions still apply in the sandbox view.
+
+`python manage.py inspect_google_review --review-id <receipt-review-id>
+--event-id <aws-event-id> --environment sandbox` traces the receipt, saved review,
+database identity and trusted branch mapping without changing data. Run it in
+the same application deployment that handled the POST. See the
+[Codespaces diagnostic example](codespaces.md) for the Koppam location check.
+Google identity is normalized to the full account/location path; `profile_key`
+does not choose a branch. Positive reviews without issues or human follow-up
+appear under All reviews and intentionally have `case_id: null`.
+
+### Stored envelope
+
 The API stores the complete original event, full analysis, processing diagnostics,
 Google reply state, existing reply and unknown optional fields. Dashboard fields
 are normalized separately. `analysis.status` describes draft validation only;

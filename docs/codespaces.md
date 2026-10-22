@@ -22,7 +22,7 @@ In Codespaces the prompt displays your GitHub username, for example:
 
 The command applies migrations, creates the demo accounts and salon/service/SOP
 data, adds fictional staff tickets and sandbox AWS Google reviews, and starts the app.
-Open **Tickets → All reviews** with `?demo=1` to verify appreciations, mixed
+Open **Tickets → Sandbox reviews** (`/reviews/google/?demo=1`) to verify appreciations, mixed
 complaints, sensitive issues, review edits and publication reconciliation. The admin
 can see all tickets and use Django Admin; the manager has a sample ticket and its
 notification. Use the same command after Ctrl+C or reopening the Codespace.
@@ -68,3 +68,34 @@ automatically; the prompt reports the branch you actually have checked out.
 The **Codespaces dev smoke test** GitHub Actions workflow checks this startup and
 admin login on pushes to `dev` and pull requests into `dev` or `main`. It uses its own
 disposable database and does not deploy the server or create a billed Codespace.
+
+If a sandbox POST returned a committed receipt but the review is missing from the
+normal inbox, check **Sandbox reviews** first. Production is the default view;
+positive reviews appear in **All reviews** without an investigation ticket. A
+manager still needs the matching working branch; an administrator or General
+Manager can inspect all branches. The incoming `profile_key` is metadata, not an
+assignment rule: map the full Google account/location identity in Django Admin's
+**Google review locations** for the correct environment and an active branch.
+The stock Codespaces seed uses `CS-DEMO` for this example location when no mapping
+already exists. It does not infer Koppam from `profile_key: koppam`, and it does
+not overwrite a mapping you already configured. Inspect the saved branch before
+changing an existing mapping; reviews already assigned to a branch retain their
+manager actions and are not silently moved by a replay.
+
+Run this read-only trace **inside the Codespace that received the POST**:
+
+```bash
+python manage.py inspect_google_review \
+  --review-id 56835f2d-dba5-46d4-b928-60716be0e9b5 \
+  --event-id example-v3-positive \
+  --environment sandbox \
+  --location-name accounts/101013083477743854199/locations/12925644274742814696 \
+  --expected-branch Koppam
+```
+
+The JSON reports the saved review, original receipt, database fingerprint,
+read/write database match and active location-to-branch mapping, without printing
+credentials or customer review text. Compare fingerprints only within the same
+running deployment; this workspace, Codespaces and production use separate
+PostgreSQL databases. `review: null` in another deployment does not prove the
+original receipt was incorrect. The command does not create or remap anything.
