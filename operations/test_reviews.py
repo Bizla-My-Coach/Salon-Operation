@@ -449,7 +449,9 @@ class ReviewTests(TestCase):
         self.assertEqual(self.client.get(self.url(case=fake)).status_code, 404)
         self.assertEqual(self.client.get(self.url(case=fake, demo=True)).status_code, 200)
         self.assertEqual(self.client.post(self.url('review_action', fake), {'action': 'acknowledge', 'version': fake.version}).status_code, 404)
-        self.assertContains(self.client.get(reverse('review_inbox') + '?demo=1'), 'Fictional reviews')
+        sandbox = self.client.get(reverse('review_inbox') + '?demo=1')
+        self.assertContains(sandbox, 'Sandbox reviews')
+        self.assertContains(sandbox, 'Excluded from production reviews, analytics and live manager alerts.')
 
     def test_intake_branch_scope_additional_issues_and_safe_invalid_ids(self):
         data = dict(branch=self.b.pk, subject='Record review', customer_label='', rating=1, text='',
