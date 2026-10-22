@@ -1,6 +1,6 @@
 ﻿# SalonOps production server handover
 
-Ubuntu Linux x64 · **main** branch · **operations.hairship.in**
+Ubuntu Linux x64 · **main** branch · **operation.hairship.in**
 
 Company Nginx must already provide HTTPS and proxy to `127.0.0.1:8000`.
 Do not expose 8000/5432. GitHub Actions currently runs checks only; it does not
@@ -64,9 +64,15 @@ Edit securely and replace all placeholders:
 
 - **prod.env:** independent random `SECRET_KEY`, `POSTGRES_PASSWORD` and
   `POSTGRES_ADMIN_PASSWORD`; approved release image digest in `SALONOPS_IMAGE`;
-  `ALLOWED_HOSTS=operations.hairship.in,localhost,127.0.0.1`;
-  `CSRF_TRUSTED_ORIGINS=https://operations.hairship.in`.
+  `ALLOWED_HOSTS=operation.hairship.in,localhost,127.0.0.1`;
+  `CSRF_TRUSTED_ORIGINS=https://operation.hairship.in`.
   Keep production/secure-cookie settings and volume **salonops-prod-pgdata** unchanged.
+  For AWS review ingestion, set `REVIEW_INTEGRATION_KEY_PRODUCTION` privately to
+  the same `X-Integration-Key` value held in the production AWS Secret. Configure
+  AWS `APP_REVIEW_RESULT_API_URL` as
+  `https://operation.hairship.in/api/integrations/google-reviews/results`.
+  See [review integration](google-review-integration.md) for key transfer and
+  authenticated receipt verification; never copy a sandbox key into production.
 - **prod.restic.env:** company **off-server HTTPS S3/Restic repository**, encryption
   password and scoped storage credentials. Local-only backups cannot deploy production.
 - **prod.ops.env:** keep the supplied production paths.
@@ -103,7 +109,7 @@ dc() { docker compose --env-file /etc/salonops/prod.env -p salonops-prod \
   -f /opt/salonops-prod/compose.production.yaml "$@"; }
 dc exec web python manage.py createsuperuser
 dc exec -T web python manage.py check_production_security
-curl --fail https://operations.hairship.in/health/
+curl --fail https://operation.hairship.in/health/
 bash /opt/salonops-prod/scripts/backup.sh "${OPS[@]}"
 bash /opt/salonops-prod/scripts/rehearse_offsite.sh "${OPS[@]}"
 ```

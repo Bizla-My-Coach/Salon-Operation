@@ -1,5 +1,11 @@
 # SalonOps: test and production deployment
 
+The production hostname is **operation.hairship.in**. The review-result URL is
+`https://operation.hairship.in/api/integrations/google-reviews/results`.
+The earlier `operations.shahinanalytics.com` address belongs only to the legacy
+test setup. See [Google review integration](google-review-integration.md) for
+private API key setup and receipt verification.
+
 For the optional **dev-only private preview** without a domain or off-server
 storage, use [private-test-deployment.md](private-test-deployment.md). It is not
 public production hosting. The secure workflow described below remains the
@@ -60,8 +66,8 @@ credentials, volumes, backup repository or real customer data on the test server
 ## 2. Configuration and passwords
 
 Copy `deploy/production.env.example` to `/etc/salonops/prod.env`, outside the
-checkout. Replace **every placeholder**, especially the key, domain and three
-database settings/passwords. Generate independent random values, for example:
+checkout. The example uses `operation.hairship.in`; replace all secret, database,
+image and contact placeholders. Generate independent random values, for example:
 
 ```bash
 python3 -c 'import secrets; print(secrets.token_hex(64))'
@@ -73,8 +79,11 @@ python3 -c 'import secrets; print(secrets.token_hex(64))'
 - `POSTGRES_ADMIN_PASSWORD`: different bootstrap administrator password.
 - `POSTGRES_VOLUME_NAME=salonops-prod-pgdata`: permanent name; never change it
   during ordinary deployments or you will appear to have an empty database.
-- `ALLOWED_HOSTS`: actual hostname plus `localhost,127.0.0.1` for health checks.
-- `CSRF_TRUSTED_ORIGINS`: actual `https://` origin, no wildcards.
+- `ALLOWED_HOSTS=operation.hairship.in,localhost,127.0.0.1`.
+- `CSRF_TRUSTED_ORIGINS=https://operation.hairship.in`, no wildcards.
+- `SITE_DOMAIN=operation.hairship.in` if using the optional Caddy proxy.
+- `REVIEW_INTEGRATION_KEY_PRODUCTION`: the same private header value stored in
+  the production worker's AWS Secret. Leave the sandbox key separate.
 - `SALONOPS_IMAGE`: approved GHCR `@sha256:...` digest from the manual release process.
 - `SALONOPS_ENV_FILE`: supplied by scripts, not stored inside this file.
 

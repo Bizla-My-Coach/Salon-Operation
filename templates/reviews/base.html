@@ -2,8 +2,8 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/reviews.css' %}">{% endblock %}
 {% block content %}
 <div class="reviews-workspace">
-<nav class="review-tabs" aria-label="Review workspace"><a href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">All reviews</a><a href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">Investigations</a><a href="{% url 'google_review_analytics' %}{% if demo %}?demo=1{% endif %}">Branch analytics</a>{% if user.is_superuser or user.profile.role == 'ADMIN' or user.profile.role == 'GENERAL_MANAGER' %}<a href="{% url 'google_review_assignments' %}{% if demo %}?demo=1{% endif %}">Needs assignment</a>{% endif %}</nav>
-{% if demo %}<div class="review-demo"><strong>Demo workspace</strong><span>Fictional reviews and tickets for verification. Excluded from live reporting. Nothing is posted to Google.</span><a href="{% url 'review_inbox' %}">Exit demo</a></div>{% endif %}
+<nav class="review-tabs" aria-label="Review workspace"><a href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">All reviews</a><a href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">Investigations</a><a href="{% url 'google_review_analytics' %}{% if demo %}?demo=1{% endif %}">Branch analytics</a>{% if user.is_superuser or user.profile.role == 'ADMIN' or user.profile.role == 'GENERAL_MANAGER' %}<a href="{% url 'google_review_assignments' %}{% if demo %}?demo=1{% endif %}">Needs assignment</a>{% endif %}{% if not demo %}<a href="{% url 'google_review_inbox' %}?demo=1">Sandbox reviews</a>{% endif %}</nav>
+{% if demo %}<div class="review-demo"><strong>Sandbox reviews</strong><span>Test reviews and tickets. Excluded from production reviews, analytics and live manager alerts.</span><a href="{% url 'google_review_inbox' %}">Production reviews</a></div>{% endif %}
 {% block reviews_content %}{% endblock %}
 </div>
 {% endblock %}
