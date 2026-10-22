@@ -44,7 +44,7 @@ class PrivatePreviewConfigTests(SimpleTestCase):
             lambda c: c['services']['web']['environment'].update(SESSION_COOKIE_SECURE='False'),
             lambda c: c['services']['web']['environment'].update(CSRF_COOKIE_SECURE='False'),
             lambda c: c['services']['web']['environment'].update(SECURE_SSL_REDIRECT='False'),
-            lambda c: c['services']['web']['environment'].update(ALLOWED_HOSTS='operations.hairship.in'),
+            lambda c: c['services']['web']['environment'].update(ALLOWED_HOSTS='operation.hairship.in'),
             lambda c: c['services']['web']['ports'][0].update(host_ip='0.0.0.0'),
             lambda c: c['services']['db'].update(ports=[{'published': '5432'}]),
             lambda c: c['services']['proxy']['ports'].append({'target': 2019, 'published': '2019'}),

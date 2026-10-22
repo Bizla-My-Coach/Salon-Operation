@@ -18,16 +18,32 @@ DynamoDB table, EventBridge schedule or app-side AWS integration is required.
 | Sandbox server variable | `REVIEW_INTEGRATION_KEY_SANDBOX` |
 | Production server variable | `REVIEW_INTEGRATION_KEY_PRODUCTION` |
 
-After deploying to the existing **dev HTTPS server**, the target URL is:
+The production server is **operation.hairship.in**. Configure the AWS worker's
+`APP_REVIEW_RESULT_API_URL` with this HTTPS POST URL:
 
 ```text
-https://operations.shahinanalytics.com/api/integrations/google-reviews/results
+https://operation.hairship.in/api/integrations/google-reviews/results
 ```
 
-**Deployment is pending.** This URL is a deployment target, not a verified live
-endpoint. PR #5 remains `dev` → `main`; merging main is reserved for user review.
-Local verification uses `http://127.0.0.1:8000` with the same path. Neither the
-static preview site nor a private Codespaces port is the permanent AWS endpoint.
+This is the production target; the installed release, live endpoint and matching
+key must be verified on that server. Repository tests do not confirm deployment.
+Local verification uses `http://127.0.0.1:8000` with the same path. Codespaces and
+the retired `operations.shahinanalytics.com` test server are not the production
+AWS endpoint. GitHub Actions runs checks only and does not deploy the app.
+
+The API route contains no hardcoded domain. Production reads its allowed hostname
+and proxy settings from `/etc/salonops/prod.env` through `compose.production.yaml`:
+
+```dotenv
+ALLOWED_HOSTS=operation.hairship.in,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://operation.hairship.in
+TRUST_PROXY_HEADERS=True
+```
+
+The company HTTPS proxy must preserve the request Host and set
+`X-Forwarded-Proto: https`. If using the optional Caddy proxy, also set
+`SITE_DOMAIN=operation.hairship.in`. The API must receive POST directly without a
+proxy login redirect. See [production deployment](production-deployment.md).
 
 The canonical route accepts POST directly with no login redirect, session-cookie
 requirement or CSRF token. Both slash spellings are registered directly. Wrong or
@@ -61,9 +77,11 @@ It writes this **shape**, with a generated value that must stay private:
 In Docker, generate under `/tmp` inside the web container and copy it into your
 private server secret directory with `docker compose cp`. Use the company's
 secret-injection/password-manager process to install the JSON header value as
-`REVIEW_INTEGRATION_KEY_SANDBOX` in `/etc/salonops/dev.env` (0600). Production uses
-its independently generated value in the production environment. Recreate workers
-after changing their environment; an existing container will not reload it.
+`REVIEW_INTEGRATION_KEY_PRODUCTION` in `/etc/salonops/prod.env` (0600), matching
+AWS payloads with `environment: production`. Sandbox payloads use an independent
+`REVIEW_INTEGRATION_KEY_SANDBOX` value. Recreate the application container and
+restart the AWS worker after changing their environment; existing processes will
+not reload it. Never overwrite an existing live key merely to update the hostname.
 
 Transfer that same private JSON through the approved secret channel to AWS Secrets
 Manager `hairship/app/review-integration`, for the selected worker environment.
@@ -241,12 +259,13 @@ not deploy to a test server. Production and legacy test-server deployments are
 separate manual operations. See [test HTTPS deployment](test-https-deployment.md)
 only when maintaining an existing test VPS.
 
-The existing `scripts/deploy_test_https.sh` installs the immutable tested image,
-backs up the test database before migrations and verifies secure HTTPS startup.
-An administrator must install the private key in `/etc/salonops/dev.env`, deploy
-the reviewed dev release through a separately approved manual process, and
-configure the sandbox branch mapping. `compose.test.yaml` now passes the key to
-web explicitly. Production remains a separate main-only reviewed deployment.
+For production, use the reviewed **main** release, `compose.production.yaml`,
+`/etc/salonops/prod.env` and `scripts/deploy.sh` as documented in the
+[production handover](SalonOps_Production_Server_Handover.md). The production
+Compose file passes the integration keys to web explicitly. Install the matching
+private key and configure Google location-to-branch mappings before enabling AWS
+deliveries. The legacy `scripts/deploy_test_https.sh` and `compose.test.yaml` target
+the retired test hostname and must not be used to deploy operation.hairship.in.
 
 After deployment, verify `/health/` and POST a sandbox fixture directly to the full
 HTTPS URL. Supply the private key through a protected client header file/secret
