@@ -17,6 +17,10 @@ class TimeStamped(models.Model):
 
 class Branch(TimeStamped):
     code = models.CharField(max_length=20, unique=True)
+    store_code = models.CharField(
+        max_length=120, unique=True, null=True, blank=True,
+        help_text='Google Business Profile store code used to match incoming reviews (for example HS-001).',
+    )
     name = models.CharField(max_length=120)
     address = models.TextField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
@@ -720,7 +724,7 @@ PUBLICATION_STATES = [(s, s.replace('_', ' ').title()) for s in
 
 
 class GoogleReviewLocation(TimeStamped):
-    """Trusted server-side location mapping; AWS/AI cannot choose the branch."""
+    """Trusted location mapping, also used as a fallback for events without a store code."""
     environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS)
     location_name = models.CharField(max_length=300)
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT)

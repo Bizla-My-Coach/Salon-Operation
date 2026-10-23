@@ -1,0 +1,64 @@
+{
+  "schema_version": "hairship.review-result.v1",
+  "event_id": "example-store-code-positive-v1",
+  "environment": "sandbox",
+  "synthetic": true,
+  "source": {
+    "provider": "google_business_profile",
+    "store_code": "HS-001",
+    "profile_key": "koppam",
+    "account_name": "accounts/101013083477743854199",
+    "location_name": "locations/12925644274742814696",
+    "review_id": "SYNTHETIC_STORE_CODE_001",
+    "review_name": "accounts/101013083477743854199/locations/12925644274742814696/reviews/SYNTHETIC_STORE_CODE_001",
+    "review_create_time": "2026-10-23T05:00:00Z",
+    "review_update_time": "2026-10-23T05:00:00Z",
+    "fetched_at": "2026-10-23T05:01:00Z",
+    "review_snapshot": {
+      "star_rating": 5,
+      "text": "Great haircut and friendly staff.",
+      "existing_reply": null
+    }
+  },
+  "processing": {
+    "analysis_run_id": "example-store-code-positive-v1",
+    "analyzed_at": "2026-10-23T05:01:00Z",
+    "result_revision": 130,
+    "worker_version": "hairship-gmb-sqs-worker-v3",
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "analysis": {
+    "star_rating": 5,
+    "sentiment": "positive",
+    "complaint_detected": false,
+    "issues": [],
+    "reply_text": "Thank you for sharing your kind words about the haircut and our team.",
+    "reply_kind": "standard",
+    "status": "draft_ready",
+    "requires_human_review": false,
+    "case_followup_requires_human": false,
+    "review_reason": "none",
+    "validation_errors": [],
+    "prompt_version": "hairship-gmb-v6",
+    "model_id": "amazon.nova-micro-v1:0"
+  },
+  "publication": {
+    "status": "published",
+    "submitted": true,
+    "published": true,
+    "visibility_confirmed": true,
+    "confirmation": "google_reply_observed",
+    "reply_kind": "standard",
+    "reply_text": "Thank you for sharing your kind words about the haircut and our team.",
+    "review_update_time": "2026-10-23T05:00:00Z",
+    "submitted_at": "2026-10-23T05:01:00Z",
+    "published_at": "2026-10-23T05:01:00Z",
+    "error_code": null,
+    "google_reply": {
+      "comment": "Thank you for sharing your kind words about the haircut and our team.",
+      "reviewReplyState": "APPROVED",
+      "updateTime": "2026-10-23T05:01:00Z"
+    }
+  }
+}
