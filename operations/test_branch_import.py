@@ -5,8 +5,11 @@ from unittest.mock import patch
 
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.files.uploadhandler import StopUpload
+from django.db import IntegrityError, transaction
+from django.forms import modelform_factory
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -310,6 +313,73 @@ class BranchImportTests(TestCase):
         stage = self.stage(branch_csv([['NEW', 'Example', '', '', '', '']]))
         apply_branch_import(stage.pk, self.admin)
         self.assertEqual(Branch.objects.get(code='NEW').chairs.count(), 0)
+
+    def test_store_codes_are_previewed_and_imported_without_changing_branch_identity(self):
+        payload = branch_csv([
+            ['TEST-A', 'Existing example', '', '', 'C1', 'Existing chair', 'HS-001'],
+            ['NEW', 'New store', '', '', '', '', 'HS-002'],
+        ], headers=['BRANCH_CODE', 'BRANCH_NAME', 'LOCATION', 'PHONE', 'CHAIR_CODE', 'CHAIR_NAME', 'STORE_CODE'])
+        stage = self.stage(payload)
+        self.assertEqual(stage.plan['branches'][0]['changed_fields'], ['store_code'])
+        self.assertContains(self.client.get(self.url, {'stage': stage.pk}), 'HS-001')
+        self.branch.refresh_from_db()
+        self.assertIsNone(self.branch.store_code)
+        apply_branch_import(stage.pk, self.admin)
+        self.branch.refresh_from_db()
+        self.assertEqual(self.branch.store_code, 'HS-001')
+        self.assertEqual(self.branch.code, 'TEST-A')
+        self.assertEqual(Branch.objects.get(code='NEW').store_code, 'HS-002')
+        repeat = self.stage(payload)
+        self.assertEqual(repeat.summary['branches']['unchanged'], 2)
+        apply_branch_import(repeat.pk, self.admin)
+
+    def test_blank_or_omitted_csv_store_codes_preserve_existing_value(self):
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        for payload in [
+            branch_csv([['TEST-A', 'Existing example', '', '', '', '']]),
+            b'BRANCH_CODE,BRANCH_NAME,STORE_CODE\nTEST-A,Existing example,\n',
+            b'BRANCH_CODE,BRANCH_NAME,STORE_CODE\nTEST-A,Existing example,null\n',
+        ]:
+            with self.subTest(payload=payload):
+                apply_branch_import(self.stage(payload).pk, self.admin)
+                self.branch.refresh_from_db()
+                self.assertEqual(self.branch.store_code, 'HS-001')
+
+    def test_duplicate_invalid_and_conflicting_csv_store_codes_reject_entire_upload(self):
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        for rows in [
+            [['NEW', 'New', 'HS-001']],
+            [['NEW', 'New', 'HS-002'], ['OTHER', 'Other', 'HS-002']],
+            [['NEW', 'New', 'HS-002'], ['NEW', 'New', 'HS-003']],
+            [['NEW', 'New', 'X' * 121]],
+            [['NEW', 'New', 'HS-\x1f001']],
+        ]:
+            with self.subTest(rows=rows), self.assertRaises(BranchImportProblem):
+                parse_branch_csv(branch_csv(rows, headers=['BRANCH_CODE', 'BRANCH_NAME', 'STORE_CODE']))
+        self.assertEqual(Branch.objects.count(), 1)
+
+    def test_store_code_change_after_preview_rejects_stale_plan(self):
+        stage = self.stage()
+        Branch.objects.filter(pk=self.branch.pk).update(store_code='HS-001')
+        with self.assertRaisesMessage(BranchImportProblem, 'changed after preview'):
+            apply_branch_import(stage.pk, self.admin)
+        self.assertFalse(Branch.objects.filter(code='NEW-A').exists())
+
+    def test_store_codes_are_unique_in_database_and_optional_in_branch_admin_form(self):
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Branch.objects.create(code='DUPLICATE', name='Duplicate store', store_code='HS-001')
+        duplicate = Branch(code='DUPLICATE', name='Duplicate store', store_code='HS-001')
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()
+        form_class = modelform_factory(Branch, fields=['code', 'name', 'store_code'])
+        for code in ['BLANK-A', 'BLANK-B']:
+            form = form_class(data={'code': code, 'name': code, 'store_code': ''})
+            self.assertTrue(form.is_valid(), form.errors)
+            self.assertIsNone(form.save().store_code)
 
     def test_template_is_synthetic_and_preview_escapes_untrusted_values(self):
         response = self.client.get(reverse('branch_csv_template'))

@@ -10,7 +10,7 @@ from django.db.models import Max
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import (GoogleReview, GoogleReviewEvent, GoogleReviewLocation, GoogleReplyPublication,
+from .models import (Branch, GoogleReview, GoogleReviewEvent, GoogleReviewLocation, GoogleReplyPublication,
     ReviewCase, ReviewSnapshot, ReviewReply, ReviewAcknowledgement, ReviewIssue, ReviewNotification)
 from . import review_workflow as workflow
 
@@ -84,8 +84,13 @@ def envelope(payload):
     revision = integer(processing, 'result_revision', 0, 9223372036854775807) if 'result_revision' in processing else 0
     if worker in ('hairship-gmb-sqs-worker-v2', 'hairship-gmb-sqs-worker-v3') and 'result_revision' not in processing:
         raise ValidationError('processing.result_revision is required for the queue worker.')
+    store_code = text(source, 'store_code', 120, required='store_code' in source)
+    if any(ord(char) < 32 or ord(char) == 127 for char in store_code):
+        raise ValidationError('store_code must not contain control characters.')
+    store_code = store_code.strip()
     return {'environment': env, 'event_id': event_id, 'review_name': name,
             'account_name': account, 'location_name': location, 'google_review_id': match[3],
+            'store_code': store_code,
             'profile_key': text(source, 'profile_key', 120), 'processing': processing,
             'analysis_version': text(processing, 'analysis_run_id', 160, True),
             'analyzed_at': timestamp(processing, 'analyzed_at'), 'result_revision': revision,
@@ -350,10 +355,23 @@ def ingest_review(payload):
         return event.receipt, 200
     lock('google-review', data['environment'] + ':' + data['review_name'])
     mapping = GoogleReviewLocation.objects.select_for_update().filter(
-        environment=data['environment'], location_name=data['location_name'], active=True, branch__active=True).first()
-    if not mapping:
+        environment=data['environment'], location_name=data['location_name']).first()
+    branch = None
+    unmapped_status = 'unmapped_location'
+    if data['store_code']:
+        branch = Branch.objects.select_for_update().filter(store_code=data['store_code'], active=True).first()
+        unmapped_status = 'unmapped_store_code'
+        if branch and mapping:
+            if mapping.branch_id != branch.pk:
+                raise EventConflict('Store code and Google location map to different branches.')
+            if not mapping.active:
+                branch = None
+                unmapped_status = 'unmapped_location'
+    elif mapping and mapping.active:
+        branch = Branch.objects.select_for_update().filter(pk=mapping.branch_id, active=True).first()
+    if not branch:
         event.status = 'quarantined'
-        event.receipt = {'event_id': event.event_id, 'status': 'unmapped_location', 'committed': False}
+        event.receipt = {'event_id': event.event_id, 'status': unmapped_status, 'committed': False}
         event.save(update_fields=['status', 'receipt'])
         return event.receipt, 422
     review = GoogleReview.objects.select_for_update().filter(
@@ -363,8 +381,8 @@ def ingest_review(payload):
         'version_fingerprint', 'sentiment', 'priority', 'requires_human_review', 'needs_followup', 'generated_reply',
         'processing', 'analyzed_at', 'profile_key', 'result_revision']
     same_version = bool(review and review.google_updated_at == data['google_updated_at'])
-    if review and review.branch_id != mapping.branch_id:
-        raise EventConflict('Location branch changed. Resolve the existing review assignment before replaying.')
+    if review and review.branch_id != branch.pk:
+        raise EventConflict('Review branch changed. Resolve the existing review assignment before replaying.')
     if same_version and source_fingerprint(review.google_created_at, review.google_updated_at,
             review.star_rating, review.review_text) != data['version_fingerprint']:
         raise EventConflict('The same Google review version cannot have different customer text or rating.')
@@ -376,7 +394,7 @@ def ingest_review(payload):
         same_version and 'result_revision' in data['processing'] and highest is not None and data['result_revision'] <= highest))
     if not review:
         review = GoogleReview.objects.create(environment=data['environment'], review_name=data['review_name'],
-            branch=mapping.branch, **{key: data[key] for key in source_fields})
+            branch=branch, **{key: data[key] for key in source_fields})
         sync_case(review, data)
     elif not stale:
         analysis_changed = review.analysis != data['analysis']

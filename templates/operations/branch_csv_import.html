@@ -5,9 +5,10 @@
   <header class="page-head split"><div><span class="eyebrow">Import data · Branch setup</span><h1>Import branches and chairs</h1><p>Validate the CSV, review the changes, then confirm.</p></div><a class="button outline workflow-back" href="{% url 'import_data' %}">Back to import data</a></header>
   <section class="panel">
     <h2>1. Upload and validate</h2><p>Export <strong>CSV UTF-8</strong> from Excel (up to 500 rows, 512 KB) with these columns:</p>
-    <p class="staff-csv-columns"><code>BRANCH_CODE, BRANCH_NAME, LOCATION, PHONE, CHAIR_CODE, CHAIR_NAME</code></p>
+    <p class="staff-csv-columns"><code>BRANCH_CODE, BRANCH_NAME, LOCATION, PHONE, CHAIR_CODE, CHAIR_NAME, STORE_CODE</code></p>
     <p>Use <strong>one row per chair</strong>, repeating the same branch details. To import a branch without chairs, leave both chair fields blank.</p>
     <p class="muted">Branch and chair codes are permanent identifiers (up to 20 letters, numbers, hyphens or underscores). Chair codes are unique within a branch; another branch may use the same chair code. LOCATION is stored as the branch address.</p>
+    <p class="muted">STORE_CODE is the optional Google Business Profile store code (for example HS-001). It must match the review source exactly and be unique across branches. Blank or omitted store codes preserve existing values.</p>
     <p class="muted">Matching codes update names and supplied branch details. Blank/null location or phone preserves existing values. New rows create active records; inactive records must be reviewed in administration first. Missing rows are never deleted. Staff assignments, rosters, visits and recorded tasks are not rewritten.</p>
     <a class="button outline" href="{% url 'branch_csv_template' %}">Download CSV template</a>
     <form method="post" enctype="multipart/form-data" class="form-grid staff-upload-form">{% csrf_token %}<input type="hidden" name="action" value="validate">{{ form.as_p }}<button class="button primary" type="submit">Validate CSV</button></form>
@@ -19,8 +20,8 @@
     {% if stage.status == 'PENDING' %}
     <p class="muted">Preview expires {{ stage.expires_at|date:'d M Y, H:i' }}. Review the final values and each Create, Update or Unchanged action. If branch/chair data changes before confirmation, validate again.</p>
     <p class="muted">On smaller screens, swipe the tables sideways to see all columns.</p>
-    <h3>Branches</h3><div class="report-table-wrap" tabindex="0" role="region" aria-label="Branch changes"><table class="report-table"><thead><tr><th>Action</th><th>Branch code</th><th>Name</th><th>Location</th><th>Phone</th><th>Changed fields</th></tr></thead><tbody>
-      {% for row in stage.plan.branches %}<tr><td>{{ row.action }}</td><td>{{ row.code }}</td><td>{{ row.name }}</td><td>{{ row.address|default:'—' }}</td><td>{{ row.phone|default:'—' }}</td><td>{{ row.changed_fields|join:', '|default:'None' }}</td></tr>{% endfor %}
+    <h3>Branches</h3><div class="report-table-wrap" tabindex="0" role="region" aria-label="Branch changes"><table class="report-table"><thead><tr><th>Action</th><th>Branch code</th><th>Store code</th><th>Name</th><th>Location</th><th>Phone</th><th>Changed fields</th></tr></thead><tbody>
+      {% for row in stage.plan.branches %}<tr><td>{{ row.action }}</td><td>{{ row.code }}</td><td>{{ row.store_code|default:'—' }}</td><td>{{ row.name }}</td><td>{{ row.address|default:'—' }}</td><td>{{ row.phone|default:'—' }}</td><td>{{ row.changed_fields|join:', '|default:'None' }}</td></tr>{% endfor %}
     </tbody></table></div>
     <h3>Chairs</h3><div class="report-table-wrap" tabindex="0" role="region" aria-label="Chair changes"><table class="report-table"><thead><tr><th>Action</th><th>Branch code</th><th>Chair code</th><th>Chair name</th></tr></thead><tbody>
       {% for row in stage.plan.chairs %}<tr><td>{{ row.action }}</td><td>{{ row.branch_code }}</td><td>{{ row.code }}</td><td>{{ row.name }}</td></tr>{% empty %}<tr><td colspan="4">No chairs in this upload.</td></tr>{% endfor %}

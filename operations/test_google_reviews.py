@@ -246,6 +246,117 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(GoogleReviewEvent.objects.count(), 1)
         self.assertEqual(GoogleReview.objects.count(), 1)
 
+    def test_store_code_positive_example_commits_without_a_location_mapping(self):
+        GoogleReviewLocation.objects.all().delete()
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        payload = json.loads((Path(__file__).resolve().parent.parent /
+            'docs/examples/google-review-store-code-positive.json').read_text())
+        url = reverse('google_review_results')
+        response = self.api.post(url, data=json.dumps(payload), content_type='application/json',
+            HTTP_X_INTEGRATION_KEY=TOKEN, HTTP_IDEMPOTENCY_KEY=payload['event_id'])
+        self.assertEqual(response.status_code, 200, response.content)
+        review = GoogleReview.objects.get()
+        self.assertEqual(review.branch, self.branch)
+        self.assertEqual(review.profile_key, 'koppam')
+        self.assertEqual(review.publication_status, 'published')
+        self.assertEqual(review.published_text, payload['publication']['reply_text'])
+        self.assertEqual(review.events.get().payload, payload)
+        self.assertIsNone(response.json()['case_id'])
+        self.assertEqual(response.json()['issues_saved_count'], 0)
+        self.assertFalse(response.json()['assignment_confirmed'])
+        self.assertFalse(ReviewCase.objects.exists())
+        self.assertFalse(ReviewNotification.objects.exists())
+        retry = self.api.post(url, data=json.dumps(payload), content_type='application/json',
+            HTTP_X_INTEGRATION_KEY=TOKEN)
+        self.assertEqual(retry.json(), response.json())
+        self.assertEqual(GoogleReviewEvent.objects.count(), 1)
+        self.assertEqual(GoogleReview.objects.count(), 1)
+
+    def test_store_code_routes_complaint_to_branch_manager_without_location_mapping(self):
+        GoogleReviewLocation.objects.all().delete()
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        self.payload['source'].update(store_code=' HS-001 ', profile_key='not-a-branch-selector')
+        response = self.send()
+        self.assertEqual(response.status_code, 200)
+        review = GoogleReview.objects.get()
+        self.assertEqual(review.branch, self.branch)
+        self.assertEqual(review.case.branch, self.branch)
+        self.assertEqual(review.case.owner, self.people['manager'])
+        self.assertTrue(response.json()['assignment_confirmed'])
+        self.client.force_login(self.people['other'])
+        self.assertEqual(self.client.get(reverse('google_review_detail', args=[review.pk]) + '?demo=1').status_code, 404)
+
+    def test_unknown_store_code_never_falls_back_to_valid_location_and_can_be_replayed(self):
+        self.payload['source']['store_code'] = 'HS-001'
+        response = self.send()
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()['status'], 'unmapped_store_code')
+        self.assertFalse(response.json()['committed'])
+        self.assertFalse(GoogleReview.objects.exists())
+        self.assertEqual(GoogleReviewEvent.objects.get().status, 'quarantined')
+        self.client.force_login(self.people['admin'])
+        self.assertContains(self.client.get(reverse('google_review_assignments') + '?demo=1'), 'HS-001')
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        self.assertEqual(self.send().status_code, 200)
+        self.assertEqual(GoogleReviewEvent.objects.count(), 1)
+
+    def test_store_code_must_match_case_and_an_active_branch(self):
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        self.payload['source']['store_code'] = 'hs-001'
+        self.assertEqual(self.send().status_code, 422)
+        self.payload['event_id'] = 'inactive-store'
+        self.payload['source']['store_code'] = 'HS-001'
+        self.branch.active = False
+        self.branch.save()
+        self.assertEqual(self.send().status_code, 422)
+        self.assertFalse(GoogleReview.objects.exists())
+
+    def test_store_code_and_location_conflicts_do_not_save_partial_data(self):
+        self.other_branch.store_code = 'HS-001'
+        self.other_branch.save()
+        self.payload['source']['store_code'] = 'HS-001'
+        self.assertEqual(self.send().status_code, 409)
+        self.assertFalse(GoogleReviewEvent.objects.exists())
+        self.assertFalse(GoogleReview.objects.exists())
+        self.assertFalse(ReviewCase.objects.exists())
+
+    def test_inactive_location_cannot_be_bypassed_by_store_code(self):
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        GoogleReviewLocation.objects.filter(environment='sandbox').update(active=False)
+        self.payload['source']['store_code'] = 'HS-001'
+        response = self.send()
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()['status'], 'unmapped_location')
+        self.assertFalse(GoogleReview.objects.exists())
+
+    def test_store_code_changes_cannot_move_an_existing_review_or_case(self):
+        GoogleReviewLocation.objects.all().delete()
+        self.branch.store_code = 'HS-001'
+        self.branch.save()
+        self.payload['source']['store_code'] = 'HS-001'
+        self.assertEqual(self.send().status_code, 200)
+        self.branch.store_code = None
+        self.branch.save()
+        self.other_branch.store_code = 'HS-001'
+        self.other_branch.save()
+        self.payload['event_id'] = 'reassigned-store-code'
+        self.assertEqual(self.send().status_code, 409)
+        self.assertEqual(GoogleReview.objects.get().branch, self.branch)
+        self.assertEqual(ReviewCase.objects.get().branch, self.branch)
+        self.assertEqual(GoogleReviewEvent.objects.count(), 1)
+
+    def test_supplied_store_codes_are_validated_before_mapping(self):
+        for value in [None, 123, [], {}, '', '   ', 'x' * 121, 'HS-\x001', 'HS-\x7f1']:
+            with self.subTest(value=value):
+                self.payload['source']['store_code'] = value
+                self.assertEqual(self.send().status_code, 400)
+        self.assertFalse(GoogleReviewEvent.objects.exists())
+
     def test_sandbox_is_separate_from_production_analytics_and_notifications(self):
         self.send()
         production = self.positive()

@@ -108,10 +108,10 @@ def branch_csv_template(request):
     output = io.StringIO(newline='')
     output.write('\ufeff')
     writer = csv.writer(output)
-    writer.writerow(['BRANCH_CODE', 'BRANCH_NAME', 'LOCATION', 'PHONE', 'CHAIR_CODE', 'CHAIR_NAME'])
+    writer.writerow(['BRANCH_CODE', 'BRANCH_NAME', 'LOCATION', 'PHONE', 'CHAIR_CODE', 'CHAIR_NAME', 'STORE_CODE'])
     writer.writerows([
-        ['EXAMPLE', 'Example branch', 'Example location', '', 'C01', 'Chair 1'],
-        ['EXAMPLE', 'Example branch', 'Example location', '', 'C02', 'Chair 2'],
+        ['EXAMPLE', 'Example branch', 'Example location', '', 'C01', 'Chair 1', 'HS-001'],
+        ['EXAMPLE', 'Example branch', 'Example location', '', 'C02', 'Chair 2', 'HS-001'],
     ])
     response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="branch-chair-upload-template.csv"'
