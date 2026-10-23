@@ -16,12 +16,17 @@ POSTs there are disabled so no upload can bypass preview and confirmation.
 Download the template in **Import data → Import branches and chairs**. Replace
 the example rows with your own information and export **CSV UTF-8** from Excel:
 
-`BRANCH_CODE,BRANCH_NAME,LOCATION,PHONE,CHAIR_CODE,CHAIR_NAME`
+`BRANCH_CODE,BRANCH_NAME,LOCATION,PHONE,CHAIR_CODE,CHAIR_NAME,STORE_CODE`
 
 - Use one row per chair and repeat identical branch details on every row.
 - To create a branch without chairs, leave both chair fields blank.
 - Branch code and name are required. Location is stored in the existing branch
   address field. Location and phone are optional.
+- `STORE_CODE` is optional, up to 120 characters, and matches the Google Business
+  Profile store code exactly (case-sensitive), for example `HS-001`. Each nonblank
+  store code belongs to one branch. Repeat it on each chair row. Existing six-column
+  uploads still work; omitted or blank store codes preserve the current value.
+  Store codes identify branches for incoming reviews and do not replace branch codes.
 - Codes contain 1–20 letters/numbers, underscores or hyphens. Keep branch codes
   permanent; reusing the same code updates that branch instead of creating a new
   one. A chair code identifies a chair **within its branch**.

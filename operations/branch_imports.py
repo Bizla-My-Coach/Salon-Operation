@@ -21,6 +21,7 @@ HEADERS = {
     'BRANCHCODE': 'branch_code', 'BRANCHNAME': 'branch_name', 'BRANCH': 'branch_name',
     'NAME': 'branch_name', 'LOCATION': 'address', 'BRANCHLOCATION': 'address', 'ADDRESS': 'address',
     'PHONE': 'phone', 'PHNO': 'phone', 'CHAIRCODE': 'chair_code', 'CHAIRNAME': 'chair_name',
+    'STORECODE': 'store_code',
 }
 
 
@@ -30,7 +31,7 @@ class BranchImportProblem(Exception):
 
 def branch_master_digest():
     state = {
-        'branches': list(Branch.objects.order_by('pk').values('id', 'code', 'name', 'address', 'phone', 'active', 'updated_at')),
+        'branches': list(Branch.objects.order_by('pk').values('id', 'code', 'store_code', 'name', 'address', 'phone', 'active', 'updated_at')),
         'chairs': list(Chair.objects.order_by('pk').values('id', 'branch_id', 'code', 'name', 'active', 'updated_at')),
     }
     return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
@@ -48,9 +49,12 @@ def parse_branch_csv(payload):
     existing = defaultdict(list)
     names = defaultdict(set)
     chairs = defaultdict(list)
+    store_codes = {}
     for branch in Branch.objects.all():
         existing[normalized(branch.code)].append(branch)
         names[normalized(branch.name)].add(normalized(branch.code))
+        if branch.store_code:
+            store_codes[branch.store_code] = normalized(branch.code)
     for chair in Chair.objects.select_related('branch'):
         chairs[(normalized(chair.branch.code), normalized(chair.code))].append(chair)
     planned_branches, planned_chairs, errors = {}, {}, []
@@ -60,7 +64,7 @@ def parse_branch_csv(payload):
         reader = csv.reader(io.StringIO(text, newline=''), delimiter=delimiter, strict=True)
         header = next(reader, [])
         keys = [HEADERS.get(re.sub(r'[^A-Z0-9]', '', h.upper())) for h in header]
-        if not keys or len(keys) > 6 or None in keys or len(set(keys)) != len(keys):
+        if not keys or len(keys) > 7 or None in keys or len(set(keys)) != len(keys):
             raise BranchImportProblem('Use the downloadable template. CSV has unsupported or duplicate headers.')
         if not {'branch_code', 'branch_name'}.issubset(keys):
             raise BranchImportProblem('BRANCH_CODE and BRANCH_NAME columns are required.')
@@ -99,19 +103,29 @@ def parse_branch_csv(payload):
             if (not old or normalized(old.name) != normalized(name)) and names[normalized(name)] - {normalized(code)}:
                 errors.append(f'Row {line}: this branch name belongs to another code. Use its existing branch code.')
                 continue
+            store_code = data.get('store_code', '') or (old.store_code if old else None)
+            if store_code and (len(store_code) > 120 or any(ord(c) < 32 or ord(c) == 127 for c in store_code)):
+                errors.append(f'Row {line}: STORE_CODE must be up to 120 characters without control characters.')
+                continue
+            if store_code and store_codes.get(store_code, normalized(code)) != normalized(code):
+                errors.append(f'Row {line}: STORE_CODE belongs to another branch. Each store code must be unique.')
+                continue
             row = {
                 'pk': old.pk if old else None, 'code': old.code if old else code.upper(), 'name': name,
                 'address': address or (old.address if old else ''), 'phone': phone or (old.phone if old else ''),
+                'store_code': store_code,
             }
             row['action'] = 'Create' if not old else ('Update' if any(
-                getattr(old, field) != row[field] for field in ['name', 'address', 'phone']) else 'Unchanged')
-            row['changed_fields'] = ['name', 'address', 'phone'] if not old else [
-                field for field in ['name', 'address', 'phone'] if getattr(old, field) != row[field]]
+                getattr(old, field) != row[field] for field in ['name', 'address', 'phone', 'store_code']) else 'Unchanged')
+            row['changed_fields'] = ['name', 'address', 'phone', 'store_code'] if not old else [
+                field for field in ['name', 'address', 'phone', 'store_code'] if getattr(old, field) != row[field]]
             key = normalized(code)
             if key in planned_branches and planned_branches[key] != row:
-                errors.append(f'Row {line}: repeated branch details conflict. Repeat the same name, location and phone for each chair.')
+                errors.append(f'Row {line}: repeated branch details conflict. Repeat the same name, location, phone and store code for each chair.')
                 continue
             planned_branches[key] = row
+            if store_code:
+                store_codes[store_code] = key
             names[normalized(name)].add(key)
             chair_code, chair_name = data.get('chair_code', ''), data.get('chair_name', '')
             if not chair_code and not chair_name:
@@ -177,7 +191,7 @@ def apply_branch_import(identifier, actor):
             created_branches = {}
             for row in stage.plan['branches']:
                 branch = Branch.objects.get(pk=row['pk']) if row['pk'] else Branch(code=row['code'])
-                for field in ['name', 'address', 'phone']:
+                for field in ['name', 'address', 'phone', 'store_code']:
                     setattr(branch, field, row[field])
                 if row['action'] != 'Unchanged':
                     branch.save()

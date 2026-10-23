@@ -133,7 +133,9 @@ public state comes from `publication`. Submitted/published and human-investigati
 requirements can coexist without closing internal work.
 
 Accept Google account/location/review IDs matching the **full** `source.review_name`.
-Normalize `locations/<id>` to the full account/location mapping. `profile_key` cannot
+Normalize `locations/<id>` to the full account/location identity. When supplied,
+`source.store_code` selects the active branch with that configured store code;
+otherwise the existing environment/location mapping selects it. `profile_key` cannot
 choose an internal branch or manager. Review text may be empty for rating-only
 feedback. Require timezone-aware Google and processing timestamps. Queue worker
 V2/V3 requests require integer `processing.result_revision` (0 through signed
@@ -224,8 +226,13 @@ request bodies are limited to 512 KiB. Transaction failure rolls back partial wo
   and case edit counters. They become visible only after transaction commit.
   Sandbox outbox entries remain preview-only and never enter live alert feeds.
 
-Unknown/inactive Google locations are durably quarantined with HTTP 422 and
-`committed:false`. An administrator maps the location and retries the same event.
+Unknown/inactive store codes are durably quarantined with HTTP 422,
+`status:unmapped_store_code` and `committed:false`. They never fall back to a
+location mapping. Unknown/inactive Google locations on legacy events return
+`status:unmapped_location` instead. An administrator configures the branch store
+code or location mapping and retries the same event. An existing inactive location
+mapping also blocks ingestion via store code. A store code conflicting with an
+existing location mapping returns 409 without saving a review or moving staff work.
 Invalid payloads return 400; missing/wrong auth 401; HTTP when HTTPS required 403;
 conflicting IDs/versions 409; oversized body 413; wrong content type 415; missing
 server key 503. No failure response claims a committed review.
@@ -237,6 +244,22 @@ live URL/authentication and committed receipts have been verified.
 
 ## Mapping and staff pages
 
+Set **Django Admin → Branches → Store code** to the exact Google store code, such as
+`HS-001` for the Koppam branch. The optional `STORE_CODE` column in the confirmed
+branch CSV import also sets this value. Store codes are unique and case-sensitive,
+up to 120 characters. Existing branches can leave it blank until configured; the
+migration does not guess or backfill Google store codes from internal branch codes.
+The branch's existing primary key and internal `code` remain unchanged.
+
+The [store-code positive example](examples/google-review-store-code-positive.json)
+can be ingested with no location mapping once an active branch has `HS-001`.
+It produces a published appreciation with no complaint case. A supplied store
+code must be a nonblank string; surrounding whitespace is trimmed, control
+characters are rejected, and case is preserved. Do not reuse one store code for
+different branches in sandbox and production. Review records, idempotency and
+manager access remain isolated by environment and branch as before.
+
+For older events that omit `source.store_code`, continue using
 Django Admin → Google review locations: map the environment and full
 `accounts/<account>/locations/<location>` to the existing branch. For the supplied
 fixtures use `accounts/101013083477743854199/locations/12925644274742814696`.

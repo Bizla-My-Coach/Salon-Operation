@@ -27,8 +27,8 @@ from .models import (
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "active")
-    search_fields = ("code", "name")
+    list_display = ("code", "store_code", "name", "active")
+    search_fields = ("code", "store_code", "name")
 
 
 @admin.register(Profile)

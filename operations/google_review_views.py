@@ -154,7 +154,7 @@ def assignment_queue(request):
         event = get_object_or_404(GoogleReviewEvent, pk=event_id, environment=env, status='quarantined')
         try:
             result, _ = ingest_review(event.payload)
-            messages.success(request, 'Review committed.' if result.get('committed') else 'Location still needs an active branch mapping.')
+            messages.success(request, 'Review committed.' if result.get('committed') else 'Store code or location still needs an active branch mapping.')
         except (ValidationError, EventConflict) as exc:
             messages.error(request, str(exc))
         return redirect(reverse('google_review_assignments') + ('?demo=1' if demo_mode(request) else ''))

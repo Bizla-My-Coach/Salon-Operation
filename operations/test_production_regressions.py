@@ -218,6 +218,7 @@ class InvoiceBranchMigrationTests(TransactionTestCase):
         before = ('operations', '0011_branchcsvimport')
         after = ('operations', '0012_invoice_branch_number')
         executor = MigrationExecutor(connection)
+        current_schema = executor.loader.graph.leaf_nodes()
         try:
             executor.migrate([before])
             apps = executor.loader.project_state([before]).apps
@@ -239,4 +240,4 @@ class InvoiceBranchMigrationTests(TransactionTestCase):
             self.assertEqual(invoice.amount, 123)
             self.assertEqual(invoice.visit_id, visit.pk)
         finally:
-            MigrationExecutor(connection).migrate([after])
+            MigrationExecutor(connection).migrate(current_schema)
