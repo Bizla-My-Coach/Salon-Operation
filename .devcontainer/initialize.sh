@@ -24,7 +24,8 @@ values = {
     'POSTGRES_DB': 'salonops_codespaces', 'POSTGRES_USER': 'salonops_codespaces',
     'POSTGRES_PASSWORD': secrets.token_urlsafe(32), 'POSTGRES_HOST': 'codespaces-db', 'POSTGRES_PORT': '5432',
     'ALLOWED_HOSTS': 'localhost,127.0.0.1,testserver' + (',' + host if host else ''),
-    'CSRF_TRUSTED_ORIGINS': 'https://' + host if host else '',
+    'CSRF_TRUSTED_ORIGINS': ','.join((['https://' + host] if host else []) +
+                                    ['http://localhost:8000', 'http://127.0.0.1:8000']),
     'TRUST_PROXY_HEADERS': str(bool(host)), 'SECURE_SSL_REDIRECT': 'False',
     'SESSION_COOKIE_SECURE': str(bool(host)), 'CSRF_COOKIE_SECURE': str(bool(host)),
     'SALONOPS_CODESPACES_ORIGIN': 'https://' + host if host else 'http://127.0.0.1:8000',

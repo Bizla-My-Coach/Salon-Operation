@@ -18,16 +18,32 @@ DynamoDB table, EventBridge schedule or app-side AWS integration is required.
 | Sandbox server variable | `REVIEW_INTEGRATION_KEY_SANDBOX` |
 | Production server variable | `REVIEW_INTEGRATION_KEY_PRODUCTION` |
 
-After deploying to the existing **dev HTTPS server**, the target URL is:
+The production server is **operation.hairship.in**. Configure the AWS worker's
+`APP_REVIEW_RESULT_API_URL` with this HTTPS POST URL:
 
 ```text
-https://operations.shahinanalytics.com/api/integrations/google-reviews/results
+https://operation.hairship.in/api/integrations/google-reviews/results
 ```
 
-**Deployment is pending.** This URL is a deployment target, not a verified live
-endpoint. PR #5 remains `dev` → `main`; merging main is reserved for user review.
-Local verification uses `http://127.0.0.1:8000` with the same path. Neither the
-static preview site nor a private Codespaces port is the permanent AWS endpoint.
+This is the production target; the installed release, live endpoint and matching
+key must be verified on that server. Repository tests do not confirm deployment.
+Local verification uses `http://127.0.0.1:8000` with the same path. Codespaces and
+the retired `operations.shahinanalytics.com` test server are not the production
+AWS endpoint. GitHub Actions runs checks only and does not deploy the app.
+
+The API route contains no hardcoded domain. Production reads its allowed hostname
+and proxy settings from `/etc/salonops/prod.env` through `compose.production.yaml`:
+
+```dotenv
+ALLOWED_HOSTS=operation.hairship.in,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://operation.hairship.in
+TRUST_PROXY_HEADERS=True
+```
+
+The company HTTPS proxy must preserve the request Host and set
+`X-Forwarded-Proto: https`. If using the optional Caddy proxy, also set
+`SITE_DOMAIN=operation.hairship.in`. The API must receive POST directly without a
+proxy login redirect. See [production deployment](production-deployment.md).
 
 The canonical route accepts POST directly with no login redirect, session-cookie
 requirement or CSRF token. Both slash spellings are registered directly. Wrong or
@@ -61,9 +77,11 @@ It writes this **shape**, with a generated value that must stay private:
 In Docker, generate under `/tmp` inside the web container and copy it into your
 private server secret directory with `docker compose cp`. Use the company's
 secret-injection/password-manager process to install the JSON header value as
-`REVIEW_INTEGRATION_KEY_SANDBOX` in `/etc/salonops/dev.env` (0600). Production uses
-its independently generated value in the production environment. Recreate workers
-after changing their environment; an existing container will not reload it.
+`REVIEW_INTEGRATION_KEY_PRODUCTION` in `/etc/salonops/prod.env` (0600), matching
+AWS payloads with `environment: production`. Sandbox payloads use an independent
+`REVIEW_INTEGRATION_KEY_SANDBOX` value. Recreate the application container and
+restart the AWS worker after changing their environment; existing processes will
+not reload it. Never overwrite an existing live key merely to update the hostname.
 
 Transfer that same private JSON through the approved secret channel to AWS Secrets
 Manager `hairship/app/review-integration`, for the selected worker environment.
@@ -88,6 +106,25 @@ this deployment. V3 needs only the canonical result URL. Do not configure separa
 processing/case/publication POSTs for the queue worker.
 
 ## Envelope and committed receipt
+
+### Finding a committed sandbox review
+
+Production reviews are shown by default. Use **Tickets → Sandbox reviews** or
+`/reviews/google/?demo=1` to see sandbox events, including positive reviews with
+no complaint ticket. Detail URLs also need `?demo=1`. Sandbox records remain
+excluded from production analytics and live manager alerts; manager branch
+permissions still apply in the sandbox view.
+
+`python manage.py inspect_google_review --review-id <receipt-review-id>
+--event-id <aws-event-id> --environment sandbox` traces the receipt, saved review,
+database identity and trusted branch mapping without changing data. Run it in
+the same application deployment that handled the POST. See the
+[Codespaces diagnostic example](codespaces.md) for the Koppam location check.
+Google identity is normalized to the full account/location path; `profile_key`
+does not choose a branch. Positive reviews without issues or human follow-up
+appear under All reviews and intentionally have `case_id: null`.
+
+### Stored envelope
 
 The API stores the complete original event, full analysis, processing diagnostics,
 Google reply state, existing reply and unknown optional fields. Dashboard fields
@@ -220,7 +257,7 @@ The original synthetic worker examples are in [worker-v2](examples/worker-v2/):
 positive, mixed, rating-only and sensitive. They share one Google identity/version,
 so test them independently or assign distinct synthetic review IDs for batch demos.
 The V3 suite derives queue/moderation scenarios without changing these originals.
-Codespaces still starts with `bash scripts/codespaces.sh`; sample review pages use
+Codespaces still starts with `bash scripts/codespace.sh`; sample review pages use
 `/reviews/google/?demo=1`. Do not give AWS a private Codespaces port URL.
 
 ```sh
@@ -235,20 +272,19 @@ reply cannot lose to an unconfirmed result after upgrade, and reuses the existin
 current-version notification. Migration **0019** creates the ingestion schema.
 Neither deletes manager actions, source events or operational data.
 
-Existing deployment workflow: [salonops.yml](../.github/workflows/salonops.yml),
-job **deploy-test**, using a tested `dev` push image and GitHub environment
-**testing**, on `[self-hosted, Linux, X64, salonops-test]`. The relevant settings are
-`SALONOPS_TEST_AUTODEPLOY=true` and `SALONOPS_TEST_DEPLOY_MODE=https-local` for the
-existing dev domain. No workflow settings were changed or deployment started here.
-The last prior dev deployment job was skipped. See
-[test HTTPS deployment](test-https-deployment.md) for server/runner setup.
+The current [Actions workflow](../.github/workflows/salonops.yml) runs tests on
+GitHub-hosted machines for pull requests and pushes to `dev` and `main`; it does
+not deploy to a test server. Production and legacy test-server deployments are
+separate manual operations. See [test HTTPS deployment](test-https-deployment.md)
+only when maintaining an existing test VPS.
 
-The existing `scripts/deploy_test_https.sh` installs the immutable tested image,
-backs up the test database before migrations and verifies secure HTTPS startup.
-An administrator must install the private key in `/etc/salonops/dev.env`, deploy
-the reviewed dev release through that workflow (or its documented script), and
-configure the sandbox branch mapping. `compose.test.yaml` now passes the key to
-web explicitly. Production remains a separate main-only reviewed deployment.
+For production, use the reviewed **main** release, `compose.production.yaml`,
+`/etc/salonops/prod.env` and `scripts/deploy.sh` as documented in the
+[production handover](SalonOps_Production_Server_Handover.md). The production
+Compose file passes the integration keys to web explicitly. Install the matching
+private key and configure Google location-to-branch mappings before enabling AWS
+deliveries. The legacy `scripts/deploy_test_https.sh` and `compose.test.yaml` target
+the retired test hostname and must not be used to deploy operation.hairship.in.
 
 After deployment, verify `/health/` and POST a sandbox fixture directly to the full
 HTTPS URL. Supply the private key through a protected client header file/secret

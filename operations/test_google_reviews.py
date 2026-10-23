@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.db import close_old_connections, connections
+from django.db import IntegrityError, close_old_connections, connections
 from django.core.management import call_command, CommandError
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
@@ -261,6 +261,70 @@ class GoogleReviewTests(TestCase):
         production['synthetic'] = True
         production['event_id'] = 'forbidden-production-demo'
         self.assertEqual(self.send(production, token=PRODUCTION_TOKEN).status_code, 400)
+
+    def test_positive_sandbox_review_has_a_discoverable_test_view_without_a_ticket(self):
+        data = self.positive()
+        data['event_id'] = 'example-v3-positive'
+        response = self.api.post(reverse('google_review_results'), data=json.dumps(data),
+            content_type='application/json', HTTP_X_INTEGRATION_KEY=TOKEN)
+        self.assertEqual(response.status_code, 200)
+        record = GoogleReview.objects.get(pk=response.json()['review_record_id'])
+        self.assertIsNone(record.case_id)
+        self.client.force_login(self.people['admin'])
+        production = self.client.get(reverse('google_review_inbox'))
+        self.assertContains(production, 'Sandbox reviews')
+        self.assertContains(production, reverse('google_review_inbox') + '?demo=1')
+        self.assertNotContains(production, data['source']['review_snapshot']['text'])
+        sandbox = self.client.get(reverse('google_review_inbox') + '?demo=1')
+        self.assertContains(sandbox, data['source']['review_snapshot']['text'])
+        self.assertContains(sandbox, 'No investigation needed')
+        self.assertContains(sandbox, reverse('google_review_detail', args=[record.pk]) + '?demo=1')
+        detail = self.client.get(reverse('google_review_detail', args=[record.pk]) + '?demo=1')
+        self.assertContains(detail, data['source']['review_snapshot']['text'])
+        self.assertEqual(self.client.get(reverse('google_review_analytics')).context['total'], 0)
+        self.assertEqual(self.client.get(reverse('google_review_analytics') + '?demo=1').context['positive'], 1)
+
+    def test_receipt_failure_rolls_back_review_case_issues_and_event(self):
+        with patch('operations.google_review_ingestion.receipt', side_effect=IntegrityError('Synthetic persistence failure')):
+            with self.assertRaises(IntegrityError):
+                self.send()
+        for model in [GoogleReview, GoogleReviewEvent, GoogleReplyPublication, ReviewCase, ReviewIssue, ReviewNotification]:
+            with self.subTest(model=model.__name__):
+                self.assertEqual(model.objects.count(), 0)
+
+    def test_read_only_review_diagnostics_matches_receipt_and_location(self):
+        receipt = self.send(self.positive()).json()
+        counts = {model: model.objects.count() for model in [GoogleReview, GoogleReviewEvent, GoogleReviewLocation, ReviewCase]}
+        output = io.StringIO()
+        call_command('inspect_google_review', review_id=receipt['review_record_id'],
+            event_id=self.payload['event_id'], expected_branch=self.branch.code, stdout=output)
+        report = json.loads(output.getvalue())
+        self.assertTrue(report['database']['dashboard_and_ingestion_same_database'])
+        self.assertEqual(report['review']['id'], receipt['review_record_id'])
+        self.assertTrue(report['event']['receipt_matches_persisted_review'])
+        self.assertTrue(report['event']['requested_review_matches_event'])
+        self.assertEqual(report['event']['receipt'], receipt)
+        self.assertEqual(report['mapping']['branch_name'], self.branch.name)
+        self.assertTrue(report['mapping']['expected_branch_matches'])
+        self.assertTrue(report['mapping']['review_branch_matches'])
+        self.assertTrue(report['scope']['sandbox_excluded_from_production_views'])
+        self.assertEqual(report['all_reviews_url'], '/reviews/google/?demo=1')
+        self.assertIsNone(report['review']['case_id'])
+        for model, count in counts.items():
+            self.assertEqual(model.objects.count(), count)
+
+    def test_review_diagnostics_reports_missing_record_without_inventing_a_mapping(self):
+        GoogleReviewLocation.objects.filter(environment='sandbox').delete()
+        output = io.StringIO()
+        call_command('inspect_google_review', review_id='56835f2d-dba5-46d4-b928-60716be0e9b5',
+            event_id='example-v3-positive',
+            location_name='accounts/101013083477743854199/locations/12925644274742814696',
+            expected_branch='Koppam', stdout=output)
+        report = json.loads(output.getvalue())
+        self.assertIsNone(report['review'])
+        self.assertIsNone(report['event'])
+        self.assertIsNone(report['mapping'])
+        self.assertFalse(GoogleReview.objects.exists())
 
     def test_branch_and_role_scope_protect_reviews_analytics_and_actions(self):
         self.send(self.positive())

@@ -105,6 +105,30 @@ class CodespacesSeedTests(TestCase):
         self.assertTrue(response.cookies['sessionid']['secure'])
         self.assertEqual(client.get('/admin/', **headers).status_code, 200)
 
+    @override_settings(ALLOWED_HOSTS=['fictional-8000.app.github.dev', 'localhost', '127.0.0.1'],
+        CSRF_TRUSTED_ORIGINS=['https://fictional-8000.app.github.dev',
+                             'http://localhost:8000', 'http://127.0.0.1:8000'],
+        SECURE_PROXY_SSL_HEADER=('HTTP_X_FORWARDED_PROTO', 'https'),
+        SESSION_COOKIE_SECURE=True, CSRF_COOKIE_SECURE=True)
+    def test_admin_local_forwarding_with_https_proxy_headers_checks_origin_and_token(self):
+        self.seed()
+        for origin in ['http://localhost:8000', 'http://127.0.0.1:8000']:
+            for host in ['fictional-8000.app.github.dev', origin.removeprefix('http://')]:
+                with self.subTest(origin=origin, host=host):
+                    client = Client(enforce_csrf_checks=True)
+                    headers = {'HTTP_HOST': host, 'HTTP_X_FORWARDED_PROTO': 'https'}
+                    self.assertEqual(client.get('/admin/login/', **headers).status_code, 200)
+                    data = {'username': 'admin', 'password': 'admin',
+                            'csrfmiddlewaretoken': client.cookies['csrftoken'].value}
+                    self.assertEqual(client.post('/admin/login/', data,
+                        HTTP_ORIGIN='http://untrusted.example', **headers).status_code, 403)
+                    self.assertEqual(client.post('/admin/login/', {'username': 'admin', 'password': 'admin'},
+                        HTTP_ORIGIN=origin, **headers).status_code, 403)
+                    response = client.post('/admin/login/', data, HTTP_ORIGIN=origin, **headers)
+                    self.assertEqual(response.status_code, 302)
+                    self.assertTrue(response.cookies['sessionid']['secure'])
+                    self.assertEqual(client.get('/admin/', **headers).status_code, 200)
+
     def test_environment_check_creates_no_demo_data(self):
         self.seed(check_environment=True)
         self.assertFalse(User.objects.exists())

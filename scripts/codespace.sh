@@ -3,6 +3,10 @@
 set -Eeuo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
+# Desktop VS Code can forward the same private port through localhost while
+# Codespaces preserves its HTTPS proxy headers. Trust these exact dev origins.
+# Refresh on every start so older .devcontainer/.env files need no secret reset.
+export CSRF_TRUSTED_ORIGINS="http://localhost:8000,http://127.0.0.1:8000"
 # Codespaces also injects these variables into the terminal/container. Resolve
 # them here in case they were not available to the host initialization hook.
 if [[ -n "${CODESPACE_NAME:-}" ]]; then
@@ -10,7 +14,7 @@ if [[ -n "${CODESPACE_NAME:-}" ]]; then
     [[ "$CODESPACE_NAME" =~ ^[a-zA-Z0-9-]+$ && "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] || { echo 'Invalid Codespaces hostname.' >&2; exit 1; }
     codespaces_host="${CODESPACE_NAME}-8000.${domain}"
     export ALLOWED_HOSTS="localhost,127.0.0.1,testserver,$codespaces_host"
-    export CSRF_TRUSTED_ORIGINS="https://$codespaces_host"
+    export CSRF_TRUSTED_ORIGINS="https://$codespaces_host,$CSRF_TRUSTED_ORIGINS"
     export TRUST_PROXY_HEADERS=True SESSION_COOKIE_SECURE=True CSRF_COOKIE_SECURE=True
     export SALONOPS_CODESPACES_ORIGIN="https://$codespaces_host"
 fi
