@@ -29,7 +29,8 @@ This is the production target; the installed release, live endpoint and matching
 key must be verified on that server. Repository tests do not confirm deployment.
 Local verification uses `http://127.0.0.1:8000` with the same path. Codespaces and
 the retired `operations.shahinanalytics.com` test server are not the production
-AWS endpoint. GitHub Actions runs checks only and does not deploy the app.
+AWS endpoint. After checks pass on a push to `main`, GitHub Actions publishes
+and deploys the production image through the self-hosted production runner.
 
 The API route contains no hardcoded domain. Production reads its allowed hostname
 and proxy settings from `/etc/salonops/prod.env` through `compose.production.yaml`:
@@ -297,8 +298,9 @@ Neither deletes manager actions, source events or operational data.
 
 The current [Actions workflow](../.github/workflows/salonops.yml) runs tests on
 GitHub-hosted machines for pull requests and pushes to `dev` and `main`; it does
-not deploy to a test server. Production and legacy test-server deployments are
-separate manual operations. See [test HTTPS deployment](test-https-deployment.md)
+not deploy to a test server. Successful `main` pushes publish an image and deploy
+production through its dedicated self-hosted runner. Legacy test-server releases
+remain separate manual operations. See [test HTTPS deployment](test-https-deployment.md)
 only when maintaining an existing test VPS.
 
 For production, use the reviewed **main** release, `compose.production.yaml`,

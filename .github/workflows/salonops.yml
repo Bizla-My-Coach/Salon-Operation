@@ -1,4 +1,4 @@
-name: SalonOps checks
+name: SalonOps checks and deployment
 on:
   push:
     branches: [dev, main]
@@ -51,3 +51,97 @@ jobs:
         if: always()
         run: docker compose down -v
         # Safe ONLY on the disposable GitHub-hosted CI VM. Never run this on a VPS.
+
+  publish:
+    needs: checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build and publish the checked main commit
+        id: image
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -Eeuo pipefail
+          export DOCKER_CONFIG
+          DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/salonops-registry.XXXXXX")
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          registry=ghcr.io/bizla-my-coach/salon-operation
+          tag="$registry:sha-$GITHUB_SHA"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          unset GHCR_TOKEN
+          docker build --pull --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "$tag" .
+          docker push "$tag"
+          image=$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}')
+          [[ "$image" =~ ^ghcr\.io/bizla-my-coach/salon-operation@sha256:[a-f0-9]{64}$ ]]
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+    environment: production
+    timeout-minutes: 45
+    concurrency:
+      group: salonops-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Deploy the published image on the production runner
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+          RELEASE_IMAGE: ${{ needs.publish.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$RUNNER_NAME" == salonops-production-01 ]] || { echo 'Unexpected production runner'; exit 1; }
+          [[ "$RELEASE_IMAGE" =~ ^ghcr\.io/bizla-my-coach/salon-operation@sha256:[a-f0-9]{64}$ ]]
+          test -r /etc/salonops/prod.env
+          test -r /etc/salonops/prod.restic.env
+          test -x /opt/salonops-prod/scripts/deploy.sh
+          export DOCKER_CONFIG
+          DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/salonops-registry.XXXXXX")
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          unset GHCR_TOKEN
+          bash /opt/salonops-prod/scripts/deploy.sh \
+            /etc/salonops/prod.env salonops-prod /opt/salonops-prod/compose.production.yaml \
+            /var/lib/salonops-prod/backups /etc/salonops/prod.restic.env \
+            "$RELEASE_IMAGE" ghcr.io/bizla-my-coach/salon-operation
+          # Keep future Compose operations on the successfully deployed digest.
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import tempfile
+
+          target = Path('/etc/salonops/prod.env')
+          lines = target.read_text().splitlines()
+          lines = [line for line in lines if not line.startswith('SALONOPS_IMAGE=')]
+          lines.append('SALONOPS_IMAGE=' + os.environ['RELEASE_IMAGE'])
+          fd, temporary = tempfile.mkstemp(prefix='.prod.env.', dir=target.parent)
+          try:
+              with os.fdopen(fd, 'w') as output:
+                  output.write('\n'.join(lines) + '\n')
+                  output.flush()
+                  os.fsync(output.fileno())
+              os.replace(temporary, target)
+          finally:
+              if os.path.exists(temporary):
+                  os.unlink(temporary)
+          PYTHON
+          curl --fail --silent --show-error --retry 3 https://operation.hairship.in/health/
+          printf 'Deployed `%s` from `%s`.\n' "$RELEASE_IMAGE" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

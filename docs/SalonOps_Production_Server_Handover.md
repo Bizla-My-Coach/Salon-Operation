@@ -129,10 +129,13 @@ sudo systemctl enable --now salonops-backup@prod.timer salonops-rehearsal@prod.t
 systemctl list-timers 'salonops-*'
 ```
 
-After verification, pushes and pull requests targeting **main** run CI only.
-They do not deploy to this server. Production releases must be separately
-approved and deployed by an authorized operator; check Actions and the website
-after the release.
+After verification, pull requests and `dev` pushes run CI only. A push to
+**main** runs checks, publishes an immutable application image, and deploys on
+`salonops-production-01` through the `production` GitHub environment. Any required
+environment reviewers must approve before deployment. See
+[production deployment](production-deployment.md#5-github-checks-and-automatic-production-releases)
+for runner permissions, registry access, backup ordering, and failure handling.
+Check the Actions deployment result and website after each release.
 
 **Never run `docker compose down -v` or prune the production DB volume.**
 The company manages certificate renewal, credentials, monitoring and backup failures.
