@@ -27,8 +27,18 @@ from .models import (
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
-    list_display = ("code", "store_code", "name", "active")
+    list_display = ("branch_code", "store_code", "name", "active")
     search_fields = ("code", "store_code", "name")
+
+    @admin.display(description="Branch code", ordering="code")
+    def branch_code(self, obj):
+        return obj.code
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if "code" in form.base_fields:
+            form.base_fields["code"].label = "Branch code"
+        return form
 
 
 @admin.register(Profile)
