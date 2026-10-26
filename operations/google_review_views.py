@@ -10,8 +10,8 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .models import Branch, GoogleReview, GoogleReviewAction, GoogleReviewEvent, ReviewIssue
-from .review_views import review_roles, demo_mode
-from .review_workflow import is_review_senior, review_scope, branch_managers
+from .review_views import review_roles, review_admin_roles, demo_mode
+from .review_workflow import is_review_admin, is_review_senior, review_scope, branch_managers
 from .roster import working_branch
 from .google_review_ingestion import ingest_review, EventConflict
 
@@ -29,7 +29,7 @@ def filtered(request):
     branch = request.GET.get('branch', '')
     if branch.isdigit() and is_review_senior(request.user):
         query = query.filter(branch_id=branch)
-    if request.GET.get('sentiment') in ('positive', 'negative', 'mixed', 'neutral', 'unknown'):
+    if is_review_admin(request.user) and request.GET.get('sentiment') in ('positive', 'negative', 'mixed', 'neutral', 'unknown'):
         query = query.filter(sentiment=request.GET['sentiment'])
     if request.GET.get('priority') in ('LOW', 'NORMAL', 'HIGH', 'URGENT'):
         query = query.filter(priority=request.GET['priority'])
@@ -76,7 +76,8 @@ def inbox(request):
 def detail(request, review_id):
     review = get_object_or_404(scope(request).select_related('case', 'branch', 'closed_by'), pk=review_id)
     return render(request, 'reviews/google_detail.html', {**context(request), 'review': review,
-        'events': review.events.all()[:30], 'actions': review.actions.select_related('actor').order_by('-created_at')[:30]})
+        'events': review.events.all()[:30] if is_review_admin(request.user) else [],
+        'actions': review.actions.select_related('actor').order_by('-created_at')[:30]})
 
 
 @never_cache
@@ -109,7 +110,7 @@ def action(request, review_id):
 
 
 @never_cache
-@review_roles
+@review_admin_roles
 @require_GET
 def analytics(request):
     records = filtered(request)
@@ -147,6 +148,8 @@ def assignment_queue(request):
         raise PermissionDenied
     env = 'sandbox' if demo_mode(request) else 'production'
     if request.method == 'POST':
+        if not is_review_admin(request.user):
+            raise PermissionDenied
         event_id = request.POST.get('event_id', '')
         if not event_id.isdigit():
             from django.http import Http404
@@ -161,4 +164,5 @@ def assignment_queue(request):
     cases = review_scope(request.user).filter(synthetic=demo_mode(request), closed_at__isnull=True)
     unassigned = [c for c in cases.select_related('branch', 'owner') if not c.owner_id or not branch_managers(c.branch).filter(pk=c.owner_id).exists()]
     return render(request, 'reviews/google_assignments.html', {**context(request), 'cases': unassigned,
-        'quarantined': GoogleReviewEvent.objects.filter(environment=env, status='quarantined')[:100]})
+        'quarantined': GoogleReviewEvent.objects.filter(environment=env, status='quarantined')[:100]
+            if is_review_admin(request.user) else []})

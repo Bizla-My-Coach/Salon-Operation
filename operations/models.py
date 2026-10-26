@@ -749,6 +749,7 @@ class GoogleReview(TimeStamped):
     star_rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     review_text = models.TextField(blank=True, max_length=6000)
     reviewer_display_name = models.CharField(max_length=120, blank=True)
+    reviewer_is_anonymous = models.BooleanField(default=False)
     google_created_at = models.DateTimeField()
     google_updated_at = models.DateTimeField(db_index=True)
     analysis_version = models.CharField(max_length=160)
@@ -775,6 +776,12 @@ class GoogleReview(TimeStamped):
         ordering = ['-google_updated_at', 'id']
         constraints = [models.UniqueConstraint(fields=['environment', 'review_name'], name='unique_google_review_env')]
         indexes = [models.Index(fields=['environment', 'branch', 'sentiment'])]
+
+    @property
+    def reviewer_name(self):
+        if self.reviewer_is_anonymous:
+            return 'Anonymous reviewer'
+        return self.reviewer_display_name.strip() or 'Anonymous reviewer'
 
     @property
     def simple_closed(self):

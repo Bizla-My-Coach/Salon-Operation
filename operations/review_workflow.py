@@ -15,6 +15,11 @@ class ReviewConflict(Exception):
     pass
 
 
+def is_review_admin(user):
+    profile = getattr(user, 'profile', None)
+    return user.is_superuser or bool(profile and profile.role == 'ADMIN')
+
+
 def is_review_senior(user):
     return user.is_superuser or user.profile.role in ('ADMIN', 'GENERAL_MANAGER')
 
@@ -125,7 +130,7 @@ def locked_case(user, case_id, expected_version, synthetic=False):
     from django.shortcuts import get_object_or_404
     case = get_object_or_404(review_scope(user).select_for_update(), pk=case_id, synthetic=synthetic)
     if case.version != expected_version:
-        raise ReviewConflict('This ticket changed in another session. Reload it before saving again.')
+        raise ReviewConflict('This review changed in another session. Reload it before saving again.')
     return case
 
 
@@ -174,10 +179,10 @@ def record_review(*, branch, actor, subject, customer_label, text, rating, servi
 def acknowledge_case(user, case_id, version, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     if case.closed_at:
-        raise ValidationError('Reopen this ticket before recording more internal work.')
+        raise ValidationError('Reopen this review before recording more internal work.')
     if not case.acknowledged_at:
         case.acknowledged_at = timezone.now()
-        log(case, user, 'Ticket acknowledged')
+        log(case, user, 'Review acknowledged')
         save_change(case)
     return case
 
@@ -186,7 +191,7 @@ def acknowledge_case(user, case_id, version, synthetic=False):
 def update_issue(user, case_id, issue_id, version, data, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     if case.closed_at:
-        raise ValidationError('Reopen the ticket before updating its issues.')
+        raise ValidationError('Reopen the review before updating its issues.')
     issue = case.issues.get(pk=issue_id)
     assignee = data.get('assignee')
     if assignee and not branch_managers(case.branch).filter(pk=assignee.pk).exists():
@@ -265,7 +270,7 @@ def close_from_followups(user, case_id, version, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     issues = list(case.issues.all())
     if not issues or any(not issue.is_terminal for issue in issues):
-        raise ValidationError('Complete every staff follow-up before closing this ticket.')
+        raise ValidationError('Complete every staff follow-up before closing this review.')
     if any(not issue.action_summary.strip() for issue in issues):
         raise ValidationError('Add an action / service note to every issue before closing.')
     summary = '\n'.join(f'{issue.get_category_display()}: {issue.action_summary}' for issue in issues)[:3000]
@@ -277,9 +282,9 @@ def close_from_followups(user, case_id, version, synthetic=False):
 def assign_case(user, case_id, version, owner, reason, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     if not is_review_senior(user):
-        raise ValidationError('Only Admin or General Manager can reassign a ticket.')
+        raise ValidationError('Only Admin or General Manager can reassign a review.')
     if case.closed_at:
-        raise ValidationError('Reopen the ticket before changing its assignment.')
+        raise ValidationError('Reopen the review before changing its assignment.')
     if owner and not branch_managers(case.branch).filter(pk=owner.pk).exists():
         raise ValidationError('Choose an active manager working at this branch today.')
     previous = str(case.owner) if case.owner else 'Unassigned'
@@ -296,12 +301,12 @@ def assign_case(user, case_id, version, owner, reason, synthetic=False):
 def close_case(user, case_id, version, summary, service_description, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     if case.closed_at:
-        raise ValidationError('This ticket is already closed.')
+        raise ValidationError('This review is already closed.')
     if case.requires_senior_closure and not is_review_senior(user):
-        raise ValidationError('Admin or General Manager must review and close this sensitive ticket.')
+        raise ValidationError('Admin or General Manager must review and close this sensitive review.')
     states = list(case.issues.values_list('status', flat=True))
     if any(state not in ReviewIssue.TERMINAL for state in states):
-        raise ValidationError('Complete every issue before closing this ticket.')
+        raise ValidationError('Complete every issue before closing this review.')
     if not summary.strip() or not service_description.strip():
         raise ValidationError('A resolution summary and service description are required.')
     actionable = [state for state in states if state != 'NOT_ACTIONABLE']
@@ -315,7 +320,7 @@ def close_case(user, case_id, version, summary, service_description, synthetic=F
         outcome = 'UNRESOLVED'
     case.closed_at, case.closed_by = timezone.now(), user
     case.closure_summary, case.service_description, case.closure_outcome = summary, service_description, outcome
-    log(case, user, 'Ticket closed', f'{case.get_closure_outcome_display()}\n{summary}\nService: {service_description}',
+    log(case, user, 'Review closed', f'{case.get_closure_outcome_display()}\n{summary}\nService: {service_description}',
         previous=case.status, current='CLOSED')
     save_change(case)
     return case
@@ -325,10 +330,10 @@ def close_case(user, case_id, version, summary, service_description, synthetic=F
 def reopen_case(user, case_id, version, reason, synthetic=False):
     case = locked_case(user, case_id, version, synthetic)
     if not case.closed_at or not reason.strip():
-        raise ValidationError('Only a closed ticket can be reopened, with a reason.')
+        raise ValidationError('Only a closed review can be reopened, with a reason.')
     case.closed_at = case.closed_by = None
     case.closure_summary = case.closure_outcome = ''
-    log(case, user, 'Ticket reopened', reason, previous='CLOSED', current='READY')
+    log(case, user, 'Review reopened', reason, previous='CLOSED', current='READY')
     save_change(case)
     return case
 
@@ -360,7 +365,7 @@ def update_reply(user, case_id, version, action, text='', note='', synthetic=Fal
         if not note.strip():
             raise ValidationError('Record why no public reply is planned.')
         if case.requires_senior_followup and not is_review_senior(user):
-            raise ValidationError('A senior reviewer must decide communication for a sensitive ticket.')
+            raise ValidationError('A senior reviewer must decide communication for a sensitive review.')
         reply.status = 'NO_REPLY'
         reply.approved_by, reply.approved_at = user, timezone.now()
     else:

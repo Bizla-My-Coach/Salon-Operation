@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.db.models import Case, When, Value, IntegerField
 
 from .models import ReviewNotification
-from .review_workflow import review_scope
+from .review_workflow import is_review_admin, review_scope
 
 
 def can_receive_review_alerts(user):
@@ -14,7 +14,7 @@ def can_receive_review_alerts(user):
 
 
 def visible_notifications(user, synthetic=False):
-    if not can_receive_review_alerts(user):
+    if not can_receive_review_alerts(user) or synthetic and not is_review_admin(user):
         return ReviewNotification.objects.none()
     return ReviewNotification.objects.filter(
         recipient=user, case__owner=user, case__synthetic=synthetic,
@@ -42,7 +42,7 @@ def notification_feed(user, synthetic=False):
 def review_notifications(request):
     if not can_receive_review_alerts(request.user):
         return {}
-    demo = request.GET.get('demo') == '1'
+    demo = request.GET.get('demo') == '1' and is_review_admin(request.user)
     suffix = '?demo=1' if demo else ''
     return {
         'review_alerts': notification_feed(request.user, demo),

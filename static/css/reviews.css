@@ -178,3 +178,6 @@
   .review-open { margin-left: 58px; padding: 7px 12px; }
   .review-card-footer>span:first-child { flex-basis: auto; }
 }
+
+.review-google-id { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.review-google-text { display: block; -webkit-line-clamp: unset; overflow: visible; }

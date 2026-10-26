@@ -203,16 +203,20 @@ that can still be changed.
 
 ## Personal account and appearance
 
-Managers, Admin and General Manager have **Customer experience → Tickets**.
+Managers, Admin and General Manager have **Customer experience → Google Review**.
 All Google feedback is stored, including appreciations that can be closed without
 an investigation. Complaints and human follow-up use branch-scoped cases with
 separate issue tasks, automatic submission timestamps and audited outcomes.
 The authenticated result endpoint receives the V3 queue worker’s v1 JSON
 envelope with revision/evidence ordering; AWS owns Google publication independently of the app and managers.
-Branch analytics, unassigned work and sandbox separation are included. See the
+Cards include reviewer name (or Anonymous reviewer), rating, review text, branch,
+Google creation date and Google review ID. Reviewer metadata remains optional
+and does not create or link customer records. Admin alone can open sandbox,
+analytics, issue reporting and integration diagnostics; General Manager retains
+production review access and assignment tools. See the
 [Google review integration and deployment guide](docs/google-review-integration.md)
 for API URLs, authentication, examples, migrations and Codespaces verification.
-The [ticket guide](docs/customer-review-tickets.md) describes staff handling.
+The [Google Review guide](docs/customer-review-tickets.md) describes staff handling.
 
 Every signed-in role has a profile icon in the navigation bar. Open it to see
 the account name, open **Profile**, switch between light and dark mode, or sign

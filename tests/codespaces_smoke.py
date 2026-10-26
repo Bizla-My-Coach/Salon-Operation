@@ -26,8 +26,8 @@ request = urllib.request.Request(base + '/login/', data=urllib.parse.urlencode({
 }).encode(), headers={'Origin': base})
 with opener.open(request, timeout=10) as response:
     assert urllib.parse.urlparse(response.url).path != '/login/', 'Demo admin login failed'
-    assert 'Tickets' in response.read().decode()
+    assert 'Google Review' in response.read().decode()
 with opener.open(base + '/admin/', timeout=10) as response:
     assert urllib.parse.urlparse(response.url).path == '/admin/', 'Admin rights missing'
     assert response.status == 200
-print('PASS: Codespaces HTTP health, CSRF-protected admin/admin login, Tickets sidebar and Django admin access.')
+print('PASS: Codespaces HTTP health, CSRF-protected admin/admin login, Google Review sidebar and Django admin access.')
