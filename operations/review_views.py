@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q, Case, When, Value, IntegerField, Max
@@ -20,6 +20,7 @@ from . import review_workflow as workflow
 from .review_notifications import notification_feed, visible_notifications
 
 review_roles = roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER')
+review_admin_roles = roles_required('ADMIN')
 
 
 @never_cache
@@ -51,10 +52,16 @@ def notifications_read_all(request):
 
 
 def demo_mode(request):
-    return request.GET.get('demo') == '1'
+    demo = request.GET.get('demo') == '1'
+    if demo and not workflow.is_review_admin(request.user):
+        raise PermissionDenied
+    return demo
 
 
 def case_url(case, demo=False):
+    google_review = getattr(case, 'google_review', None)
+    if google_review:
+        return reverse('google_review_detail', args=[google_review.pk]) + ('?demo=1' if demo else '')
     return reverse('review_detail', args=[case.pk]) + ('?demo=1' if demo else '')
 
 
@@ -63,7 +70,7 @@ def scoped_cases(request):
 
 
 def decorated_cases(query):
-    return query.select_related('branch', 'owner', 'snapshot', 'reply', 'acknowledgement').prefetch_related('issues__assignee').annotate(
+    return query.select_related('branch', 'owner', 'snapshot', 'reply', 'acknowledgement', 'google_review').prefetch_related('issues__assignee').annotate(
         issue_count=Count('issues', distinct=True),
         open_issue_count=Count('issues', filter=~Q(issues__status__in=ReviewIssue.TERMINAL), distinct=True),
     )
@@ -110,7 +117,7 @@ def inbox(request):
         'closed': query.filter(status='CLOSED').count(),
         'total': query.count(),
     }
-    tabs = [('all', 'All tickets', query.count()),
+    tabs = [('all', 'All reviews', query.count()),
             ('open', 'Open', query.exclude(status='CLOSED').count()),
             ('closed', 'Closed', query.filter(status='CLOSED').count())]
     active_tab = request.GET.get('tab', 'all' if senior else 'open')
@@ -157,7 +164,8 @@ def detail_context(request, case, bound=None, bound_issue=None):
         'complete_count': sum(issue.is_terminal for issue in issues),
         'google_review': getattr(case, 'google_review', None),
         'unresolved': case.closure_outcome in ('PARTIAL', 'UNRESOLVED') or any(i.status == 'CLOSED_UNRESOLVED' for i in issues),
-        'activities': case.activities.select_related('actor', 'issue')[:100],
+        'activities': (case.activities.all() if workflow.is_review_admin(request.user) else
+            case.activities.exclude(action='AWS analysis received')).select_related('actor', 'issue')[:100],
         'version_form': VersionForm(initial=version),
         'closure_form': ClosureForm(initial={**version, 'service_description': case.service_description}),
         'assignment_form': AssignmentForm(case=case, initial={**version, 'owner': case.owner_id}),
@@ -204,7 +212,7 @@ def action(request, case_id):
     elif kind in ['acknowledge', 'close_simple']:
         form = VersionForm(request.POST)
     else:
-        return HttpResponseBadRequest('Unknown ticket action.')
+        return HttpResponseBadRequest('Unknown review action.')
     if form.is_valid():
         data = form.cleaned_data
         args = (request.user, case.pk, data['version'])
@@ -232,7 +240,7 @@ def action(request, case_id):
                 with transaction.atomic():
                     locked = workflow.locked_case(*args, demo)
                     if locked.closed_at:
-                        raise ValidationError('Reopen the ticket before adding an issue.')
+                        raise ValidationError('Reopen the review before adding an issue.')
                     created = ReviewIssue.objects.create(case=locked, category=data['category'], reported_issue=data['reported_issue'], assignee=locked.owner)
                     if created.category in ['HEALTH', 'CONDUCT']:
                         locked.sensitive = True
@@ -252,7 +260,7 @@ def action(request, case_id):
             form.add_error(None, exc)
             messages.error(request, ' '.join(exc.messages))
         else:
-            messages.success(request, 'Ticket updated.' if 'reply' not in kind else 'Reply decision saved. Nothing has been posted to Google.')
+            messages.success(request, 'Review updated.' if 'reply' not in kind else 'Reply decision saved. Nothing has been posted to Google.')
             return redirect(case_url(case, demo))
     context = detail_context(request, case, form if issue else None, issue.pk if issue else None)
     form_keys = {'close': 'closure_form', 'assign': 'assignment_form', 'reopen': 'reason_form', 'add_issue': 'add_issue_form', 'close_no_issue': 'reason_form'}
@@ -273,13 +281,13 @@ def create(request):
         case = workflow.record_review(branch=data['branch'], actor=request.user, subject=data['subject'],
             customer_label=data['customer_label'], text=data['text'], rating=data['rating'],
             service_description=data['service_description'], issues=issues, synthetic=demo_mode(request))
-        messages.success(request, 'Review ticket recorded. Add any other reported issues on the ticket.')
+        messages.success(request, 'Review recorded. Add any other reported issues to the review.')
         return redirect(case_url(case, demo_mode(request)))
     return render(request, 'reviews/create.html', {'form': form, 'demo': demo_mode(request)})
 
 
 @never_cache
-@review_roles
+@review_admin_roles
 @require_GET
 def reports(request):
     cases = scoped_cases(request)

@@ -738,6 +738,9 @@ class GoogleReviewLocation(TimeStamped):
 
 
 class GoogleReview(TimeStamped):
+    STAFF_FOLLOWUP = [('NEW', 'Not started'), ('IN_PROGRESS', 'In progress'),
+        ('WAITING', 'Awaiting follow-up'), ('RESOLVED', 'Resolved'),
+        ('CLOSED_UNRESOLVED', 'Unresolved'), ('NOT_ACTIONABLE', 'Not actionable')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     environment = models.CharField(max_length=12, choices=REVIEW_ENVIRONMENTS, db_index=True)
     review_name = models.CharField(max_length=400)
@@ -749,6 +752,7 @@ class GoogleReview(TimeStamped):
     star_rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     review_text = models.TextField(blank=True, max_length=6000)
     reviewer_display_name = models.CharField(max_length=120, blank=True)
+    reviewer_is_anonymous = models.BooleanField(default=False)
     google_created_at = models.DateTimeField()
     google_updated_at = models.DateTimeField(db_index=True)
     analysis_version = models.CharField(max_length=160)
@@ -770,6 +774,13 @@ class GoogleReview(TimeStamped):
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='google_reviews_closed')
     closed_review_version = models.DateTimeField(null=True, blank=True)
+    customer_followup = models.CharField(max_length=20, choices=ReviewIssue.CUSTOMER_FOLLOWUP, default='NOT_CONTACTED')
+    staff_followup = models.CharField(max_length=24, choices=STAFF_FOLLOWUP, default='NEW')
+    justification = models.TextField(blank=True, max_length=3000)
+    followup_revision = models.PositiveIntegerField(default=1)
+    followup_updated_at = models.DateTimeField(null=True, blank=True)
+    followup_updated_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='google_review_updates')
 
     class Meta:
         ordering = ['-google_updated_at', 'id']
@@ -777,11 +788,29 @@ class GoogleReview(TimeStamped):
         indexes = [models.Index(fields=['environment', 'branch', 'sentiment'])]
 
     @property
+    def reviewer_name(self):
+        if self.reviewer_is_anonymous:
+            return 'Anonymous reviewer'
+        return self.reviewer_display_name.strip() or 'Anonymous reviewer'
+
+    @property
     def simple_closed(self):
         return bool(self.closed_at and self.closed_review_version == self.google_updated_at)
 
     @property
+    def is_closed(self):
+        return bool(self.case.closed_at) if self.case_id else self.simple_closed
+
+    @property
+    def edit_token(self):
+        return f'{self.google_updated_at.isoformat()}:{self.followup_revision}:{self.case.version if self.case_id else 0}'
+
+    @property
     def handling_status(self):
+        if self.followup_updated_at:
+            if self.is_closed:
+                return 'Unresolved' if self.staff_followup == 'CLOSED_UNRESOLVED' else 'Closed'
+            return {'NEW': 'Open', 'WAITING': 'Awaiting follow-up'}.get(self.staff_followup, 'In progress')
         if self.case_id:
             if self.case.closure_outcome in ('UNRESOLVED', 'PARTIAL'):
                 return 'Unresolved'
@@ -837,6 +866,6 @@ class GoogleReviewAction(models.Model):
     review = models.ForeignKey(GoogleReview, on_delete=models.PROTECT, related_name='actions')
     actor = models.ForeignKey(User, on_delete=models.PROTECT)
     action = models.CharField(max_length=30)
-    note = models.TextField(blank=True, max_length=1500)
+    note = models.TextField(blank=True, max_length=4000)
     review_version = models.DateTimeField()
     created_at = models.DateTimeField(default=timezone.now)

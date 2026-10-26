@@ -43,7 +43,7 @@ class SidebarIconTests(TestCase):
         return user
 
     def check_sidebar(self, user, page_name, expected):
-        expected = expected + ['reviews', 'reports']
+        expected = expected + ['reviews']
         self.client.force_login(user)
         response = self.client.get(reverse(page_name))
         self.assertEqual(response.status_code, 200)
