@@ -2,8 +2,14 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/reviews.css' %}">{% endblock %}
 {% block content %}
 <div class="reviews-workspace">
-<nav class="review-tabs" aria-label="Review workspace"><a href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">All reviews</a><a href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">Investigations</a><a href="{% url 'google_review_analytics' %}{% if demo %}?demo=1{% endif %}">Branch analytics</a>{% if user.is_superuser or user.profile.role == 'ADMIN' or user.profile.role == 'GENERAL_MANAGER' %}<a href="{% url 'google_review_assignments' %}{% if demo %}?demo=1{% endif %}">Needs assignment</a>{% endif %}{% if not demo %}<a href="{% url 'google_review_inbox' %}?demo=1">Sandbox reviews</a>{% endif %}</nav>
-{% if demo %}<div class="review-demo"><strong>Sandbox reviews</strong><span>Test reviews and tickets. Excluded from production reviews, analytics and live manager alerts.</span><a href="{% url 'google_review_inbox' %}">Production reviews</a></div>{% endif %}
+<nav class="review-tabs" aria-label="Review workspace">
+  <a href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">All reviews</a>
+  <a href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">Follow-up</a>
+  {% if review_admin %}<a href="{% url 'google_review_analytics' %}{% if demo %}?demo=1{% endif %}">Branch analytics</a>{% endif %}
+  {% if user.is_superuser or user.profile.role == 'ADMIN' or user.profile.role == 'GENERAL_MANAGER' %}<a href="{% url 'google_review_assignments' %}{% if demo %}?demo=1{% endif %}">Needs assignment</a>{% endif %}
+  {% if review_admin and not demo %}<a href="{% url 'google_review_inbox' %}?demo=1">Sandbox reviews</a>{% endif %}
+</nav>
+{% if review_admin and demo %}<div class="review-demo"><strong>Sandbox reviews</strong><span>Test reviews. Excluded from production reviews, analytics and live manager alerts.</span><a href="{% url 'google_review_inbox' %}">Production reviews</a></div>{% endif %}
 {% block reviews_content %}{% endblock %}
 </div>
 {% endblock %}

@@ -193,9 +193,13 @@ def review_data(payload):
     priority = max([priority] + [i['ai_priority'] for i in issues.values()], key=ranks.get)
     if any(i['category'] == 'HEALTH' for i in issues.values()):
         priority = 'URGENT'
+    reviewer_name = review.get('reviewer_display_name')
+    reviewer_name = text({'reviewer_display_name': '' if reviewer_name is None else reviewer_name}, 'reviewer_display_name', 120)
+    reviewer_is_anonymous = boolean(review, 'reviewer_is_anonymous')
     publication = publication_data(payload['publication'], base) if 'publication' in payload else None
     base.update(star_rating=rating, review_text=review_text,
-        reviewer_display_name=text(review, 'reviewer_display_name', 120),
+        reviewer_display_name='' if reviewer_is_anonymous else reviewer_name.strip(),
+        reviewer_is_anonymous=reviewer_is_anonymous,
         google_created_at=created, google_updated_at=updated,
         analysis=analysis, sentiment=sentiment, priority=priority, requires_human_review=human_review,
         needs_followup=bool(issues or human or complaint or (rating <= 2 and not review_text.strip())),
@@ -273,7 +277,7 @@ def sync_case(review, data, same_version=False):
             source_key='google:' + review.environment + ':' + hashlib.sha256(review.review_name.encode()).hexdigest(),
             synthetic=review.environment == 'sandbox',
             subject=f'Google review · {review.star_rating}/5 · follow-up',
-            customer_label=review.reviewer_display_name, sensitive=data['sensitive'],
+            customer_label=review.reviewer_name, sensitive=data['sensitive'],
             case_followup_requires_human=True, ai_requires_human_review=data['requires_human_review'])
         workflow.apply_sensitive_policy(case)
         case.save()
@@ -285,6 +289,7 @@ def sync_case(review, data, same_version=False):
         workflow.log(case, None, 'Google review received', 'Internal follow-up only. AWS owns public reply publication.')
     else:
         # Source edits never replace staff notes, confirmations, assignees or outcomes.
+        case.customer_label = review.reviewer_name
         case.sensitive = case.sensitive or data['sensitive']
         case.ai_requires_human_review = data['requires_human_review']
         case.case_followup_requires_human = case.case_followup_requires_human or data['needs_followup']
@@ -377,7 +382,7 @@ def ingest_review(payload):
     review = GoogleReview.objects.select_for_update().filter(
         environment=data['environment'], review_name=data['review_name']).first()
     source_fields = ['account_name', 'location_name', 'google_review_id', 'star_rating', 'review_text',
-        'reviewer_display_name', 'google_created_at', 'google_updated_at', 'analysis_version', 'analysis',
+        'reviewer_display_name', 'reviewer_is_anonymous', 'google_created_at', 'google_updated_at', 'analysis_version', 'analysis',
         'version_fingerprint', 'sentiment', 'priority', 'requires_human_review', 'needs_followup', 'generated_reply',
         'processing', 'analyzed_at', 'profile_key', 'result_revision']
     same_version = bool(review and review.google_updated_at == data['google_updated_at'])
@@ -404,6 +409,8 @@ def ingest_review(payload):
             for key in source_fields:
                 setattr(review, key, data[key])
             review.save(update_fields=[*source_fields, 'updated_at'])
+            if review.case_id:
+                ReviewCase.objects.filter(pk=review.case_id).update(customer_label=review.reviewer_name)
         if not same_version or analysis_changed or not review.case_id and data['needs_followup']:
             sync_case(review, data, same_version=same_version)
     event.review, event.status = review, 'committed'

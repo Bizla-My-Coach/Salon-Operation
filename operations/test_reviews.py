@@ -33,6 +33,11 @@ class ReviewTests(TestCase):
         self.client.force_login(self.manager)
         self.case = self.record()
 
+    def admin_report(self):
+        client = Client()
+        client.force_login(self.admin)
+        return client.get(reverse('review_reports'))
+
     def record(self, **extra):
         values = dict(branch=self.a, actor=self.admin, subject='Waiting and communication', customer_label='Fictional reviewer',
                       text='Nice haircut but a wait and poor updates.', rating=5, service_description='Cut and styling.',
@@ -88,7 +93,7 @@ class ReviewTests(TestCase):
         self.assertEqual(feed.json()['items'][0]['subject'], new.subject)
         self.assertEqual(new.notifications.count(), 1)
         self.assertIn('no-store', feed['Cache-Control'])
-        self.assertContains(self.client.get(reverse('manager_dashboard')), 'Ticket notifications, 2 unread')
+        self.assertContains(self.client.get(reverse('manager_dashboard')), 'Review notifications, 2 unread')
 
     def test_notification_open_marks_only_recipient_read_without_accepting_review(self):
         alert = self.case.notifications.get()
@@ -138,6 +143,11 @@ class ReviewTests(TestCase):
         self.assertEqual(result.json()['unread_count'], 0)
         self.assertIsNone(demo.notifications.get().read_at)
         self.assertIsNone(other.notifications.get().read_at)
+        self.assertEqual(self.client.get(reverse('review_notifications') + '?demo=1').status_code, 403)
+        demo.owner = self.admin
+        demo.save()
+        demo.notifications.update(recipient=self.admin)
+        self.client.force_login(self.admin)
         demo_feed = self.client.get(reverse('review_notifications') + '?demo=1').json()
         self.assertEqual(demo_feed['unread_count'], 1)
         self.assertIn('?demo=1', demo_feed['items'][0]['open_url'])
@@ -194,10 +204,7 @@ class ReviewTests(TestCase):
         self.assertEqual(response.context['metrics']['open_issues'], 2)
         self.assertEqual(self.client.get(self.url(case=other_case)).status_code, 404)
         self.assertEqual(self.client.post(self.url('review_action', other_case), {'action': 'acknowledge', 'version': 1}).status_code, 404)
-        response = self.client.get(reverse('review_reports'))
-        self.assertEqual(response.context['open_cases'], 1)
-        self.assertEqual(response.context['open_issues'], 2)
-        self.assertNotContains(response, 'Private other branch')
+        self.assertEqual(self.client.get(reverse('review_reports')).status_code, 403)
 
     def test_employees_inactive_users_anonymous_and_csrf_are_denied(self):
         self.client.force_login(self.employee)
@@ -231,7 +238,11 @@ class ReviewTests(TestCase):
         for senior in [self.admin, self.gm]:
             self.client.force_login(senior)
             self.assertEqual(self.client.get(self.url(case=other_case)).status_code, 200)
-            self.assertContains(self.client.get(reverse('review_inbox')), 'Issue reporting')
+            response = self.client.get(reverse('review_inbox'))
+            if senior == self.admin:
+                self.assertContains(response, 'Issue reporting')
+            else:
+                self.assertNotContains(response, 'Issue reporting')
         self.client.force_login(self.employee)
         self.assertNotContains(self.client.get(reverse('employee_dashboard')), 'Customer experience')
 
@@ -244,7 +255,7 @@ class ReviewTests(TestCase):
         self.client.post(self.url('review_action'), {'action': 'acknowledge', 'version': self.case.version})
         self.case.refresh_from_db()
         self.assertEqual(self.case.acknowledged_at, first)
-        self.assertEqual(self.case.activities.filter(action='Ticket acknowledged').count(), 1)
+        self.assertEqual(self.case.activities.filter(action='Review acknowledged').count(), 1)
 
     def test_one_resolved_issue_does_not_close_parent(self):
         self.assertEqual(self.update(status='RESOLVED', outcome='Reception handover improved.').status_code, 302)
@@ -254,7 +265,7 @@ class ReviewTests(TestCase):
         issue = self.case.issues.first()
         self.assertEqual(issue.customer_confirmation, 'UNKNOWN')
         self.assertEqual(self.client.post(self.url('review_action'), self.close_data()).status_code, 400)
-        self.assertEqual(self.client.get(reverse('review_reports')).context['open_issues'], 1)
+        self.assertEqual(self.admin_report().context['open_issues'], 1)
 
     def test_waiting_requires_reason_and_future_followup(self):
         for extra in [{}, {'waiting_reason': 'CUSTOMER'}, {'waiting_reason': 'CUSTOMER', 'next_review_at': '2020-01-01T09:00'}]:
@@ -265,7 +276,7 @@ class ReviewTests(TestCase):
             self.assertEqual(self.update(issue, status='WAITING', waiting_reason='INTERNAL', next_review_at=future).status_code, 302)
         self.case.refresh_from_db()
         self.assertEqual(self.case.status, 'WAITING')
-        self.assertEqual(self.client.get(reverse('review_reports')).context['open_cases'], 1)
+        self.assertEqual(self.admin_report().context['open_cases'], 1)
 
     def test_terminal_outcome_and_action_are_required(self):
         self.assertEqual(self.update(status='RESOLVED').status_code, 400)
@@ -284,7 +295,7 @@ class ReviewTests(TestCase):
         self.assertEqual(self.update(status='IN_PROGRESS').status_code, 400)
         self.assertEqual(self.client.post(self.url('review_action'), {'action': 'reopen', 'version': self.case.version, 'reason': 'Customer requests another follow-up.'}).status_code, 302)
         self.assertEqual(self.update(status='IN_PROGRESS', action_summary='Customer requests another check.').status_code, 302)
-        self.assertTrue(self.case.activities.filter(action='Ticket closed', note__contains='Corrective styling').exists())
+        self.assertTrue(self.case.activities.filter(action='Review closed', note__contains='Corrective styling').exists())
         issue = self.case.issues.first()
         self.assertEqual(issue.cycle, 2)
         self.assertIsNone(issue.completed_at)
@@ -296,7 +307,7 @@ class ReviewTests(TestCase):
         self.client.post(self.url('review_action'), self.close_data())
         self.case.refresh_from_db()
         self.assertEqual(self.case.closure_outcome, 'PARTIAL')
-        result = self.client.get(reverse('review_reports')).context
+        result = self.admin_report().context
         self.assertEqual(result['outcomes'][0]['count'], 0)
         self.assertEqual(result['outcomes'][1]['count'], 1)
 
@@ -344,7 +355,7 @@ class ReviewTests(TestCase):
         self.assertEqual(self.client.post(self.url('review_action'), data).status_code, 302)
         self.case.refresh_from_db()
         self.assertIsNone(self.case.owner)
-        self.assertEqual(self.client.get(reverse('review_reports')).context['unassigned'], 1)
+        self.assertEqual(self.admin_report().context['unassigned'], 1)
 
     def test_public_reply_never_changes_work_and_edit_invalidates_approval(self):
         version = self.case.version
@@ -445,10 +456,11 @@ class ReviewTests(TestCase):
     def test_synthetic_records_are_isolated_from_live_lists_metrics_and_mutations(self):
         fake = self.record(synthetic=True, subject='Demo only ticket')
         self.assertNotContains(self.client.get(reverse('review_inbox')), fake.subject)
-        self.assertEqual(self.client.get(reverse('review_reports')).context['open_cases'], 1)
+        self.assertEqual(self.admin_report().context['open_cases'], 1)
         self.assertEqual(self.client.get(self.url(case=fake)).status_code, 404)
-        self.assertEqual(self.client.get(self.url(case=fake, demo=True)).status_code, 200)
+        self.assertEqual(self.client.get(self.url(case=fake, demo=True)).status_code, 403)
         self.assertEqual(self.client.post(self.url('review_action', fake), {'action': 'acknowledge', 'version': fake.version}).status_code, 404)
+        self.client.force_login(self.admin)
         sandbox = self.client.get(reverse('review_inbox') + '?demo=1')
         self.assertContains(sandbox, 'Sandbox reviews')
         self.assertContains(sandbox, 'Excluded from production reviews, analytics and live manager alerts.')

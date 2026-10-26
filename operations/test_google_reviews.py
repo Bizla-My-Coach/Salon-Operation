@@ -98,15 +98,16 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(GoogleReviewEvent.objects.count(), 1)
 
     def test_positive_can_close_and_reopen_without_complaint_or_investigation(self):
+        self.payload.update(environment='production', synthetic=False)
         data = self.positive()
-        result = self.send(data).json()
+        result = self.send(data, token=PRODUCTION_TOKEN).json()
         self.assertIsNone(result['case_id'])
         self.assertFalse(result['assignment_confirmed'])
         self.assertFalse(ReviewCase.objects.exists())
         self.assertFalse(ReviewNotification.objects.exists())
         record = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
-        url = reverse('google_review_action', args=[record.pk]) + '?demo=1'
+        url = reverse('google_review_action', args=[record.pk])
         values = {'action': 'close', 'version': record.google_updated_at.isoformat()}
         self.assertEqual(self.client.post(url, values).status_code, 302)
         self.client.post(url, values)
@@ -128,17 +129,18 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(ReviewIssue.objects.count(), 1)
 
     def test_rating_only_needs_clarification_without_inventing_issue(self):
+        self.payload.update(environment='production', synthetic=False)
         data = self.positive()
         data['source']['review_snapshot'] = {'star_rating': 1, 'text': ''}
-        result = self.send(data).json()
+        result = self.send(data, token=PRODUCTION_TOKEN).json()
         self.assertIsNotNone(result['case_id'])
         self.assertEqual(result['issues_saved_count'], 0)
         self.assertEqual(ReviewNotification.objects.count(), 1)
         self.client.force_login(self.people['manager'])
         case = ReviewCase.objects.get()
-        self.assertContains(self.client.get(reverse('review_inbox') + '?demo=1'), case.subject)
-        self.assertContains(self.client.get(reverse('review_detail', args=[case.pk]) + '?demo=1'), 'Record clarification outcome')
-        response = self.client.post(reverse('review_action', args=[case.pk]) + '?demo=1',
+        self.assertContains(self.client.get(reverse('review_inbox')), GoogleReview.objects.get().google_review_id)
+        self.assertContains(self.client.get(reverse('review_detail', args=[case.pk])), 'Record clarification outcome')
+        response = self.client.post(reverse('review_action', args=[case.pk]),
             {'action': 'close_no_issue', 'version': case.version, 'reason': 'Contacted customer; no specific concern was identified.'})
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ReviewIssue.objects.exists())
@@ -274,11 +276,12 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(GoogleReview.objects.count(), 1)
 
     def test_store_code_routes_complaint_to_branch_manager_without_location_mapping(self):
+        self.payload.update(environment='production', synthetic=False)
         GoogleReviewLocation.objects.all().delete()
         self.branch.store_code = 'HS-001'
         self.branch.save()
         self.payload['source'].update(store_code=' HS-001 ', profile_key='not-a-branch-selector')
-        response = self.send()
+        response = self.send(token=PRODUCTION_TOKEN)
         self.assertEqual(response.status_code, 200)
         review = GoogleReview.objects.get()
         self.assertEqual(review.branch, self.branch)
@@ -286,7 +289,7 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(review.case.owner, self.people['manager'])
         self.assertTrue(response.json()['assignment_confirmed'])
         self.client.force_login(self.people['other'])
-        self.assertEqual(self.client.get(reverse('google_review_detail', args=[review.pk]) + '?demo=1').status_code, 404)
+        self.assertEqual(self.client.get(reverse('google_review_detail', args=[review.pk])).status_code, 404)
 
     def test_unknown_store_code_never_falls_back_to_valid_location_and_can_be_replayed(self):
         self.payload['source']['store_code'] = 'HS-001'
@@ -365,7 +368,9 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(GoogleReview.objects.count(), 2)
         self.client.force_login(self.people['manager'])
         self.assertEqual(self.client.get(reverse('review_notifications')).json()['unread_count'], 0)
-        self.assertEqual(self.client.get(reverse('review_notifications') + '?demo=1').json()['unread_count'], 1)
+        self.assertEqual(self.client.get(reverse('review_notifications') + '?demo=1').status_code, 403)
+        self.assertEqual(self.client.get(reverse('google_review_analytics')).status_code, 403)
+        self.client.force_login(self.people['admin'])
         self.assertEqual(self.client.get(reverse('google_review_analytics')).context['total'], 1)
         self.assertEqual(self.client.get(reverse('google_review_analytics')).context['positive'], 1)
         self.assertEqual(self.client.get(reverse('google_review_analytics') + '?demo=1').context['positive'], 0)
@@ -438,16 +443,17 @@ class GoogleReviewTests(TestCase):
         self.assertFalse(GoogleReview.objects.exists())
 
     def test_branch_and_role_scope_protect_reviews_analytics_and_actions(self):
-        self.send(self.positive())
+        self.payload.update(environment='production', synthetic=False)
+        self.send(self.positive(), token=PRODUCTION_TOKEN)
         review = GoogleReview.objects.get()
         self.client.force_login(self.people['other'])
-        self.assertEqual(self.client.get(reverse('google_review_detail', args=[review.pk]) + '?demo=1').status_code, 404)
-        self.assertEqual(self.client.get(reverse('google_review_analytics') + '?demo=1').context['total'], 0)
-        self.assertEqual(self.client.post(reverse('google_review_action', args=[review.pk]) + '?demo=1', {}).status_code, 404)
+        self.assertEqual(self.client.get(reverse('google_review_detail', args=[review.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('google_review_analytics')).status_code, 403)
+        self.assertEqual(self.client.post(reverse('google_review_action', args=[review.pk]), {}).status_code, 404)
         self.client.force_login(self.people['employee'])
         self.assertEqual(self.client.get(reverse('google_review_inbox')).status_code, 403)
         self.client.force_login(self.people['gm'])
-        self.assertEqual(self.client.get(reverse('google_review_inbox') + '?demo=1').context['page_obj'].paginator.count, 1)
+        self.assertEqual(self.client.get(reverse('google_review_inbox')).context['page_obj'].paginator.count, 1)
 
     def test_authentication_validation_https_and_bounded_payload(self):
         self.assertEqual(self.send(token='wrong').status_code, 401)
@@ -512,17 +518,18 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(GoogleReview.objects.get().publication_status, 'published')
 
     def test_edited_appreciation_reopens_current_version_and_keeps_close_history(self):
+        self.payload.update(environment='production', synthetic=False)
         data = self.positive()
-        self.send(data)
+        self.send(data, token=PRODUCTION_TOKEN)
         review = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
-        self.client.post(reverse('google_review_action', args=[review.pk]) + '?demo=1',
+        self.client.post(reverse('google_review_action', args=[review.pk]),
             {'action': 'close', 'version': review.google_updated_at.isoformat()})
         data['event_id'] = 'appreciation-edit'
         data['source']['review_update_time'] = '2026-10-20T09:01:00Z'
         data['processing']['analyzed_at'] = '2026-10-20T09:01:10Z'
         data['publication']['review_update_time'] = data['source']['review_update_time']
-        self.assertEqual(self.send(data).status_code, 200)
+        self.assertEqual(self.send(data, token=PRODUCTION_TOKEN).status_code, 200)
         review.refresh_from_db()
         self.assertFalse(review.simple_closed)
         self.assertEqual(review.actions.count(), 1)
@@ -566,21 +573,23 @@ class GoogleReviewTests(TestCase):
                 call_command('create_review_api_secret', output=str(Path(directory) / 'other.json'), stdout=output)
 
     def test_unresolved_outcome_is_not_counted_as_resolved(self):
-        self.send()
+        self.payload.update(environment='production', synthetic=False)
+        self.send(token=PRODUCTION_TOKEN)
         case = ReviewCase.objects.get()
         self.client.force_login(self.people['manager'])
-        response = self.client.post(reverse('review_action', args=[case.pk]) + '?demo=1', {
+        response = self.client.post(reverse('review_action', args=[case.pk]), {
             'action': 'followup', 'issue_id': str(case.issues.get().pk), 'version': case.version,
             'customer_followup': 'CONTACTED', 'staff_followup': 'CLOSED_UNRESOLVED',
             'action_summary': 'Investigated and arranged further external assistance; still unresolved.'})
         self.assertEqual(response.status_code, 302)
         case.refresh_from_db()
-        self.client.post(reverse('review_action', args=[case.pk]) + '?demo=1', {'action': 'close_simple', 'version': case.version})
+        self.client.post(reverse('review_action', args=[case.pk]), {'action': 'close_simple', 'version': case.version})
         case.refresh_from_db()
         self.assertEqual(case.closure_outcome, 'UNRESOLVED')
         review = GoogleReview.objects.get()
         self.assertEqual(review.handling_status, 'Unresolved')
-        report = self.client.get(reverse('google_review_analytics') + '?demo=1')
+        self.client.force_login(self.people['admin'])
+        report = self.client.get(reverse('google_review_analytics'))
         self.assertEqual(report.context['unresolved'], 1)
         self.assertIsNone(report.context['resolution_hours'])
 

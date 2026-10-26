@@ -1,24 +1,24 @@
 {% extends 'reviews/base.html' %}
-{% block title %}Tickets · Hairship{% endblock %}
+{% block title %}Google Review · Hairship{% endblock %}
 {% block reviews_content %}
 <header class="review-page-head">
-  <div><span class="eyebrow">Customer experience</span><h1>Tickets</h1><p>Listen, follow up, and put things right.</p></div>
-  <div class="review-head-actions"><a class="button outline" href="{% url 'review_reports' %}{% if demo %}?demo=1{% endif %}">Issue reporting</a><a class="button primary" href="{% url 'review_create' %}{% if demo %}?demo=1{% endif %}">+ Record review</a></div>
+  <div><span class="eyebrow">Customer experience</span><h1>Google Review</h1><p>Listen, follow up, and put things right.</p></div>
+  <div class="review-head-actions">{% if review_admin %}<a class="button outline" href="{% url 'review_reports' %}{% if demo %}?demo=1{% endif %}">Issue reporting</a>{% endif %}<a class="button primary" href="{% url 'review_create' %}{% if demo %}?demo=1{% endif %}">+ Record review</a></div>
 </header>
 <div class="review-metrics">
-  <article><span>Open tickets</span><strong>{{ metrics.open_cases }}</strong><small>Reviews needing follow-up</small></article>
+  <article><span>Open reviews</span><strong>{{ metrics.open_cases }}</strong><small>Reviews needing follow-up</small></article>
   <article><span>Open issues</span><strong>{{ metrics.open_issues }}</strong><small>Individual concerns to follow up</small></article>
-  <article><span>Closed tickets</span><strong>{{ metrics.closed }}</strong><small>Follow-up history is kept</small></article>
-  <article><span>Total tickets</span><strong>{{ metrics.total }}</strong><small>In the current filters</small></article>
+  <article><span>Closed reviews</span><strong>{{ metrics.closed }}</strong><small>Follow-up history is kept</small></article>
+  <article><span>Total reviews</span><strong>{{ metrics.total }}</strong><small>In the current filters</small></article>
 </div>
 <section class="panel review-inbox">
-  <div class="review-inbox-heading"><div><h2>{% if senior %}Ticket inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Investigations and manually recorded feedback across all branches.{% else %}Issues and reviews needing human follow-up.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} ticket{{ page_obj.paginator.count|pluralize }}</span></div>
+  <div class="review-inbox-heading"><div><h2>{% if senior %}Review inbox{% else %}My branch inbox{% endif %}</h2><p class="muted">{% if senior %}Investigations and manually recorded feedback across all branches.{% else %}Issues and reviews needing human follow-up.{% endif %}</p></div><span class="review-count">{{ page_obj.paginator.count }} review{{ page_obj.paginator.count|pluralize }}</span></div>
   <nav class="review-tabs" aria-label="Review status">
     {% for key,label,count in tabs %}<a href="?{{ tab_prefix }}tab={{ key }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ label }} <span>{{ count }}</span></a>{% endfor %}
   </nav>
   <form method="get" class="review-filters">
     {% if demo %}<input type="hidden" name="demo" value="1">{% endif %}<input type="hidden" name="tab" value="{{ active_tab }}"><input type="hidden" name="priority" value="{{ selected_priority }}">
-    <div><label for="review-search">Search tickets</label><input id="review-search" name="q" value="{{ search }}" placeholder="Subject or customer name" maxlength="180"></div>
+    <div><label for="review-search">Search reviews</label><input id="review-search" name="q" value="{{ search }}" placeholder="Subject or customer name" maxlength="180"></div>
     {% if senior %}<div><label for="review-branch">Branch</label><select id="review-branch" name="branch"><option value="">All branches</option>{% for branch in branches %}<option value="{{ branch.pk }}" {% if selected_branch == branch.pk|stringformat:'s' %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}</select></div>{% endif %}
     <button type="submit" class="button outline">Apply filters</button>
   </form>
@@ -28,17 +28,17 @@
     <article class="review-case-card {% if case.sensitive and case.status != 'CLOSED' %}review-sensitive{% endif %}">
       <div class="review-case-top"><div class="review-reference">{{ case.reference }} <span>· {{ case.received_at|date:'d M, H:i' }}</span></div><span class="review-state state-{{ case.status|lower }}">{% if case.closure_outcome == 'UNRESOLVED' or case.closure_outcome == 'PARTIAL' %}Unresolved{% elif case.status == 'CLOSED' %}{{ case.get_closure_outcome_display }}{% else %}Open{% endif %}</span></div>
       <div class="review-card-content">
-        <div class="review-rating" aria-label="Rating {% if case.snapshot.available %}{{ case.snapshot.rating|default:'not provided' }}{% else %}unavailable{% endif %}">{% if case.snapshot.available and case.snapshot.rating %}<strong>{{ case.snapshot.rating }}<small>/5</small></strong><span aria-hidden="true">★</span>{% else %}<strong>—</strong><span>Rating</span>{% endif %}</div>
-        <div class="review-card-main"><h3><a href="{% url 'review_detail' case.pk %}{% if demo %}?demo=1{% endif %}">{{ case.subject }}</a></h3><div class="review-card-meta">{{ case.branch.name }} <span>·</span> {{ case.customer_label|default:'Customer review' }}</div>
-        {% if case.snapshot.available %}<p class="review-excerpt">{{ case.snapshot.text|default:'No review text provided. Triage without inventing an issue.'|truncatechars:170 }}</p>{% else %}<p class="review-excerpt">Source review expired or unavailable. Internal follow-up remains open.</p>{% endif %}
+        <div class="review-rating">{% if case.google_review %}<strong>{{ case.google_review.star_rating }}<small>/5</small></strong><span aria-hidden="true">★</span>{% elif case.snapshot.available and case.snapshot.rating %}<strong>{{ case.snapshot.rating }}<small>/5</small></strong><span aria-hidden="true">★</span>{% else %}<strong>—</strong><span>Rating</span>{% endif %}</div>
+        <div class="review-card-main"><h3><a href="{% url 'review_detail' case.pk %}{% if demo %}?demo=1{% endif %}">{% if case.google_review %}{{ case.google_review.reviewer_name }}{% else %}{{ case.subject }}{% endif %}</a></h3><div class="review-card-meta">{{ case.branch.name }} <span>·</span> {% if case.google_review %}{{ case.google_review.google_created_at|date:'d M Y, H:i' }}{% else %}{{ case.customer_label|default:'Anonymous reviewer' }}{% endif %}</div>
+        {% if case.google_review %}<p class="review-excerpt review-google-text">{{ case.google_review.review_text|default:'Rating only — no written explanation.'|linebreaksbr }}</p><p class="review-google-id">Google review ID: <span>{{ case.google_review.google_review_id }}</span></p>{% elif case.snapshot.available %}<p class="review-excerpt">{{ case.snapshot.text|default:'No review text provided. Triage without inventing an issue.'|truncatechars:170 }}</p>{% else %}<p class="review-excerpt">Source review expired or unavailable. Internal follow-up remains open.</p>{% endif %}
         <div class="review-tags">{% if case.priority_label %}<span class="review-tag {% if case.priority_rank >= 3 %}tag-urgent{% endif %}">{{ case.priority_label }} priority{% if case.priority_suggested %} · suggested{% endif %}</span>{% endif %}{% for issue in case.issues.all|slice:':2' %}<span class="review-tag">{{ issue.get_category_display }}</span>{% empty %}<span class="review-tag">No issues reported</span>{% endfor %}{% if case.issue_count > 2 %}<span class="review-tag">+{{ case.issue_count|add:'-2' }} more</span>{% endif %}</div>
         </div>
-        <a class="button outline review-open" href="{% url 'review_detail' case.pk %}{% if demo %}?demo=1{% endif %}">{% if case.issue_count %}Open ticket{% else %}View review{% endif %} <span aria-hidden="true">↗</span></a>
+        <a class="button outline review-open" href="{% url 'review_detail' case.pk %}{% if demo %}?demo=1{% endif %}">{% if case.issue_count %}Open review{% else %}View review{% endif %} <span aria-hidden="true">↗</span></a>
       </div>
       <footer class="review-card-footer"><span>{% if case.issue_count %}<strong>{{ case.open_issue_count }}</strong> open / {{ case.issue_count }} issue{{ case.issue_count|pluralize }}{% else %}No follow-up issues{% endif %}</span><span>{% if case.acknowledged_at %}Accepted {{ case.acknowledged_at|date:'d M, H:i' }}{% elif case.issue_count %}Not accepted yet{% endif %}</span></footer>
     </article>
-  {% empty %}<div class="review-empty"><span class="review-empty-icon" aria-hidden="true">✓</span><h3>No tickets here</h3><p>No reviews match this view. Check another status or record a customer concern.</p><a class="button outline" href="?{% if demo %}demo=1&{% endif %}tab=all">View all tickets</a></div>{% endfor %}
+  {% empty %}<div class="review-empty"><span class="review-empty-icon" aria-hidden="true">✓</span><h3>No reviews here</h3><p>No reviews match this view. Check another status or record a customer concern.</p><a class="button outline" href="?{% if demo %}demo=1&{% endif %}tab=all">View all reviews</a></div>{% endfor %}
   </div>
-  {% if page_obj.has_other_pages %}<nav class="staff-pagination" aria-label="Ticket pages">{% if page_obj.has_previous %}<a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+  {% if page_obj.has_other_pages %}<nav class="staff-pagination" aria-label="Review pages">{% if page_obj.has_previous %}<a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
 </section>
 {% endblock %}

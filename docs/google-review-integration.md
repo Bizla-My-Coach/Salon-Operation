@@ -110,11 +110,13 @@ processing/case/publication POSTs for the queue worker.
 
 ### Finding a committed sandbox review
 
-Production reviews are shown by default. Use **Tickets → Sandbox reviews** or
+Production reviews are shown by default. Admin can use **Google Review → Sandbox reviews** or
 `/reviews/google/?demo=1` to see sandbox events, including positive reviews with
 no complaint ticket. Detail URLs also need `?demo=1`. Sandbox records remain
-excluded from production analytics and live manager alerts; manager branch
-permissions still apply in the sandbox view.
+excluded from production analytics and live manager alerts. Sandbox routes, branch
+analytics, issue reporting and integration diagnostics are Admin-only; General
+Manager retains production review access and assignment tools. Employees keep
+their existing access permissions.
 
 `python manage.py inspect_google_review --review-id <receipt-review-id>
 --event-id <aws-event-id> --environment sandbox` traces the receipt, saved review,
@@ -126,6 +128,28 @@ does not choose a branch. Positive reviews without issues or human follow-up
 appear under All reviews and intentionally have `case_id: null`.
 
 ### Stored envelope
+
+The optional reviewer fields live inside `source.review_snapshot` in the existing
+result envelope:
+
+```json
+{
+  "reviewer_display_name": "Example Reviewer",
+  "reviewer_is_anonymous": false,
+  "star_rating": 5,
+  "text": "Great service and friendly staff.",
+  "existing_reply": null
+}
+```
+
+Both reviewer fields may be omitted by older senders. A missing, null, empty or
+whitespace-only display name, or `reviewer_is_anonymous: true`, displays
+**Anonymous reviewer**. A supplied anonymity flag must be a boolean. Names are
+display metadata, never customer identities: ingestion neither creates nor links
+a customer. Cards show name, rating, text, mapped branch, `review_create_time` and
+`review_id`. Deduplication continues to use `(environment, full review_name)`;
+neither names nor short review IDs replace that identity. The rest of the result
+envelope, trusted store/location mapping and version validation remain required.
 
 The API stores the complete original event, full analysis, processing diagnostics,
 Google reply state, existing reply and unknown optional fields. Dashboard fields
@@ -267,10 +291,12 @@ fixtures use `accounts/101013083477743854199/locations/12925644274742814696`.
 No mapping is created automatically for real branches. The existing manager roster
 selects exactly one eligible owner; missing/ambiguous owners go to Needs assignment.
 
-Tickets → All reviews stores appreciations, mixed/negative and rating-only reviews.
+Google Review → All reviews stores appreciations, mixed/negative and rating-only reviews.
 Appreciations can be closed without investigation. Complaints/human follow-up use
 one case with separate issue cards; health issues are urgent. Managers remain
-branch scoped; Admin/GM can inspect/filter all branches, assignments and analytics.
+branch scoped; Admin/GM can inspect/filter all branches and assignments. Analytics,
+issue reporting, sandbox views, sentiment filters and integration diagnostics are
+available only to Admin.
 Unresolved outcomes remain unresolved; public reply success never resolves a case.
 No appreciation topics are invented from positive sentiment. Sandbox views use
 `?demo=1` and are excluded from production analytics and notifications.
@@ -295,6 +321,8 @@ and evidence ordering. It backfills existing publication history so an old appro
 reply cannot lose to an unconfirmed result after upgrade, and reuses the existing
 current-version notification. Migration **0019** creates the ingestion schema.
 Neither deletes manager actions, source events or operational data.
+Migration **0022_google_review_reviewer_anonymity** adds the optional anonymity flag
+with a false default for existing records. Apply it before running the updated app.
 
 The current [Actions workflow](../.github/workflows/salonops.yml) runs tests on
 GitHub-hosted machines for pull requests and pushes to `dev` and `main`; it does

@@ -86,7 +86,7 @@ class ReplyForm(VersionForm):
 
 class ReviewIntakeForm(BootstrapMixin, forms.Form):
     branch = forms.ModelChoiceField(queryset=Branch.objects.none())
-    subject = forms.CharField(max_length=180, label='Ticket subject', help_text='A short internal label for this review.')
+    subject = forms.CharField(max_length=180, label='Review subject', help_text='A short internal label for this review.')
     customer_label = forms.CharField(max_length=120, required=False, label='Customer / reviewer display name', help_text='Optional. Do not match a Google reviewer to a customer by name alone.')
     rating = forms.TypedChoiceField(choices=[('', 'Not provided')] + [(n, f'{n} / 5') for n in range(1, 6)], coerce=int, required=False, empty_value=None)
     text = forms.CharField(max_length=6000, label='Customer review / reported concern', widget=forms.Textarea(attrs={'rows': 4}), required=False)
