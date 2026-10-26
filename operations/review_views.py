@@ -59,6 +59,9 @@ def demo_mode(request):
 
 
 def case_url(case, demo=False):
+    google_review = getattr(case, 'google_review', None)
+    if google_review:
+        return reverse('google_review_detail', args=[google_review.pk]) + ('?demo=1' if demo else '')
     return reverse('review_detail', args=[case.pk]) + ('?demo=1' if demo else '')
 
 

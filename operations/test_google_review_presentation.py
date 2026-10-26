@@ -127,8 +127,10 @@ class GoogleReviewPresentationTests(TestCase):
                     reverse('google_review_inbox') + '?demo=1']:
             self.assertEqual(self.client.get(url).status_code, 200)
         response = self.client.get(reverse('google_review_detail', args=[review.pk]))
-        for label in ['Sandbox reviews', 'Branch analytics', 'Issue reporting', 'Review and analysis history']:
-            self.assertContains(response, label)
+        for label in ['Sandbox reviews', 'Branch analytics', 'Issue reporting', 'Review and analysis history', 'Open follow-up']:
+            self.assertNotContains(response, label)
+        self.assertContains(response, 'System reply')
+        self.assertContains(response, 'Justification')
         self.assertEqual(self.client.get('/health/').status_code, 200)
 
     def test_reviewer_metadata_refresh_does_not_change_followup_version(self):

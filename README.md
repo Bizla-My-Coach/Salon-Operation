@@ -204,16 +204,18 @@ that can still be changed.
 ## Personal account and appearance
 
 Managers, Admin and General Manager have **Customer experience → Google Review**.
-All Google feedback is stored, including appreciations that can be closed without
-an investigation. Complaints and human follow-up use branch-scoped cases with
-separate issue tasks, automatic submission timestamps and audited outcomes.
+All Google feedback appears in All, Open and Closed tabs. Each review opens its
+source details, system reply and one form with customer status, staff status and
+justification. Saving a terminal staff status closes the review; the same form
+can reopen it. General Managers and Admins can combine branch, rating, date and
+search filters. Actor, time and history are recorded automatically.
 The authenticated result endpoint receives the V3 queue worker’s v1 JSON
 envelope with revision/evidence ordering; AWS owns Google publication independently of the app and managers.
 Cards include reviewer name (or Anonymous reviewer), rating, review text, branch,
 Google creation date and Google review ID. Reviewer metadata remains optional
 and does not create or link customer records. Admin alone can open sandbox,
-analytics, issue reporting and integration diagnostics; General Manager retains
-production review access and assignment tools. See the
+analytics, issue reporting and integration diagnostics through their legacy
+routes. Daily review pages omit the separate follow-up and assignment tools. See the
 [Google review integration and deployment guide](docs/google-review-integration.md)
 for API URLs, authentication, examples, migrations and Codespaces verification.
 The [Google Review guide](docs/customer-review-tickets.md) describes staff handling.

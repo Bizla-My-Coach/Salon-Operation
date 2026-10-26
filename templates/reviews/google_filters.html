@@ -1,7 +1,10 @@
+{% if senior and filter_form %}
 <form method="get" class="review-filters">
-{% if demo %}<input type="hidden" name="demo" value="1">{% endif %}
-{% if senior %}<div><label for="branch">Branch</label><select id="branch" name="branch"><option value="">All branches</option>{% for branch in branches %}<option value="{{ branch.pk }}" {% if selected_branch == branch.pk|stringformat:'s' %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}</select></div>{% endif %}
-{% if review_admin %}<div><label for="sentiment">Sentiment</label><select id="sentiment" name="sentiment"><option value="">All sentiments</option>{% for item in sentiments %}<option value="{{ item }}" {% if selected_sentiment == item %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></div>{% endif %}
-<div><label for="priority">Priority</label><select id="priority" name="priority"><option value="">All priorities</option>{% for item in priorities %}<option value="{{ item }}" {% if selected_priority == item %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></div>
-{% if statuses %}<div><label for="status">Handling</label><select id="status" name="status">{% for key,label in statuses %}<option value="{{ key }}" {% if selected_status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>{% endif %}
-<button class="button outline">Apply filters</button></form>
+  {% if demo %}<input type="hidden" name="demo" value="1">{% endif %}
+  <input type="hidden" name="status" value="{{ selected_status }}">
+  {{ filter_form.non_field_errors }}
+  {% for field in filter_form %}<div>{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+  <button class="button outline" type="submit">Apply filters</button>
+  <a href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">Clear filters</a>
+</form>
+{% endif %}

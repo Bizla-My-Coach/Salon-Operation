@@ -108,7 +108,8 @@ class GoogleReviewTests(TestCase):
         record = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
         url = reverse('google_review_action', args=[record.pk])
-        values = {'action': 'close', 'version': record.google_updated_at.isoformat()}
+        values = {'action': 'update', 'version': record.edit_token, 'customer_followup': 'NOT_CONTACTED',
+            'staff_followup': 'RESOLVED', 'justification': 'Appreciation reviewed.'}
         self.assertEqual(self.client.post(url, values).status_code, 302)
         self.client.post(url, values)
         record.refresh_from_db()
@@ -116,7 +117,8 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(record.closed_by, self.people['manager'])
         self.assertEqual(GoogleReviewAction.objects.count(), 1)
         self.assertFalse(ReviewCase.objects.exists())
-        self.client.post(url, {**values, 'action': 'reopen', 'note': 'Check this appreciation again.'})
+        self.client.post(url, {**values, 'version': record.edit_token, 'staff_followup': 'IN_PROGRESS',
+            'justification': 'Check this appreciation again.'})
         record.refresh_from_db()
         self.assertFalse(record.simple_closed)
         self.assertEqual(GoogleReviewAction.objects.count(), 2)
@@ -388,12 +390,12 @@ class GoogleReviewTests(TestCase):
         self.assertIsNone(record.case_id)
         self.client.force_login(self.people['admin'])
         production = self.client.get(reverse('google_review_inbox'))
-        self.assertContains(production, 'Sandbox reviews')
-        self.assertContains(production, reverse('google_review_inbox') + '?demo=1')
+        for label in ['All reviews', 'Open reviews', 'Closed reviews']:
+            self.assertContains(production, label)
         self.assertNotContains(production, data['source']['review_snapshot']['text'])
         sandbox = self.client.get(reverse('google_review_inbox') + '?demo=1')
         self.assertContains(sandbox, data['source']['review_snapshot']['text'])
-        self.assertContains(sandbox, 'No investigation needed')
+        self.assertContains(sandbox, record.google_review_id)
         self.assertContains(sandbox, reverse('google_review_detail', args=[record.pk]) + '?demo=1')
         detail = self.client.get(reverse('google_review_detail', args=[record.pk]) + '?demo=1')
         self.assertContains(detail, data['source']['review_snapshot']['text'])
@@ -524,7 +526,8 @@ class GoogleReviewTests(TestCase):
         review = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
         self.client.post(reverse('google_review_action', args=[review.pk]),
-            {'action': 'close', 'version': review.google_updated_at.isoformat()})
+            {'action': 'update', 'version': review.edit_token, 'customer_followup': 'NOT_CONTACTED',
+             'staff_followup': 'RESOLVED', 'justification': 'Appreciation reviewed.'})
         data['event_id'] = 'appreciation-edit'
         data['source']['review_update_time'] = '2026-10-20T09:01:00Z'
         data['processing']['analyzed_at'] = '2026-10-20T09:01:10Z'

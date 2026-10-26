@@ -110,7 +110,7 @@ processing/case/publication POSTs for the queue worker.
 
 ### Finding a committed sandbox review
 
-Production reviews are shown by default. Admin can use **Google Review → Sandbox reviews** or
+Production reviews are shown by default. Admin can open
 `/reviews/google/?demo=1` to see sandbox events, including positive reviews with
 no complaint ticket. Detail URLs also need `?demo=1`. Sandbox records remain
 excluded from production analytics and live manager alerts. Sandbox routes, branch
@@ -291,15 +291,16 @@ fixtures use `accounts/101013083477743854199/locations/12925644274742814696`.
 No mapping is created automatically for real branches. The existing manager roster
 selects exactly one eligible owner; missing/ambiguous owners go to Needs assignment.
 
-Google Review → All reviews stores appreciations, mixed/negative and rating-only reviews.
-Appreciations can be closed without investigation. Complaints/human follow-up use
-one case with separate issue cards; health issues are urgent. Managers remain
-branch scoped; Admin/GM can inspect/filter all branches and assignments. Analytics,
-issue reporting, sandbox views, sentiment filters and integration diagnostics are
-available only to Admin.
-Unresolved outcomes remain unresolved; public reply success never resolves a case.
-No appreciation topics are invented from positive sentiment. Sandbox views use
-`?demo=1` and are excluded from production analytics and notifications.
+Google Review uses All, Open and Closed tabs. Managers see their working branch;
+Admin/GM see all branches with branch, rating, date-range and text/ID search
+filters. Review details show the source review, system reply and one form with
+customer follow-up status, staff follow-up status and justification. Terminal staff
+statuses close a review without a separate case or issue step. Existing internal
+case/issue records and their history are retained; no customer is created or linked.
+A public reply does not automatically close a review or confirm customer
+satisfaction. The legacy analytics, issue-reporting and diagnostic routes remain
+Admin-only and are omitted from daily navigation. Sandbox records remain separate
+and Admin-only at `/reviews/google/?demo=1`.
 
 ## Local verification and deployment pending
 
@@ -321,6 +322,10 @@ and evidence ordering. It backfills existing publication history so an old appro
 reply cannot lose to an unconfirmed result after upgrade, and reuses the existing
 current-version notification. Migration **0019** creates the ingestion schema.
 Neither deletes manager actions, source events or operational data.
+Migration **0023_simple_google_review_updates** adds review-level status,
+justification, revision and audit metadata. Existing case/issue notes are preserved
+and used as initial form values. Apply this migration before running the new UI.
+
 Migration **0022_google_review_reviewer_anonymity** adds the optional anonymity flag
 with a false default for existing records. Apply it before running the updated app.
 

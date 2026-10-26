@@ -58,7 +58,6 @@
       {% endif %}
       <p>Customer experience</p>
       <a href="{% url 'google_review_inbox' %}">{% include 'includes/nav_icon.html' with icon='reviews' only %}<span>Google Review</span></a>
-      {% if review_admin %}<a href="{% url 'review_reports' %}">{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Issue reporting</span></a>{% endif %}
     </nav>
   </aside>
   <button class="sidebar-backdrop" type="button" aria-label="Close menu" data-menu-close></button>
