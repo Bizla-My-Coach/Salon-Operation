@@ -48,5 +48,5 @@ def review_notifications(request):
         'review_alerts': notification_feed(request.user, demo),
         'review_alert_feed_url': reverse('review_notifications') + suffix,
         'review_alert_read_all_url': reverse('review_notifications_read_all') + suffix,
-        'review_alert_inbox_url': reverse('review_inbox') + suffix,
+        'review_alert_inbox_url': reverse('google_review_inbox') + suffix,
     }

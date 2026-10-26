@@ -2,13 +2,41 @@ from django import forms
 from django.utils import timezone
 
 from .forms import BootstrapMixin
-from .models import Branch, ReviewIssue
+from .models import Branch, GoogleReview, ReviewIssue
 from .review_workflow import branch_managers, is_review_senior
 from .roster import working_branch
 
 
 class VersionForm(BootstrapMixin, forms.Form):
     version = forms.IntegerField(min_value=1, widget=forms.HiddenInput)
+
+
+class GoogleReviewUpdateForm(BootstrapMixin, forms.Form):
+    version = forms.CharField(widget=forms.HiddenInput)
+    customer_followup = forms.ChoiceField(choices=ReviewIssue.CUSTOMER_FOLLOWUP, label='Customer follow-up status')
+    staff_followup = forms.ChoiceField(choices=GoogleReview.STAFF_FOLLOWUP, label='Staff follow-up status')
+    justification = forms.CharField(max_length=3000, label='Justification',
+        widget=forms.Textarea(attrs={'rows': 4}))
+
+
+class GoogleReviewFilterForm(BootstrapMixin, forms.Form):
+    branch = forms.ModelChoiceField(queryset=Branch.objects.none(), required=False, empty_label='All branches')
+    rating = forms.TypedChoiceField(choices=[('', 'All ratings')] + [(n, f'{n} / 5') for n in range(5, 0, -1)],
+        coerce=int, empty_value=None, required=False)
+    since = forms.DateField(label='From date', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+    until = forms.DateField(label='To date', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+    q = forms.CharField(label='Search reviews', max_length=180, required=False,
+        widget=forms.TextInput(attrs={'placeholder': 'Reviewer, review text or Google review ID'}))
+
+    def __init__(self, *args, branches, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['branch'].queryset = branches
+
+    def clean(self):
+        data = super().clean()
+        if data.get('since') and data.get('until') and data['since'] > data['until']:
+            self.add_error('until', 'Choose an end date on or after the start date.')
+        return data
 
 
 class FollowupUpdateForm(VersionForm):

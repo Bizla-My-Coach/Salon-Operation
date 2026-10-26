@@ -44,8 +44,6 @@ class SidebarIconTests(TestCase):
 
     def check_sidebar(self, user, page_name, expected):
         expected = expected + ['reviews']
-        if user.is_superuser or user.profile.role == 'ADMIN':
-            expected += ['reports']
         self.client.force_login(user)
         response = self.client.get(reverse(page_name))
         self.assertEqual(response.status_code, 200)
