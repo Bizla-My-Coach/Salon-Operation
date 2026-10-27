@@ -15,13 +15,23 @@ creation date and Google review ID. Anonymous, missing or blank names display
 creates or links a customer from reviewer data; deduplication still uses the full
 Google review resource name within its environment.
 
-Open a review to see only:
+Open a review to see:
 
-1. The customer review and its details.
-2. The system reply. A prepared reply is clearly marked when publication is not
+1. The reviewer details, followed by the customer review and system reply in two
+   collapsible cards. Both start collapsed; on narrow screens the cards stack.
+   A prepared reply is clearly marked when publication is not
    confirmed; an internal status change never posts or approves a Google reply.
+2. Always-visible **Issues** and **Appreciation** sections from the latest saved
+   Lambda analysis. Issues show the supplied category, description and priority.
+   Previous issues remain in history but are not mixed into the latest findings.
 3. One form: **Customer follow-up status**, **Staff follow-up status** and
-   **Justification**, followed by **Save review**.
+   **Justification**, followed by **Save review** and **Close review**.
+
+The current Lambda example supplies `analysis.issues` but no appreciation points.
+In that case the page says **No separate appreciation points were supplied**.
+It never guesses praise from a star rating, sentiment or the review text. An
+optional `analysis.appreciations` array may contain strings or objects with
+`reported_appreciation` and an optional `category`.
 
 Customer status is Not contacted / Awaiting reply / Contacted. Staff status is
 Not started / In progress / Awaiting follow-up / Resolved / Unresolved /
@@ -30,10 +40,12 @@ move a review into Closed. The other staff statuses keep it Open. Change the
 staff status back to In progress and explain why to reopen a review using the same
 form. Contacting a customer does not automatically close the review or establish
 customer satisfaction. Unresolved remains a separate outcome from Resolved.
+The explicit **Close review** action requires a terminal staff status and a
+justification, and respects the existing sensitive-review closure permissions.
 
 The same form works for appreciations, complaints, mixed feedback and rating-only
 reviews. There is no separate Follow-up tab, assignment step, acceptance step,
-per-issue form or extra close button in this workflow. The bell opens the same
+per-issue form in this workflow. The bell opens the same
 simple review page. Submission time, actor and audit history are recorded by the
 server, and stale edits are rejected rather than overwriting another person's work.
 Existing sensitive-review closure policy remains enforced on the server.

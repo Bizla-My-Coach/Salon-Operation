@@ -181,3 +181,21 @@
 
 .review-google-id { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
 .review-google-text { display: block; -webkit-line-clamp: unset; overflow: visible; }
+
+.review-detail-heading { margin: 12px 0 20px; }
+.review-detail-heading h1 { margin: 0; overflow-wrap: anywhere; }
+.review-source-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.review-source-columns .panel { min-width: 0; margin: 0; }
+.review-foldable > summary { cursor: pointer; min-height: 44px; font-size: 1rem; font-weight: 750; overflow-wrap: anywhere; }
+.review-foldable > summary span { display: block; font-size: .8rem; font-weight: 500; color: var(--muted); margin: 4px 0 0 18px; }
+.review-foldable > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 5px; }
+.review-foldable blockquote, .review-finding p { overflow-wrap: anywhere; }
+.review-findings { margin-top: 18px; }
+.review-finding { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.review-finding:last-child { border-bottom: 0; padding-bottom: 0; }
+.review-finding p { margin: 8px 0 0; line-height: 1.6; }
+.review-submit-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+@media(max-width:650px) {
+  .review-source-columns { grid-template-columns: 1fr; }
+  .review-submit-actions .button { flex: 1 1 100%; }
+}
