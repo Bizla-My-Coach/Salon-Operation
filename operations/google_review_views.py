@@ -17,6 +17,7 @@ from .roster import working_branch
 from .google_review_ingestion import ingest_review, EventConflict
 from .review_forms import GoogleReviewFilterForm, GoogleReviewUpdateForm
 from .google_review_workflow import form_initial, save_update
+from .google_review_presentation import review_findings
 
 
 def scope(request):
@@ -99,7 +100,7 @@ def inbox(request):
 
 
 def detail_context(request, review, form=None):
-    return {**context(request), 'review': review,
+    return {**context(request), **review_findings(review), 'review': review,
         'update_form': form if form is not None else GoogleReviewUpdateForm(initial=form_initial(review))}
 
 
@@ -120,6 +121,8 @@ def action(request, review_id):
     if request.POST.get('action') != 'update':
         return HttpResponseBadRequest('Choose a valid review update.')
     form = GoogleReviewUpdateForm(request.POST)
+    if form.is_valid() and request.POST.get('intent') == 'close' and form.cleaned_data['staff_followup'] not in ReviewIssue.TERMINAL:
+        form.add_error('staff_followup', 'Choose Resolved, Unresolved or Not actionable before closing the review.')
     if form.is_valid():
         try:
             saved = save_update(review, request.user, form.cleaned_data)

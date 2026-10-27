@@ -151,6 +151,30 @@ a customer. Cards show name, rating, text, mapped branch, `review_create_time` a
 neither names nor short review IDs replace that identity. The rest of the result
 envelope, trusted store/location mapping and version validation remain required.
 
+Review details display the current `analysis.issues` and legacy
+`analysis.complaints` descriptions, categories and priorities beneath the
+collapsible review/reply cards. Historical case issues are retained but do not
+replace the current Lambda findings on this page. Findings stay visible on form
+validation errors and stale-edit responses.
+
+The supplied worker example has no separate appreciation array. Missing points
+show **No separate appreciation points were supplied**; positive sentiment and
+five stars never invent appreciation topics. The optional presentation extension
+`analysis.appreciations` can contain strings or objects like:
+
+```json
+{
+  "appreciations": [
+    "Customer praised the haircut.",
+    {"category": "staff_friendliness", "reported_appreciation": "Customer described the staff as friendly."}
+  ]
+}
+```
+
+These optional fields are retained in the existing analysis JSON without a
+migration or any change to receipts, deduplication, source versioning or customer
+records. Only explicit findings are rendered; worker diagnostics are not exposed.
+
 The API stores the complete original event, full analysis, processing diagnostics,
 Google reply state, existing reply and unknown optional fields. Dashboard fields
 are normalized separately. `analysis.status` describes draft validation only;
