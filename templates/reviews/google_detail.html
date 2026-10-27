@@ -4,25 +4,46 @@
 <div class="review-simple-page">
   <a class="review-back" href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">← Google Review</a>
   {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
-  <section class="panel review-source">
+  <header class="review-detail-heading">
     <div class="review-section-heading"><h1>{{ review.reviewer_name }}</h1><strong>★ {{ review.star_rating }}/5</strong></div>
     <p class="review-card-meta">{{ review.branch.name }} · {{ review.google_created_at|date:'d M Y, H:i' }} · {% if review.is_closed %}Closed{% else %}Open{% endif %}</p>
     <p class="review-google-id">Google review ID: <span>{{ review.google_review_id }}</span></p>
-    <h2>Customer review</h2>
-    <blockquote>{{ review.review_text|default:'Rating only — no written explanation.'|linebreaksbr }}</blockquote>
+  </header>
+  <div class="review-source-columns">
+    <details class="panel review-source review-foldable">
+      <summary>Customer review <span>Show / hide</span></summary>
+      <blockquote>{{ review.review_text|default:'Rating only — no written explanation.'|linebreaksbr }}</blockquote>
+    </details>
+    <details class="panel review-source review-foldable">
+      <summary>System reply <span>Show / hide</span></summary>
+      {% if review.published_text %}<blockquote>{{ review.published_text|linebreaksbr }}</blockquote><p class="review-footnote">{{ review.get_publication_status_display }}{% if review.published_at %} · {{ review.published_at|date:'d M Y, H:i' }}{% endif %}</p>
+      {% elif review.generated_reply %}<blockquote>{{ review.generated_reply|linebreaksbr }}</blockquote><p class="review-footnote">Reply prepared · publication not confirmed.</p>
+      {% else %}<p>No system reply yet.</p>{% endif %}
+    </details>
+  </div>
+  <section class="panel review-findings" aria-labelledby="review-issues-heading">
+    <div class="review-section-heading"><h2 id="review-issues-heading">Issues</h2><span class="review-count">{{ review_issues|length }}</span></div>
+    {% for issue in review_issues %}<article class="review-finding">
+      {% if issue.category or issue.priority %}<div class="review-tags">{% if issue.category %}<span class="review-tag">{{ issue.category }}</span>{% endif %}{% if issue.priority %}<span class="review-tag">{{ issue.priority }} priority</span>{% endif %}</div>{% endif %}
+      <p>{{ issue.text|linebreaksbr }}</p>
+    </article>{% empty %}<p class="review-footnote">No reported issues.</p>{% endfor %}
   </section>
-  <section class="panel review-simple-close">
-    <h2>System reply</h2>
-    {% if review.published_text %}<blockquote>{{ review.published_text|linebreaksbr }}</blockquote><p class="review-footnote">{{ review.get_publication_status_display }}{% if review.published_at %} · {{ review.published_at|date:'d M Y, H:i' }}{% endif %}</p>
-    {% elif review.generated_reply %}<blockquote>{{ review.generated_reply|linebreaksbr }}</blockquote><p class="review-footnote">Reply prepared · publication not confirmed.</p>
-    {% else %}<p>No system reply yet.</p>{% endif %}
+  <section class="panel review-findings" aria-labelledby="review-appreciation-heading">
+    <div class="review-section-heading"><h2 id="review-appreciation-heading">Appreciation</h2><span class="review-count">{{ review_appreciations|length }}</span></div>
+    {% for appreciation in review_appreciations %}<article class="review-finding">
+      {% if appreciation.category %}<span class="review-tag">{{ appreciation.category }}</span>{% endif %}
+      <p>{{ appreciation.text|linebreaksbr }}</p>
+    </article>{% empty %}<p class="review-footnote">No separate appreciation points were supplied.</p>{% endfor %}
   </section>
   <section class="panel review-simple-close">
     <form method="post" class="form-grid" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">
       {% csrf_token %}<input type="hidden" name="action" value="update">
       {{ update_form.as_p }}
       <p class="review-footnote">Resolved, Unresolved and Not actionable move the review to Closed. Other staff statuses keep it Open.</p>
-      <button class="button primary" type="submit">Save review</button>
+      <div class="review-submit-actions">
+        <button class="button primary" type="submit" name="intent" value="save">Save review</button>
+        {% if not review.is_closed %}<button class="button outline" type="submit" name="intent" value="close">Close review</button>{% endif %}
+      </div>
     </form>
     {% if review.followup_updated_at %}<p class="review-footnote">Last saved {{ review.followup_updated_at|date:'d M Y, H:i' }}{% if review.followup_updated_by %} · {{ review.followup_updated_by.get_full_name|default:review.followup_updated_by.username }}{% endif %}</p>{% endif %}
   </section>
