@@ -17,8 +17,36 @@ In Codespaces the prompt displays your GitHub username, for example:
 
 3. Open **Ports → 8000 → Open in Browser** (or the URL printed in the terminal).
    Keep the forwarded port **Private**, its default visibility.
-4. Sign in with **admin / admin**. The other fictional accounts are **manager**,
-   **stylist**, and **gm**, also with password **admin**, for testing each role.
+4. Sign in with **admin / admin**. All fictional accounts below start with password **admin**.
+
+The container setup automatically migrates and fills its own PostgreSQL database
+with fictional data after a build or rebuild. The startup command also fills in
+missing demo data, so existing Codespaces can use it without rebuilding.
+
+| Login | Role and sample setup |
+| --- | --- |
+| `admin` | Administrator with access to all branches |
+| `gm` | General manager; can set branch duties and leave |
+| `manager` | Manager at Codespaces Demo Salon |
+| `manager2` | Manager at Codespaces Second Branch |
+| `stylist` | Employee at Codespaces Demo Salon; available to test leave today |
+| `stylist2` | Employee at Codespaces Second Branch |
+| `cover-stylist` | Home branch is Demo Salon; working at Second Branch today |
+| `leave-stylist` | Home branch is Demo Salon; on leave today |
+
+To test the leave fix, sign in as `gm`, open **Branch roster**, select **Test
+Stylist**, keep both dates as today, select a working branch, and then change
+the status to **On leave**. Working branch clears automatically. Save and confirm
+the person appears as **On leave**. Their home branch stays the same. Sign in as
+`manager` to confirm their staff entry says **On leave** and they are excluded
+from service assignment choices. To test the
+open-service restriction, first create and assign a service to `stylist`; marking
+leave today then asks you to reassign that service.
+
+Both branches have a demo chair, and the haircut service includes its SOP tasks,
+so you can create fictional service orders and test each role. New starts add
+today's cover/leave examples only when that person's duty for today is missing;
+they preserve any duty, leave, password, or sample-data edits you already made.
 
 The command applies migrations, creates the demo accounts and salon/service/SOP
 data, adds fictional staff tickets and sandbox AWS Google reviews, and starts the app.
