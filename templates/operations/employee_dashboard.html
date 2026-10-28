@@ -3,11 +3,11 @@
 {% block content %}
 <header class="page-head">
   <span class="eyebrow">My work</span><h1>My services</h1>
-  <p>Different visits can run together. Within each visit, finish services in the numbered order.</p>
+  <p>You can work on multiple assigned services at the same time, including services in the same visit.</p>
 </header>
 <div class="job-grid">
   {% for j in jobs %}
-  <article class="job-card{% if j.blocked_by_earlier_service %} job-locked{% endif %}">
+  <article class="job-card">
     <div><span class="status {{ j.status|lower }}">{{ j.get_status_display }}</span><b>{{ j.progress_percent }}%</b></div>
     <span class="service-order-label">Visit #{{ j.visit_id }} · Service {{ j.order_number }} of {{ j.visit.services.count }}</span>
     <h2>{{ j.visit.customer.name }}</h2>
@@ -15,11 +15,7 @@
     <p>{{ j.chair|default:'Chair not assigned' }}</p>
     {% if j.historical_cover %}<p>Previous branch assignment · {{ j.visit.branch.name }}</p>{% endif %}
     <div class="progress"><i style="width:{{ j.progress_percent }}%"></i></div>
-    {% if j.blocked_by_earlier_service %}
-    <span class="continue muted">Finish the earlier service in this visit first.</span>
-    {% else %}
     <a class="button primary job-open" href="{% url 'execute_service' j.id %}" aria-label="Open {{ j.service.name }} for {{ j.visit.customer.name }}">{% if j.status == 'ASSIGNED' %}Open service{% else %}Continue service{% endif %} →</a>
-    {% endif %}
   </article>
   {% empty %}<div class="empty-state"><b>You’re all caught up</b><span>No service is assigned right now.</span></div>{% endfor %}
 </div>

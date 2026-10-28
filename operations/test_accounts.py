@@ -43,6 +43,66 @@ class AccountTests(TestCase):
         self.user.save()
         self.assertEqual(self.client.get(reverse('my_profile')).status_code, 200)
 
+    def test_theme_is_saved_for_only_current_account_and_restored_across_logins(self):
+        url = reverse('save_theme_preference')
+        for theme in ['dark', 'light']:
+            response = self.client.post(url, {'theme': theme, 'user_id': self.other.pk, 'role': 'ADMIN'})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {'theme': theme})
+            self.user.refresh_from_db()
+            self.other.refresh_from_db()
+            self.assertEqual(self.user.profile.theme, theme)
+            self.assertEqual(self.user.profile.role, 'EMPLOYEE')
+            self.assertEqual(self.other.profile.theme, '')
+            self.client.logout()
+            self.assertTrue(self.client.login(username=self.user.username, password='Old-test-pass!27'))
+            other_device = Client()
+            other_device.force_login(self.user)
+            for client in [self.client, other_device]:
+                page = client.get(reverse('my_profile'))
+                self.assertContains(page, f'<html lang="en" data-theme="{theme}">')
+            other_device.force_login(self.other)
+            self.assertContains(other_device.get(reverse('my_profile')), '<html lang="en" data-theme="light">')
+
+    def test_theme_save_is_available_for_all_roles_without_branch_duty(self):
+        for role in ['ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE']:
+            self.user.profile.role = role
+            self.user.profile.branch = None
+            self.user.profile.save()
+            response = self.client.post(reverse('save_theme_preference'), {'theme': 'dark'})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {'theme': 'dark'})
+            self.user.refresh_from_db()
+
+    def test_legacy_browser_theme_does_not_overwrite_an_existing_account_choice(self):
+        url = reverse('save_theme_preference')
+        self.assertEqual(self.client.post(url, {'theme': 'dark', 'only_if_unset': '1'}).json(), {'theme': 'dark'})
+        self.assertEqual(self.client.post(url, {'theme': 'light', 'only_if_unset': '1'}).json(), {'theme': 'dark'})
+        self.assertEqual(self.client.post(url, {'theme': 'light'}).json(), {'theme': 'light'})
+
+    def test_theme_save_rejects_invalid_choices_and_requires_post_login_active_profile_and_csrf(self):
+        url = reverse('save_theme_preference')
+        for theme in ['', 'system', '<script>', None]:
+            response = self.client.post(url, {} if theme is None else {'theme': theme})
+            self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.profile.theme, '')
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.logout()
+        self.assertEqual(self.client.post(url, {'theme': 'dark'}).status_code, 302)
+        self.client.force_login(self.user)
+        self.user.profile.active = False
+        self.user.profile.save()
+        self.assertEqual(self.client.post(url, {'theme': 'dark'}).status_code, 403)
+        self.user.profile.active = True
+        self.user.profile.save()
+        protected = Client(enforce_csrf_checks=True)
+        protected.force_login(self.user)
+        self.assertEqual(protected.post(url, {'theme': 'dark'}).status_code, 403)
+        protected.get(reverse('my_profile'))
+        response = protected.post(url, {'theme': 'dark'}, HTTP_X_CSRFTOKEN=protected.cookies['csrftoken'].value)
+        self.assertEqual(response.status_code, 200)
+
     def test_self_details_update_cannot_target_another_user_or_change_authorization(self):
         response = self.client.post(reverse('my_profile'), self.details(
             user_id=self.other.pk, username='other_user', role='ADMIN',

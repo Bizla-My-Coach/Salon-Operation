@@ -31,7 +31,7 @@ class ManagerCardTests(TestCase):
         self.assertContains(page, '<h1>Live operations</h1>')
         self.assertContains(page, f'href="{reverse("new_visit")}" class="button primary">+ New service visit</a>')
 
-    def test_submitted_card_has_timings_and_review_without_detail_or_edit(self):
+    def test_submitted_card_has_timings_review_and_add_services(self):
         visit, first, second = self.create_visit()
         visit.services.update(status='EMPLOYEE_DONE')
         visit.status = 'EMPLOYEE_DONE'
@@ -45,7 +45,8 @@ class ManagerCardTests(TestCase):
         self.assertContains(page, '>0m</dd>', count=3)
         self.assertContains(page, f'href="{reverse("verify_visit", args=[visit.pk])}"', count=1)
         self.assertNotContains(page, f'href="{reverse("visit_detail", args=[visit.pk])}"')
-        self.assertNotContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"')
+        self.assertContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"', count=1)
+        self.assertContains(page, '>Add services</a>')
         self.assertNotContains(page, 'Review every service, task')
         self.assertNotContains(page, 'class="visit-actions"')
         self.assertNotContains(page, 'class="progress"')
@@ -65,14 +66,30 @@ class ManagerCardTests(TestCase):
         self.assertLess(page.content.index(self.service_a.name.encode()),
                         page.content.index(self.service_b.name.encode()))
 
-    def test_confirmed_opening_retains_reassignment_without_reorder(self):
+    def test_confirmed_opening_retains_reassignment_and_add_services(self):
         visit, first, second = self.create_visit()
         first.tasks.filter(task_type='HYGIENE').update(status='COMPLETED')
         second.status = 'EMPLOYEE_DONE'
         second.save()
         page = self.dashboard()
-        self.assertNotContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"')
+        self.assertContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"', count=1)
+        self.assertContains(page, '>Add services</a>')
         self.assertContains(page, f'href="{reverse("cancel_and_reassign_service", args=[first.pk])}"')
+
+    def test_single_started_service_keeps_add_services_action(self):
+        visit, first, second = self.create_visit()
+        second.delete()
+        first.tasks.filter(task_type='HYGIENE').update(status='COMPLETED')
+        for status in ['ASSIGNED', 'IN_PROGRESS', 'PAUSED', 'EMPLOYEE_DONE']:
+            with self.subTest(status=status):
+                first.status = status
+                first.save()
+                visit.status = 'EMPLOYEE_DONE' if status == 'EMPLOYEE_DONE' else 'IN_PROGRESS'
+                visit.save()
+                page = self.dashboard()
+                self.assertContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"', count=1)
+                self.assertContains(page, '>Add services</a>')
+                self.assertNotContains(page, '>Edit assignments</a>')
 
     def test_cancelled_assignments_are_collapsed_and_excluded_from_active_count(self):
         visit, first, second = self.create_visit()
@@ -104,6 +121,7 @@ class ManagerCardTests(TestCase):
         visit.save()
         page = self.dashboard()
         self.assertContains(page, f'href="{reverse("add_invoice", args=[visit.pk])}"', count=1)
+        self.assertNotContains(page, f'href="{reverse("edit_visit_services", args=[visit.pk])}"')
         visit.status = 'INVOICED'
         visit.save()
         page = self.dashboard()

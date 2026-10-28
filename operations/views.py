@@ -33,6 +33,22 @@ from .workflow import (
 def user_branch(user): return working_branch(user)
 
 
+@never_cache
+@roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE')
+@require_POST
+def save_theme_preference(request):
+    theme = request.POST.get('theme')
+    if theme not in dict(Profile.THEME_CHOICES):
+        return JsonResponse({'error': 'Choose light or dark.'}, status=400)
+    profiles = Profile.objects.filter(user=request.user)
+    if request.POST.get('only_if_unset') == '1':
+        # An older tab importing browser storage must not overwrite a saved choice.
+        profiles = profiles.filter(theme='')
+    profiles.update(theme=theme, updated_at=timezone.now())
+    saved = Profile.objects.values_list('theme', flat=True).get(user=request.user)
+    return JsonResponse({'theme': saved})
+
+
 @sensitive_post_parameters()
 @never_cache
 @roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER', 'EMPLOYEE')
@@ -499,7 +515,8 @@ def manager_dashboard(request):
             item.execution_locked = item.status != 'ASSIGNED' or any(t.status != 'PENDING' for t in item.tasks.all())
             add_timing_summary(item, item.tasks.all())
         add_timing_summary(visit, (t for item in active_services for t in item.tasks.all()))
-        visit.can_edit_assignments = visit.status in ['WAITING', 'ASSIGNED', 'IN_PROGRESS', 'EMPLOYEE_DONE'] and (
+        visit.can_add_services = visit.status in ['WAITING', 'ASSIGNED', 'IN_PROGRESS', 'EMPLOYEE_DONE']
+        visit.can_edit_assignments = visit.can_add_services and (
             not active_services or any(item.status == 'ASSIGNED' and not item.execution_locked for item in active_services)
         )
         visit.can_verify_all = bool(active_services) and all(
@@ -830,11 +847,7 @@ def collect_feedback(request, visit_id):
 
 @roles_required('EMPLOYEE')
 def employee_dashboard(request):
-    earlier_services = VisitService.objects.filter(
-        visit_id=OuterRef('visit_id'), order_number__lt=OuterRef('order_number'),
-    ).exclude(status__in=['EMPLOYEE_DONE', 'VERIFIED', 'CANCELLED'])
     jobs=(with_progress(employee_services(request.user)).select_related('visit__customer','visit__branch','service','chair')
-        .annotate(blocked_by_earlier_service=Exists(earlier_services))
         .prefetch_related('visit__services')
         .order_by('visit__created_at','visit_id','order_number','id'))
     return render(request,'operations/employee_dashboard.html',{'jobs':jobs})
@@ -855,9 +868,6 @@ def _pending_opening_task(visit):
 @roles_required('EMPLOYEE')
 def execute_service(request,pk):
     vs=get_object_or_404(employee_services(request.user),pk=pk)
-    if vs.visit.services.filter(order_number__lt=vs.order_number).exclude(status__in=['EMPLOYEE_DONE','VERIFIED','CANCELLED']).exists():
-        messages.error(request,'Complete the earlier service in this visit first.')
-        return redirect('employee_dashboard')
     current=vs.tasks.exclude(status__in=['COMPLETED','SKIPPED']).first()
     opening_tasks = vs.tasks.filter(task_type__in=OPENING_TASK_TYPES)
     opening_current = _pending_opening_task(vs.visit)
@@ -875,12 +885,10 @@ def execute_service(request,pk):
 @require_POST
 @transaction.atomic
 def task_action(request,pk,action):
-    # Serialize task transitions from different tabs or phones. The active-task
-    # restriction below is visit-scoped: separate visits may run together.
+    # Serialize transitions from different tabs or phones to keep each task's
+    # timing segments consistent while multiple tasks and services run together.
     User.objects.select_for_update().get(pk=request.user.pk)
     task=get_object_or_404(VisitTask.objects.select_for_update(),pk=pk,visit_service__in=employee_services(request.user)); vs=task.visit_service
-    if vs.visit.services.filter(order_number__lt=vs.order_number).exclude(status__in=['EMPLOYEE_DONE','VERIFIED','CANCELLED']).exists():
-        messages.error(request,'Complete the earlier service in this visit first.'); return redirect('employee_dashboard')
     now=timezone.now(); note=request.POST.get('note','').strip()
     reason_choice=request.POST.get('skip_reason_choice','').strip()
     reason_other=request.POST.get('skip_reason_other','').strip()
@@ -907,13 +915,6 @@ def task_action(request,pk,action):
         return redirect('execute_service', pk=vs.pk)
     if opening_current is not None:
         messages.error(request, 'Confirm sanitisation and consultation before starting service work.')
-        return redirect('execute_service', pk=vs.pk)
-    if action in ['start', 'resume'] and VisitTask.objects.filter(
-        visit_service__visit_id=vs.visit_id,
-        visit_service__status__in=['ASSIGNED', 'IN_PROGRESS', 'PAUSED'],
-        status='IN_PROGRESS',
-    ).exclude(pk=task.pk).exists():
-        messages.error(request, 'Finish the active task in this visit or put it into waiting before starting another task.')
         return redirect('execute_service', pk=vs.pk)
     if action == 'start' and task.staff_instructions and vs.tasks.filter(sequence__lt=task.sequence).exclude(status__in=['COMPLETED', 'SKIPPED', 'CANCELLED']).exists():
         messages.error(request, 'Complete the earlier task group in this service first.')
@@ -960,9 +961,11 @@ def task_action(request,pk,action):
 def finish_service(request,pk):
     User.objects.select_for_update().get(pk=request.user.pk)
     vs=get_object_or_404(employee_services(request.user),pk=pk)
-    if vs.visit.services.filter(order_number__lt=vs.order_number).exclude(status__in=['EMPLOYEE_DONE','VERIFIED','CANCELLED']).exists():
-        messages.error(request, 'Complete the earlier service in this visit first.')
-        return redirect('employee_dashboard')
+    # Different employees may finish services in the same visit together.
+    vs.visit = Visit.objects.select_for_update().get(pk=vs.visit_id)
+    if _pending_opening_task(vs.visit) is not None:
+        messages.error(request, 'Confirm sanitisation and consultation before submitting service work.')
+        return redirect('execute_service', pk=vs.pk)
     if unfinished_verification_tasks(vs.tasks.all()).exists(): messages.error(request,'Complete or record permitted skips for the remaining tasks first.')
     else:
         vs.status='EMPLOYEE_DONE'; vs.employee_completed_at=timezone.now(); vs.employee_notes=request.POST.get('employee_notes',''); vs.save()

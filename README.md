@@ -158,19 +158,22 @@ not duplicate matching codes.
 
 ## Combined service orders
 
-Managers can choose multiple services and arrange their execution order. The
-employee sees that order and cannot start a later service before the earlier one
-is complete. The generated execution plan always starts with one sanitisation,
-then one consultation, followed by procedures in the manager-defined service
-order. Before work starts, the manager can add services at the beginning or end,
-reorder them, or change the employee and chair assignment.
+Managers can choose multiple services and arrange their display order. The
+generated execution plan always starts with one sanitisation, then one
+consultation. After those visit opening checks, employees can start and submit
+assigned services independently. Before work starts, the manager can add services
+at the beginning or end, reorder them, or change the employee and chair assignment.
+After work starts, managers can use **Add services** to append services while
+started assignments and task history stay locked.
 
-Employees can run services from different visits at the same time and use
-**Back to my services** to switch visits without stopping task timers. Each
-staff card shows the customer, service, visit number, and service order. Later
-services in the same visit stay locked until earlier services are submitted;
-only one hands-on task per visit can run at a time. Processing-enabled tasks
-still support separate hands-on and waiting intervals.
+Employees can run multiple services and tasks at the same time, within the same
+visit or across different visits, and use **Back to my services** to switch
+without stopping task timers. Each staff card shows the customer, service, visit
+number, and service order. Each task keeps its own timer; another active task
+does not need to enter waiting first. Task sequence rules within each service
+still apply. Processing-enabled tasks support separate hands-on and waiting
+intervals. A visit is ready for manager verification only after every active
+service has been submitted.
 
 Admins, general managers, and managers can open the read-only **Service catalogue** from the application sidebar, choose a
 service, and inspect its sub-services, tasks, inventory quantities, active/passive
@@ -222,8 +225,10 @@ The [Google Review guide](docs/customer-review-tickets.md) describes staff handl
 
 Every signed-in role has a profile icon in the navigation bar. Open it to see
 the account name, open **Profile**, switch between light and dark mode, or sign
-out. Light is the default; an explicitly chosen theme is remembered per account
-in that browser. Sign out is available in the profile menu, not the sidebar. The profile
+out. Light is the default; an explicitly chosen theme is saved to the staff account
+and stays selected across logins and devices until changed again. Existing browser
+preferences are imported when no account preference has been saved. Sign out is
+available in the profile menu, not the sidebar. The profile
 page edits first/last name, email and mobile; roles and branch assignments remain
 administrator-controlled. **Change password** opens a dedicated page directly
 from the profile icon on desktop and mobile. Password changes require the current
