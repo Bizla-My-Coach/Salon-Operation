@@ -234,6 +234,24 @@ administrator-controlled. **Change password** opens a dedicated page directly
 from the profile icon on desktop and mobile. Password changes require the current
 password and keep the current session signed in.
 
+Staff can install **Hairship** on their phone from the HTTPS site. In Android
+Chrome, open the profile menu and select **Install Hairship** when offered, or
+use Chrome’s menu → **Install app** / **Add to Home screen**. On iPhone, use
+Safari’s Share menu → **Add to Home Screen**. Installed apps open in their own
+window and keep using the staff account’s saved theme.
+
+Installation requires a trusted HTTPS connection (localhost is supported for
+development). A plain HTTP server opened through a phone’s LAN or VPN address
+will not qualify. Service work still requires a connection: the service worker
+caches only a public reconnect page, never staff pages, customer data or task
+updates. After deployment, Chrome may need the site reopened before offering
+installation. The manifest, service worker and reconnect page are available at
+`/manifest.webmanifest`, `/service-worker.js` and `/offline/` without signing in.
+Normal app changes do not require reinstalling: staff get the deployed pages and
+versioned assets when they reopen or refresh. Keep the manifest ID and app scope
+stable. When changing the cached reconnect page, bump the offline cache version
+in `static/pwa/service-worker.js` so existing installations pick it up too.
+
 Managers have an **All staff** sidebar link for their current branch's employees,
 including home-branch staff on leave or working elsewhere and today's visiting
 cover staff. General managers can use it while rostered as acting branch manager.

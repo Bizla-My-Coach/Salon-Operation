@@ -8,6 +8,8 @@
     <a class="button outline" href="{% url 'change_password' %}">Change password</a>
     <label class="theme-control"><span>Dark mode</span><input type="checkbox" role="switch" aria-label="Dark mode" data-theme-toggle><span class="theme-track" aria-hidden="true"></span></label>
     <small data-theme-save-status role="status" aria-live="polite"></small>
+    <button type="button" class="button outline" data-install-app hidden>Install Hairship</button>
+    <small data-install-status role="status" aria-live="polite"></small>
     <a class="account-signout" href="{% url 'logout' %}">Sign out</a>
   </div>
 </details>
