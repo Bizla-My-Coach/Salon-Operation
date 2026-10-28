@@ -22,7 +22,11 @@ jobs:
           bash .devcontainer/initialize.sh
           docker compose -f .devcontainer/compose.yaml up --build -d --wait --wait-timeout 120
       - name: Start with the same command used in Codespaces
-        run: docker compose -f .devcontainer/compose.yaml exec -d workspace bash -c 'bash scripts/codespace.sh > /tmp/salonops-codespaces-startup.log 2>&1'
+        # Exercise the same database preparation hook used after a container build.
+        # Starting the app repeats the seeds and must preserve those records.
+        run: |
+          docker compose -f .devcontainer/compose.yaml exec -T workspace bash .devcontainer/prepare-workspace.sh
+          docker compose -f .devcontainer/compose.yaml exec -d workspace bash -c 'bash scripts/codespace.sh > /tmp/salonops-codespaces-startup.log 2>&1'
       - name: Verify HTTP login and repeat-safe demo setup
         run: |
           docker compose -f .devcontainer/compose.yaml exec -T workspace python tests/codespaces_smoke.py

@@ -10,7 +10,8 @@ from django.core.management.base import CommandError
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 from .management.commands.seed_codespaces import validate_environment
-from .models import Branch, Customer, ReviewCase, Service, SOPTask, Visit, VisitService, VisitTask
+from .models import Branch, BranchDuty, Chair, Customer, ReviewCase, Service, SOPTask, Visit, VisitService, VisitTask
+from .roster import working_branch, working_employees
 from .workflow import build_visit_tasks
 
 
@@ -86,6 +87,33 @@ class CodespacesSeedTests(TestCase):
         self.assertEqual(Branch.objects.get(pk=branch.pk).name, 'Edited test salon')
         self.assertEqual(set(ReviewCase.objects.values_list('pk', flat=True)), ids)
         self.assertEqual(SOPTask.objects.count(), 5)
+
+    def test_roster_examples_support_both_branches_and_preserve_manual_changes(self):
+        self.seed()
+        home = Branch.objects.get(code='CS-DEMO')
+        other = Branch.objects.get(code='CS-OTHER')
+        stylist = User.objects.get(username='stylist')
+        cover = User.objects.get(username='cover-stylist')
+        leave = User.objects.get(username='leave-stylist')
+        self.assertTrue(Chair.objects.filter(branch=other).exists())
+        self.assertEqual(working_branch(User.objects.get(username='manager2')), other)
+        self.assertIn(User.objects.get(username='stylist2'), working_employees(other))
+        self.assertIn(stylist, working_employees(home))
+        self.assertEqual(cover.profile.branch, home)
+        self.assertEqual(working_branch(cover), other)
+        self.assertNotIn(cover, working_employees(home))
+        self.assertIsNone(working_branch(leave))
+        self.assertNotIn(leave, working_employees(home))
+        self.assertFalse(BranchDuty.objects.filter(user=stylist).exists())
+        duty = BranchDuty.objects.get(user=cover)
+        duty.status, duty.branch = 'LEAVE', None
+        duty.save()
+        self.seed()
+        self.assertEqual(User.objects.count(), 8)
+        self.assertEqual(BranchDuty.objects.count(), 2)
+        duty.refresh_from_db()
+        self.assertEqual(duty.status, 'LEAVE')
+        self.assertIsNone(duty.branch)
 
     @override_settings(ALLOWED_HOSTS=['fictional-8000.app.github.dev'],
         CSRF_TRUSTED_ORIGINS=['https://fictional-8000.app.github.dev'],

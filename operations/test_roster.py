@@ -151,3 +151,71 @@ class BranchRosterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Reassign this employee")
         self.assertFalse(BranchDuty.objects.filter(user=self.employee).exists())
+
+    def test_leave_today_replaces_working_duty_with_branch_still_selected(self):
+        duty = self.duty(self.employee, self.b)
+        self.client.force_login(self.gm)
+        response = self.client.post(reverse("branch_roster"), {
+            "user": self.employee.pk,
+            "start_date": self.today.isoformat(),
+            "end_date": self.today.isoformat(),
+            "status": "LEAVE", "branch": self.b.pk,
+        })
+        self.assertRedirects(response, reverse("branch_roster"))
+        duty.refresh_from_db()
+        self.assertEqual(duty.status, "LEAVE")
+        self.assertIsNone(duty.branch)
+        self.assertEqual(duty.updated_by, self.gm)
+        self.assertEqual(BranchDuty.objects.filter(user=self.employee, date=self.today).count(), 1)
+        self.assertIsNone(working_branch(self.employee))
+        self.assertNotIn(self.employee, working_employees(self.a))
+        self.assertNotIn(self.employee, working_employees(self.b))
+        self.employee.profile.refresh_from_db()
+        self.assertEqual(self.employee.profile.branch, self.a)
+
+    def test_leave_range_without_working_branch(self):
+        self.client.force_login(self.admin)
+        tomorrow = self.today + timedelta(days=1)
+        response = self.client.post(reverse("branch_roster"), {
+            "user": self.manager.pk,
+            "start_date": self.today.isoformat(),
+            "end_date": tomorrow.isoformat(),
+            "status": "LEAVE", "branch": "",
+        })
+        self.assertRedirects(response, reverse("branch_roster"))
+        self.assertEqual(BranchDuty.objects.filter(
+            user=self.manager, status="LEAVE", branch__isnull=True,
+            date__range=(self.today, tomorrow),
+        ).count(), 2)
+
+    def test_leave_with_selected_branch_still_requires_open_service_reassignment(self):
+        duty = self.duty(self.employee, self.a)
+        customer = Customer.objects.create(name="Working Customer")
+        service = Service.objects.create(code="S1", name="Service")
+        visit = Visit.objects.create(branch=self.a, customer=customer, created_by=self.manager)
+        VisitService.objects.create(
+            visit=visit, service=service, employee=self.employee, assigned_by=self.manager,
+        )
+        self.client.force_login(self.gm)
+        response = self.client.post(reverse("branch_roster"), {
+            "user": self.employee.pk,
+            "start_date": self.today.isoformat(),
+            "end_date": self.today.isoformat(),
+            "status": "LEAVE", "branch": self.a.pk,
+        })
+        self.assertContains(response, "Reassign this employee")
+        self.assertNotContains(response, "Leave must not have a working branch.")
+        duty.refresh_from_db()
+        self.assertEqual(duty.status, "WORK")
+        self.assertEqual(duty.branch, self.a)
+
+    def test_working_duty_still_requires_branch(self):
+        self.client.force_login(self.gm)
+        response = self.client.post(reverse("branch_roster"), {
+            "user": self.employee.pk,
+            "start_date": self.today.isoformat(),
+            "end_date": self.today.isoformat(),
+            "status": "WORK", "branch": "",
+        })
+        self.assertContains(response, "Choose a working branch.")
+        self.assertFalse(BranchDuty.objects.filter(user=self.employee).exists())

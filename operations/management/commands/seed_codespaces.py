@@ -5,8 +5,9 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
-from operations.models import Branch, Chair, FeedbackQuestion, OperationalTask, Service, SOPTask, SubService
+from operations.models import Branch, BranchDuty, Chair, FeedbackQuestion, OperationalTask, Service, SOPTask, SubService
 from operations.review_workflow import record_review
 
 
@@ -33,21 +34,36 @@ class Command(BaseCommand):
         branch, _ = Branch.objects.get_or_create(code='CS-DEMO', defaults={'name': 'Codespaces Demo Salon'})
         other, _ = Branch.objects.get_or_create(code='CS-OTHER', defaults={'name': 'Codespaces Second Branch'})
         Chair.objects.get_or_create(branch=branch, code='CS01', defaults={'name': 'Demo chair'})
+        Chair.objects.get_or_create(branch=other, code='CS02', defaults={'name': 'Second branch demo chair'})
         people = {}
-        for username, role, name in [('admin', 'ADMIN', 'Test Administrator'), ('manager', 'MANAGER', 'Test Manager'),
-                                     ('stylist', 'EMPLOYEE', 'Test Stylist'), ('gm', 'GENERAL_MANAGER', 'Test General Manager')]:
+        for username, role, name, home in [
+            ('admin', 'ADMIN', 'Test Administrator', branch),
+            ('manager', 'MANAGER', 'Test Manager', branch),
+            ('stylist', 'EMPLOYEE', 'Test Stylist', branch),
+            ('gm', 'GENERAL_MANAGER', 'Test General Manager', None),
+            ('manager2', 'MANAGER', 'Test Second Branch Manager', other),
+            ('stylist2', 'EMPLOYEE', 'Test Second Branch Stylist', other),
+            ('cover-stylist', 'EMPLOYEE', 'Test Branch Cover Stylist', branch),
+            ('leave-stylist', 'EMPLOYEE', 'Test Stylist On Leave', branch),
+        ]:
             person, created = User.objects.get_or_create(username=username, defaults={'first_name': name})
             if created:
                 person.set_password('admin')
                 person.is_staff = person.is_superuser = role == 'ADMIN'
                 person.save()
                 person.profile.role = role
-                person.profile.branch = None if role == 'GENERAL_MANAGER' else branch
+                person.profile.branch = home
                 person.profile.job_title = name
                 person.profile.save()
             elif username == 'admin' and not (person.is_superuser and person.is_staff and person.profile.role == 'ADMIN'):
                 raise CommandError('An unrelated admin account already exists; no test data was changed.')
             people[username] = person
+        for username, status, workplace in [
+            ('cover-stylist', 'WORK', other), ('leave-stylist', 'LEAVE', None),
+        ]:
+            BranchDuty.objects.get_or_create(user=people[username], date=timezone.localdate(), defaults={
+                'status': status, 'branch': workplace, 'updated_by': people['admin'],
+            })
         service, _ = Service.objects.get_or_create(code='CS-HAIRCUT', defaults={
             'name': 'Demo Haircut & Styling', 'category': 'Hair', 'standard_duration_minutes': 45, 'base_price': 500})
         for code, name, action in [
@@ -83,4 +99,6 @@ class Command(BaseCommand):
             record_review(branch=target, actor=people['admin'], subject=subject, customer_label='Fictional Codespaces customer',
                 text=text, rating=5 if not issues else 3, service_description='Fictional haircut appointment.',
                 issues=issues, source_key='codespaces-demo-' + key)
-        self.stdout.write(self.style.SUCCESS('Codespaces test data ready. Admin: admin / admin. Other test users: manager, stylist, gm (password: admin).'))
+        self.stdout.write(self.style.SUCCESS(
+            'Codespaces test data ready. Users: admin, gm, manager, manager2, stylist, stylist2, '
+            'cover-stylist, leave-stylist (initial password: admin).'))
