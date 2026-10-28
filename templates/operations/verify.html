@@ -2,8 +2,8 @@
 {% block title %}Verify service · Hairship{% endblock %}
 {% block content %}
 <div class="workflow-page">
-  <header class="page-head split"><div><span class="eyebrow">Quality control</span><h1>Verify completed service</h1><p>Review the checklist and staff notes before approving.</p></div><a class="button outline workflow-back" href="{% url 'manager_dashboard' %}">Back to visits</a></header>
-  <section class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ vs.visit.customer.name }}</strong><span>Visit #{{ vs.visit_id }} · Service {{ vs.order_number }}</span></div><span class="status {{ vs.status|lower }}">{{ vs.get_status_display }}</span></section>
+  <header data-live-region="heading" class="page-head split"><div><span class="eyebrow">Quality control</span><h1>Verify completed service</h1><p>Review the checklist and staff notes before approving.</p></div><a class="button outline workflow-back" href="{% url 'manager_dashboard' %}">Back to visits</a></header>
+  <section data-live-region="customer" class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ vs.visit.customer.name }}</strong><span>Visit #{{ vs.visit_id }} · Service {{ vs.order_number }}</span></div><span class="status {{ vs.status|lower }}">{{ vs.get_status_display }}</span></section>
   <form method="post" class="visit-verification form-grid">
     {% csrf_token %}{{ form.non_field_errors }}
     <section class="panel verification-service">

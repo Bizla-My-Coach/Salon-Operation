@@ -1,0 +1,28 @@
+<section class="branch-dashboard" aria-label="Live branch dashboard">
+  <div class="dashboard-team panel">
+    <h2>Active users · {{ active_users|length }}</h2>
+    <p class="dashboard-note">{% if dashboard_branch %}{{ dashboard_branch.name }}{% else %}All branches{% endif %} · {{ dashboard_today|date:"j M Y" }}. Today's working roster; excludes leave and inactive accounts.</p>
+    <div class="dashboard-team-grid">
+      {% for person in active_users %}
+      <article class="dashboard-person">
+        <strong>{{ person.get_full_name|default:person.username }}</strong>
+        <span>{{ person.profile.get_role_display }}{% if not dashboard_branch %} · {{ person.dashboard_branch.name }}{% endif %}</span>
+        <span>{{ person.dashboard_pending }} pending service{{ person.dashboard_pending|pluralize }}</span>
+      </article>
+      {% empty %}<p>No active users rostered here today.</p>{% endfor %}
+    </div>
+  </div>
+  <div class="dashboard-work panel">
+    <h2>Pending work · {{ pending_visits }}</h2>
+    <p class="dashboard-note">Open visits by next step. Each visit is counted once, including unfinished visits from earlier days.</p>
+    <div class="dashboard-chart" role="group" aria-label="Pending visits by next step">
+      {% for row in pending_chart %}
+      <div class="dashboard-chart-row">
+        <span>{{ row.label }}</span><strong>{{ row.count }}</strong>
+        <div class="dashboard-chart-track" aria-hidden="true"><div style="width: {{ row.width }}%"></div></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if not pending_visits %}<p class="dashboard-note">All clear — no pending visits.</p>{% endif %}
+  </div>
+</section>

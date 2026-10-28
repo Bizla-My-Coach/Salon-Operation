@@ -2,7 +2,7 @@
 {% block title %}Upload staff CSV · Hairship{% endblock %}
 {% block content %}
 <div class="workflow-page staff-import-page">
-  <header class="page-head split"><div><span class="eyebrow">Import data · Team setup</span><h1>Upload staff CSV</h1><p>Validate first, review the team, then confirm account creation.</p></div><a class="button outline workflow-back" href="{% url 'import_data' %}">Back to import data</a></header>
+  <header data-live-region="heading" class="page-head split"><div><span class="eyebrow">Import data · Team setup</span><h1>Upload staff CSV</h1><p>Validate first, review the team, then confirm account creation.</p></div><a class="button outline workflow-back" href="{% url 'import_data' %}">Back to import data</a></header>
   <section class="panel">
     <h2>1. Upload and validate</h2>
     <p>Save your sheet as <strong>CSV UTF-8</strong> in Excel (up to 200 rows, 512 KB). Use these columns:</p>
@@ -17,7 +17,7 @@
     <h2>2. Review and confirm</h2><p><strong>{{ stage.filename }}</strong> · {{ stage.get_status_display }} · {{ stage.row_count }} account{{ stage.row_count|pluralize }}</p>
     {% if stage.status == 'PENDING' %}
     <p class="muted">Preview expires {{ stage.expires_at|date:'d M Y, H:i' }}. Check the proposed roles carefully before confirming.</p>
-    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Row</th><th>Branch</th><th>Name</th><th>Phone</th><th>Section</th><th>Role</th><th>Experience</th><th>Salary</th><th>Username</th></tr></thead><tbody>
+    <div data-live-region="records" class="report-table-wrap"><table class="report-table"><thead><tr><th>Row</th><th>Branch</th><th>Name</th><th>Phone</th><th>Section</th><th>Role</th><th>Experience</th><th>Salary</th><th>Username</th></tr></thead><tbody>
       {% for row in stage.rows %}<tr><td>{{ row.line }}</td><td>{{ row.branch_name }}</td><td>{{ row.name }}</td><td>{{ row.mobile|default:'—' }}</td><td>{{ row.section }}</td><td>{{ row.role }}</td><td>{{ row.experience|default:'—' }}</td><td>{% if row.salary != None %}₹{{ row.salary }}{% else %}—{% endif %}</td><td>{{ row.username }}</td></tr>{% endfor %}
     </tbody></table></div>
     <p><strong>Confirmation starts a private one-time credentials CSV download.</strong> It contains each new username and individual generated password. Save it securely and share only each person's own credentials, not the whole file. Plaintext passwords are not saved in the preview, database staging or server files.</p>

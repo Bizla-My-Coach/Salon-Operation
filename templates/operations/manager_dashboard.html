@@ -1,10 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}Live operations · Hairship{% endblock %}
+{% block title %}Dashboard · Hairship{% endblock %}
 {% block content %}
+<div data-live-dashboard="manager_dashboard">
 <header class="page-head split manager-page-head">
-  <div><span class="eyebrow">Today</span><h1>Live operations</h1><p>Track, verify, invoice, and collect feedback for every combined visit.</p></div>
+  <div><span class="eyebrow">Today</span><h1>{{ dashboard_branch.name }} dashboard</h1><p>Track, verify, invoice, and collect feedback for every combined visit.</p></div>
   <a href="{% url 'new_visit' %}" class="button primary">+ New service visit</a>
 </header>
+{% include 'includes/branch_dashboard.html' %}
+<h2 class="section-title">Live operations</h2>
 <div class="visit-list manager-visit-list">
   {% for visit in visits %}
   <article class="visit-card manager-visit-card">
@@ -38,11 +41,12 @@
     {% endfor %}
     </div>
     {% if visit.cancelled_services %}
-    <details class="manager-cancelled-history"><summary>{{ visit.cancelled_services|length }} cancelled assignment{{ visit.cancelled_services|length|pluralize }}</summary>
+    <details class="manager-cancelled-history" data-live-key="cancelled-{{ visit.pk }}"><summary>{{ visit.cancelled_services|length }} cancelled assignment{{ visit.cancelled_services|length|pluralize }}</summary>
       {% for s in visit.cancelled_services %}{% include 'includes/manager_service_row.html' %}{% endfor %}
     </details>
     {% endif %}
   </article>
   {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">Create first visit</a></div>{% endfor %}
+</div>
 </div>
 {% endblock %}

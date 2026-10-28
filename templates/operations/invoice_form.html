@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Complete invoice · Hairship{% endblock %}
 {% block content %}
-<header class="page-head split"><div><span class="eyebrow">Verified visit</span><h1>Add invoice</h1><p>{{ visit.customer.name }} · Combined service total {{ total|floatformat:2 }}</p></div><a class="button outline" href="{% url 'manager_dashboard' %}">Back</a></header>
+<header data-live-region="heading" class="page-head split"><div><span class="eyebrow">Verified visit</span><h1>Add invoice</h1><p>{{ visit.customer.name }} · Combined service total {{ total|floatformat:2 }}</p></div><a class="button outline" href="{% url 'manager_dashboard' %}">Back</a></header>
 <div class="panel narrow"><form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<div class="visit-actions"><a class="button outline" href="{% url 'manager_dashboard' %}">Back</a><button class="button dark large">Complete invoice</button></div></form></div>
 {% endblock %}

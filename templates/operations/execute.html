@@ -72,5 +72,4 @@
 
   {% if not current %}<section class="panel finish-service"><h2>All tasks finished</h2><p class="muted">Send the completed service to your manager for verification.</p><form method="post" action="{% url 'finish_service' vs.id %}" class="form-grid">{% csrf_token %}<textarea name="employee_notes" class="form-control" rows="2" placeholder="Optional final note"></textarea><button class="button success large">Submit to manager</button></form></section>{% endif %}
 </div>
-<script>document.addEventListener('click',function(e){let open=e.target.dataset.skipToggle,cancel=e.target.dataset.skipCancel;if(open)document.getElementById(open).hidden=false;if(cancel)document.getElementById(cancel).hidden=true});document.querySelectorAll('.skip-reason').forEach(function(select){select.addEventListener('change',function(){let other=this.closest('.skip-panel').querySelector('.other-reason');other.hidden=this.value!=='OTHER';other.required=this.value==='OTHER';if(!other.required)other.value=''})});</script>
 {% endblock %}

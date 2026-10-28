@@ -2,11 +2,11 @@
 {% block title %}Service assignments · Hairship{% endblock %}
 {% block content %}
 <div class="workflow-page">
-<header class="page-head split">
+<header data-live-region="heading" class="page-head split">
   <div><span class="eyebrow">Step 2 of 2 · Service plan</span><h1>Service assignments</h1><p>Choose services, staff and chairs in the order shown on the visit.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
-<section class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }}{% if visit.customer.mobile %} · {{ visit.customer.mobile }}{% endif %}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
+<section data-live-region="customer" class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }}{% if visit.customer.mobile %} · {{ visit.customer.mobile }}{% endif %}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
 <form method="post" class="visit-builder" id="assignment-form">
   {% csrf_token %}{{ formset.management_form }}{{ formset.non_form_errors }}
   <section class="panel assignment-list">

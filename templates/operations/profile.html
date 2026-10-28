@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}My profile · Hairship{% endblock %}
 {% block content %}
-<header class="page-head"><span class="eyebrow">My account</span><h1>My profile</h1><p>Update your personal details and password.</p></header>
-<section class="panel account-summary">
+<header data-live-region="heading" class="page-head"><span class="eyebrow">My account</span><h1>My profile</h1><p>Update your personal details and password.</p></header>
+<section data-live-region="account" class="panel account-summary">
   <h2>{{ user.get_full_name|default:user.username }}</h2>
   <dl class="profile-facts">
     <div><dt>Username</dt><dd>{{ user.username }}</dd></div>
