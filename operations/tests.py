@@ -103,11 +103,20 @@ class CombinedServiceWorkflowTests(TestCase):
             ["Second procedure"],
         )
 
-    def test_employee_cannot_open_second_service_before_first_is_complete(self):
+    def test_employee_can_open_second_service_but_opening_checks_still_block_work(self):
         _, _, second = self.create_visit()
         self.client.force_login(self.employee)
         response = self.client.get(reverse("execute_service", args=[second.pk]))
-        self.assertRedirects(response, reverse("employee_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["service_actions_locked"])
+        task = second.tasks.get(task_type="SERVICE")
+        self.client.post(reverse("task_action", args=[task.pk, "start"]))
+        task.refresh_from_db()
+        self.assertEqual(task.status, "PENDING")
+        self.assertFalse(task.timing_segments.exists())
+        self.client.post(reverse("finish_service", args=[second.pk]))
+        second.refresh_from_db()
+        self.assertEqual(second.status, "ASSIGNED")
 
     def test_visit_details_validate_mobile_and_disable_invoice(self):
         form = VisitCreateForm(data={"customer_name": "Customer", "mobile": "9876543210"})
@@ -303,6 +312,59 @@ class CombinedServiceWorkflowTests(TestCase):
         first_form = response.context["formset"].initial_forms[0]
         self.assertTrue(first_form.fields["service"].disabled)
         self.assertFalse(response.context["formset"].initial_forms[1].fields["service"].disabled)
+
+    def test_manager_adds_service_to_started_visit_without_changing_history(self):
+        from .models import TaskTimingSegment
+
+        visit, first, second = self.create_visit()
+        second.delete()
+        started_at = timezone.now() - timedelta(minutes=5)
+        first.status = "IN_PROGRESS"
+        first.started_at = started_at
+        first.save()
+        visit.status = "IN_PROGRESS"
+        visit.save()
+        first.tasks.filter(task_type__in=["HYGIENE", "CONSULT"]).update(
+            status="COMPLETED", started_at=started_at, completed_at=started_at,
+            performed_by=self.employee,
+        )
+        task = first.tasks.get(task_type="SERVICE")
+        task.status = "IN_PROGRESS"
+        task.started_at = started_at
+        task.performed_by = self.employee
+        task.save()
+        segment = TaskTimingSegment.objects.create(task=task, kind="ACTIVE", started_at=started_at)
+        original_tasks = list(first.tasks.order_by("pk").values())
+        original_segment = TaskTimingSegment.objects.filter(pk=segment.pk).values().get()
+        self.client.force_login(self.manager)
+        url = reverse("edit_visit_services", args=[visit.pk])
+        page = self.client.get(url)
+        self.assertContains(page, "+ Add another service")
+        self.assertTrue(page.context["formset"].initial_forms[0].execution_locked)
+
+        response = self.client.post(url, {
+            "services-TOTAL_FORMS": "2", "services-INITIAL_FORMS": "1",
+            "services-0-id": str(first.pk),
+            # Locked inputs must ignore attempts to change or delete started work.
+            "services-0-order_number": "99", "services-0-service": str(self.service_b.pk),
+            "services-0-employee": str(self.manager.pk), "services-0-DELETE": "on",
+            "services-1-order_number": "2", "services-1-service": str(self.service_b.pk),
+            "services-1-employee": str(self.employee.pk), "services-1-chair": "",
+        })
+
+        self.assertRedirects(response, reverse("manager_dashboard"))
+        first.refresh_from_db()
+        self.assertEqual((first.service_id, first.employee_id, first.order_number, first.status, first.started_at),
+                         (self.service_a.pk, self.employee.pk, 1, "IN_PROGRESS", started_at))
+        self.assertEqual(list(first.tasks.order_by("pk").values()), original_tasks)
+        self.assertEqual(TaskTimingSegment.objects.filter(pk=segment.pk).values().get(), original_segment)
+        added = visit.services.exclude(pk=first.pk).get()
+        self.assertEqual((added.service_id, added.order_number, added.status), (self.service_b.pk, 2, "ASSIGNED"))
+        self.assertEqual(list(added.tasks.values_list("title", flat=True)), ["Second procedure"])
+        self.assertEqual(visit.services.filter(tasks__task_type="HYGIENE").count(), 1)
+        self.assertEqual(visit.services.filter(tasks__task_type="CONSULT").count(), 1)
+        self.client.force_login(self.employee)
+        self.assertEqual(self.client.get(reverse("execute_service", args=[added.pk])).status_code, 200)
 
     def test_other_branch_manager_cannot_edit_visit(self):
         visit, _, _ = self.create_visit()

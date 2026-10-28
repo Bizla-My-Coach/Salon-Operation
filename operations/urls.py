@@ -32,6 +32,7 @@ path('admin-panel/import/workbook/', workbook_views.workbook_import, name='workb
 path('admin-panel/import/workbook/<uuid:import_id>/snapshot/', workbook_views.workbook_snapshot, name='workbook_snapshot'),
 path('visits/<int:visit_id>/', views.visit_detail, name='visit_detail'),
 path('profile/', views.my_profile, name='my_profile'),
+path('profile/theme/', views.save_theme_preference, name='save_theme_preference'),
 path('profile/change-password/', views.change_password, name='change_password'),
 path('manager/staff/', views.manager_staff, name='manager_staff'),
 path('general-manager/staff/', views.general_manager_staff, name='general_manager_staff'),

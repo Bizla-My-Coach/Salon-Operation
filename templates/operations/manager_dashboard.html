@@ -14,7 +14,7 @@
         <p>Visit #{{ visit.pk }} · Arrived {{ visit.created_at|date:'H:i' }} · {{ visit.active_service_count }} service{{ visit.active_service_count|pluralize }}</p>
       </div>
       <div class="manager-card-actions">
-        {% if visit.can_edit_assignments and visit.active_service_count %}<a class="button outline" href="{% url 'edit_visit_services' visit.id %}" title="Edit upcoming assignments" aria-label="Edit upcoming assignments for {{ visit.customer.name }}">Edit</a>{% endif %}
+        {% if visit.can_add_services and visit.active_service_count %}<a class="button outline" href="{% url 'edit_visit_services' visit.id %}" aria-label="{% if visit.can_edit_assignments %}Edit assignments{% else %}Add services{% endif %} for {{ visit.customer.name }}">{% if visit.can_edit_assignments %}Edit assignments{% else %}Add services{% endif %}</a>{% endif %}
         {% if visit.can_verify_all %}
           <a class="button success" href="{% url 'verify_visit' visit.id %}" aria-label="Review and verify visit for {{ visit.customer.name }}">Review &amp; verify</a>
         {% elif visit.status == 'VERIFIED' and visit.is_invoice_ready %}
