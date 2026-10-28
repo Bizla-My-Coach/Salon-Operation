@@ -28,7 +28,7 @@ class ManagerCardTests(TestCase):
     def test_compact_page_heading_preserves_new_visit_action(self):
         page = self.dashboard()
         self.assertContains(page, 'class="page-head split manager-page-head"')
-        self.assertContains(page, '<h1>Live operations</h1>')
+        self.assertContains(page, '<h1>Test Branch dashboard</h1>')
         self.assertContains(page, f'href="{reverse("new_visit")}" class="button primary">+ New service visit</a>')
 
     def test_submitted_card_has_timings_review_and_add_services(self):
@@ -97,7 +97,7 @@ class ManagerCardTests(TestCase):
         second.cancellation_reason = 'Staff change'
         second.save()
         page = self.dashboard()
-        self.assertContains(page, '<details class="manager-cancelled-history">')
+        self.assertContains(page, f'<details class="manager-cancelled-history" data-live-key="cancelled-{visit.pk}">')
         self.assertContains(page, '<summary>1 cancelled assignment</summary>')
         self.assertNotContains(page, '<details class="manager-cancelled-history" open')
         self.assertContains(page, '1 service</p>')

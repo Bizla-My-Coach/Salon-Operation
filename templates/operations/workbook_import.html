@@ -2,7 +2,7 @@
 {% block title %}Import SOP workbook · Hairship{% endblock %}
 {% block content %}
 <div class="workbook-page">
-<header class="page-head split">
+<header data-live-region="heading" class="page-head split">
   <div><span class="eyebrow">Administration · SOP setup</span><h1>Import SOP workbook</h1><p>Upload, validate and confirm. No server login is needed.</p></div>
   <a class="button outline" href="{% url 'import_data' %}">Back to import data</a>
 </header>
@@ -39,7 +39,7 @@
 {% endif %}
 <section class="panel" style="margin-top:16px">
   <h2 class="section-title">Your recent imports</h2>
-  <div class="report-table-wrap"><table class="report-table">
+  <div data-live-region="records" class="report-table-wrap"><table class="report-table">
     <thead><tr><th>Workbook</th><th>Uploaded</th><th>Status</th><th>Recovery snapshot</th></tr></thead>
     <tbody>{% for entry in history %}<tr>
       <td>{{ entry.filename }}</td><td>{{ entry.created_at|date:'d M Y, H:i' }}</td><td>{{ entry.get_status_display }}</td>

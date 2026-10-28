@@ -60,7 +60,7 @@ class BranchRosterTests(TestCase):
         self.client.force_login(self.gm)
         self.assertRedirects(self.client.get(reverse("dashboard")), reverse("general_manager_dashboard"))
         response = self.client.get(reverse("general_manager_dashboard"))
-        self.assertContains(response, "Business overview")
+        self.assertContains(response, "<h1>Dashboard</h1>", html=True)
         self.assertContains(response, "Set today's branch")
         self.assertNotContains(response, 'name="start_date"')
         nav = response.content.decode().split("<nav>", 1)[1].split("</nav>", 1)[0]

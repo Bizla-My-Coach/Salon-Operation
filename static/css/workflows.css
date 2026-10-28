@@ -80,3 +80,19 @@
 @media(max-width:650px){.workflow-page .page-head.split{flex-direction:row;align-items:flex-start;flex-wrap:wrap}.workflow-page .page-head.split .button{width:auto}.workflow-page .panel{padding:16px}.workflow-fields{grid-template-columns:minmax(0,1fr);gap:16px}.workflow-submit{align-items:stretch;flex-direction:column;gap:10px}.workflow-submit .button{width:100%}.workflow-submit-bar{padding:12px}.workflow-guide{display:none}.workflow-page .form-control,.workflow-page .assignment-field input,.workflow-page .assignment-field select{font-size:16px;min-height:46px}.workflow-page .assignment-row{grid-template-columns:64px minmax(0,1fr);gap:12px}.workflow-page .assignment-staff,.workflow-page .assignment-chair{grid-column:1/-1}.workflow-page .assignment-row.locked{padding:14px 10px}.workflow-page .note-grid{grid-template-columns:minmax(0,1fr);gap:12px}.workflow-timings{padding:12px;gap:8px}.workflow-timings>div{padding-left:8px}.workflow-timings dt{font-size:.65rem}.workflow-timings dd{font-size:.98rem}.workflow-page .verify-list li>.status{max-width:105px}.workflow-customer-summary{padding:12px;align-items:flex-start}.workflow-customer-summary>.status{max-width:115px}}
 @media(prefers-reduced-motion:reduce){.workflow-page *{scroll-behavior:auto}}
 .workbook-page .section-title{margin:0 0 14px}.workbook-page .workbook-summary,.workbook-page td{overflow-wrap:anywhere}.workbook-page .form-grid input[type="checkbox"]{display:inline-block;width:18px;height:18px;vertical-align:middle;margin-right:8px;padding:0}.workbook-page .report-table td:first-child{display:table-cell}.workbook-page .report-table{min-width:580px}.workbook-page input[type="file"]{min-width:0;max-width:100%}
+
+/* Role dashboards use labelled bars so counts remain clear without color or JS. */
+.dashboard-branch-tabs{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;margin-bottom:16px}
+.dashboard-branch-tabs a{flex:0 0 auto;padding:10px 16px;border:1px solid var(--line);border-radius:8px;color:var(--ink);text-decoration:none;background:var(--card)}
+.dashboard-branch-tabs a[aria-current="page"]{background:var(--brand);color:#fff}
+.branch-dashboard{display:grid;gap:20px;margin-bottom:28px}
+.branch-dashboard h2{font-size:1.15rem;margin:0 0 8px}
+.dashboard-note{color:var(--muted);font-size:.83rem;line-height:1.6;margin:0 0 18px}
+.dashboard-team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.dashboard-person{display:grid;gap:5px;padding:14px;border:1px solid var(--line);border-radius:10px;overflow-wrap:anywhere}
+.dashboard-person span{font-size:.8rem;color:var(--muted)}
+.dashboard-chart{display:grid;gap:14px}
+.dashboard-chart-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;font-size:.85rem}
+.dashboard-chart-row strong{font-variant-numeric:tabular-nums}
+.dashboard-chart-track{grid-column:1/-1;background:var(--bg);height:14px;border-radius:5px;overflow:hidden}
+.dashboard-chart-track>div{height:100%;background:var(--brand);border-radius:5px}

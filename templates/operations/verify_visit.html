@@ -2,8 +2,8 @@
 {% block title %}Verify visit · Hairship{% endblock %}
 {% block content %}
 <div class="workflow-page">
-<header class="page-head split"><div><span class="eyebrow">Quality control</span><h1>Verify visit</h1><p>Review services in execution order and approve them together.</p></div><a class="button outline workflow-back" href="{% url 'manager_dashboard' %}">Back to visits</a></header>
-<section class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }} · {{ services|length }} service{{ services|length|pluralize }}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
+<header data-live-region="heading" class="page-head split"><div><span class="eyebrow">Quality control</span><h1>Verify visit</h1><p>Review services in execution order and approve them together.</p></div><a class="button outline workflow-back" href="{% url 'manager_dashboard' %}">Back to visits</a></header>
+<section data-live-region="customer" class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }} · {{ services|length }} service{{ services|length|pluralize }}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
 {% include 'includes/workflow_timings.html' with obj=visit %}
 <form method="post" class="visit-verification">{% csrf_token %}
   {% for service in services %}

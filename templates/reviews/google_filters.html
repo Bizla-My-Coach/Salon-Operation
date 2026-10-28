@@ -1,7 +1,8 @@
-{% if senior and filter_form %}
+{% if filter_form %}
 <form method="get" class="review-filters">
   {% if demo %}<input type="hidden" name="demo" value="1">{% endif %}
   <input type="hidden" name="status" value="{{ selected_status }}">
+  <p class="review-footnote">Filter by the date the review was posted on Google. Both dates are included.</p>
   {{ filter_form.non_field_errors }}
   {% for field in filter_form %}<div>{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
   <button class="button outline" type="submit">Apply filters</button>

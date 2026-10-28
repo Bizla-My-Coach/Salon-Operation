@@ -19,24 +19,31 @@ class GoogleReviewUpdateForm(BootstrapMixin, forms.Form):
         widget=forms.Textarea(attrs={'rows': 4}))
 
 
-class GoogleReviewFilterForm(BootstrapMixin, forms.Form):
-    branch = forms.ModelChoiceField(queryset=Branch.objects.none(), required=False, empty_label='All branches')
-    rating = forms.TypedChoiceField(choices=[('', 'All ratings')] + [(n, f'{n} / 5') for n in range(5, 0, -1)],
-        coerce=int, empty_value=None, required=False)
+class ReviewDateRangeForm(BootstrapMixin, forms.Form):
     since = forms.DateField(label='From date', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
     until = forms.DateField(label='To date', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
-    q = forms.CharField(label='Search reviews', max_length=180, required=False,
-        widget=forms.TextInput(attrs={'placeholder': 'Reviewer, review text or Google review ID'}))
-
-    def __init__(self, *args, branches, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['branch'].queryset = branches
 
     def clean(self):
         data = super().clean()
         if data.get('since') and data.get('until') and data['since'] > data['until']:
             self.add_error('until', 'Choose an end date on or after the start date.')
         return data
+
+
+class GoogleReviewFilterForm(ReviewDateRangeForm):
+    branch = forms.ModelChoiceField(queryset=Branch.objects.none(), required=False, empty_label='All branches')
+    rating = forms.TypedChoiceField(choices=[('', 'All ratings')] + [(n, f'{n} / 5') for n in range(5, 0, -1)],
+        coerce=int, empty_value=None, required=False)
+    q = forms.CharField(label='Search reviews', max_length=180, required=False,
+        widget=forms.TextInput(attrs={'placeholder': 'Reviewer, review text or Google review ID'}))
+    field_order = ['branch', 'rating', 'since', 'until', 'q']
+
+    def __init__(self, *args, branches, senior=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['branch'].queryset = branches
+        if not senior:
+            for field in ['branch', 'rating', 'q']:
+                self.fields.pop(field)
 
 
 class FollowupUpdateForm(VersionForm):

@@ -219,14 +219,65 @@ def admin_dashboard(request):
     return render(request,'operations/admin_dashboard.html',{'branches':Branch.objects.count(),'users':User.objects.count(),'services':Service.objects.count(),'sop_tasks':OperationalTask.objects.count()})
 
 
+def _branch_dashboard(branch=None):
+    """Live workload and roster presence, scoped before any aggregation."""
+    today = timezone.localdate()
+    duties = BranchDuty.objects.filter(date=today).select_related('branch')
+    people = User.objects.filter(is_active=True, profile__active=True).select_related(
+        'profile', 'profile__branch',
+    ).prefetch_related(Prefetch('branch_duties', queryset=duties, to_attr='dashboard_duties'))
+    if branch:
+        people = people.filter(
+            Q(profile__branch=branch) | Q(pk__in=duties.filter(branch=branch, status='WORK').values('user_id'))
+        )
+    visits = Visit.objects.exclude(status__in=['CLOSED', 'CANCELLED'])
+    if branch:
+        visits = visits.filter(branch=branch)
+    counts = dict(visits.values('status').annotate(total=Count('pk')).values_list('status', 'total'))
+    stages = [
+        ('WAITING', 'Assign services'), ('ASSIGNED', 'Start services'),
+        ('IN_PROGRESS', 'Finish services'), ('EMPLOYEE_DONE', 'Manager verification'),
+        ('VERIFIED', 'Awaiting invoice'), ('INVOICED', 'Collect feedback'),
+    ]
+    chart = [{'label': label, 'count': counts.get(status, 0)} for status, label in stages]
+    maximum = max((row['count'] for row in chart), default=0) or 1
+    for row in chart:
+        row['width'] = round(row['count'] * 100 / maximum)
+    service_counts = dict(VisitService.objects.filter(
+        visit__in=visits, status__in=['ASSIGNED', 'IN_PROGRESS', 'PAUSED'],
+    ).values('employee_id').annotate(total=Count('pk')).values_list('employee_id', 'total'))
+    active_users = []
+    for person in people.order_by('first_name', 'last_name', 'username'):
+        duty = person.dashboard_duties[0] if person.dashboard_duties else None
+        current_branch = duty.branch if duty and duty.status == 'WORK' else (
+            person.profile.branch if not duty and person.profile.role != 'GENERAL_MANAGER' else None
+        )
+        if current_branch is None or (branch and current_branch.pk != branch.pk):
+            continue
+        person.dashboard_branch = current_branch
+        person.dashboard_pending = service_counts.get(person.pk, 0)
+        active_users.append(person)
+    return {
+        'dashboard_branch': branch, 'active_users': active_users, 'pending_chart': chart,
+        'pending_visits': sum(row['count'] for row in chart), 'dashboard_today': today,
+    }
+
+
 @roles_required('GENERAL_MANAGER')
 def general_manager_dashboard(request):
-    return render(request, 'operations/general_manager_dashboard.html', {
-        'acting_branch': user_branch(request.user),
+    branch_tabs = Branch.objects.order_by('name', 'pk')
+    branch_id = request.GET.get('branch', '')
+    selected = get_object_or_404(branch_tabs, pk=branch_id) if branch_id.isdigit() else None
+    if branch_id and not branch_id.isdigit():
+        return HttpResponseBadRequest('Choose a valid branch.')
+    context = _branch_dashboard(selected)
+    context.update({
+        'acting_branch': user_branch(request.user), 'branch_tabs': branch_tabs,
         'branches': Branch.objects.filter(active=True).count(),
         'active_visits': Visit.objects.filter(status__in=['WAITING', 'ASSIGNED', 'IN_PROGRESS', 'EMPLOYEE_DONE']).count(),
         'services': Service.objects.filter(active=True).count(),
     })
+    return render(request, 'operations/general_manager_dashboard.html', context)
 
 
 @roles_required('ADMIN', 'GENERAL_MANAGER')
@@ -522,7 +573,9 @@ def manager_dashboard(request):
         visit.can_verify_all = bool(active_services) and all(
             item.status in ['EMPLOYEE_DONE', 'VERIFIED'] for item in active_services
         ) and any(item.status == 'EMPLOYEE_DONE' for item in active_services)
-    return render(request,'operations/manager_dashboard.html',{'visits':visits})
+    context = _branch_dashboard(branch)
+    context['visits'] = visits
+    return render(request, 'operations/manager_dashboard.html', context)
 
 @roles_required('MANAGER')
 def new_visit(request):

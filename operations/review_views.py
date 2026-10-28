@@ -15,7 +15,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from .decorators import roles_required
 from .models import Branch, ReviewCase, ReviewIssue
 from .review_forms import (AddIssueForm, AssignmentForm, ClosureForm, IssueUpdateForm, ReasonForm,
-                           ReplyForm, ReviewIntakeForm, VersionForm, FollowupUpdateForm)
+                           ReplyForm, ReviewIntakeForm, VersionForm, FollowupUpdateForm, ReviewDateRangeForm)
 from . import review_workflow as workflow
 from .review_notifications import notification_feed, visible_notifications
 
@@ -97,6 +97,16 @@ def inbox(request):
     # Positive / empty-issue reviews remain available to HQ, outside the branch work queue.
     if not senior:
         base = base.filter(Q(issues__isnull=False) | Q(case_followup_requires_human=True)).distinct()
+    date_form = ReviewDateRangeForm(request.GET)
+    if date_form.is_valid():
+        for field, lookup in [('since', 'gte'), ('until', 'lte')]:
+            date = date_form.cleaned_data.get(field)
+            if date:
+                base = base.filter(
+                    Q(**{f'google_review__google_created_at__date__{lookup}': date}) |
+                    Q(google_review__isnull=True, **{f'received_at__date__{lookup}': date}))
+    else:
+        base = base.none()
     query = priority_cases(base)
     branch_id = request.GET.get('branch', '')
     if branch_id.isdigit() and senior:
@@ -148,7 +158,7 @@ def inbox(request):
         'tab_prefix': tab_prefix + '&' if tab_prefix else '', 'page_query': params.urlencode(),
         'demo': demo_mode(request), 'senior': senior, 'branches': branches,
         'selected_branch': branch_id, 'search': search, 'selected_priority': selected_priority,
-        'priority_links': priority_links,
+        'priority_links': priority_links, 'date_form': date_form,
     })
 
 

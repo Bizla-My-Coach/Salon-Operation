@@ -1,11 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}General management · Hairship{% endblock %}
 {% block content %}
+<div data-live-dashboard="general_manager_dashboard">
 <header class="page-head">
   <span class="eyebrow">General management</span>
-  <h1>Business overview</h1>
+  <h1>Dashboard</h1>
   <p>Review operations across branches and manage today's branch cover.</p>
 </header>
+<nav class="dashboard-branch-tabs" aria-label="Dashboard branches">
+  <a href="{% url 'general_manager_dashboard' %}"{% if not dashboard_branch %} aria-current="page"{% endif %}>All branches</a>
+  {% for branch in branch_tabs %}<a href="?branch={{ branch.pk }}"{% if dashboard_branch.pk == branch.pk %} aria-current="page"{% endif %}>{{ branch.name }}{% if not branch.active %} · Inactive{% endif %}</a>{% endfor %}
+</nav>
+{% include 'includes/branch_dashboard.html' %}
+<h2 class="section-title">Business totals · all branches</h2>
 <section class="metrics">
   <article><small>Active branches</small><strong>{{ branches }}</strong></article>
   <article><small>Live visits</small><strong>{{ active_visits }}</strong></article>
@@ -34,4 +41,5 @@
     <a class="action-card" href="{% url 'service_catalog' %}"><i>≡</i><strong>Service catalogue</strong><span>Inspect services and operating procedures</span></a>
   </div>
 </section>
+</div>
 {% endblock %}
