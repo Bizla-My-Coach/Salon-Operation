@@ -20,7 +20,10 @@
     {% if demo %}<input type="hidden" name="demo" value="1">{% endif %}<input type="hidden" name="tab" value="{{ active_tab }}"><input type="hidden" name="priority" value="{{ selected_priority }}">
     <div><label for="review-search">Search reviews</label><input id="review-search" name="q" value="{{ search }}" placeholder="Subject or customer name" maxlength="180"></div>
     {% if senior %}<div><label for="review-branch">Branch</label><select id="review-branch" name="branch"><option value="">All branches</option>{% for branch in branches %}<option value="{{ branch.pk }}" {% if selected_branch == branch.pk|stringformat:'s' %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}</select></div>{% endif %}
+    {% for field in date_form %}<div>{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+    <p class="review-footnote">Google review posting date, or received date for manually recorded reviews. Both dates are included.</p>
     <button type="submit" class="button outline">Apply filters</button>
+    <a href="{% url 'review_inbox' %}{% if demo %}?demo=1{% endif %}">Clear filters</a>
   </form>
   <nav class="review-priority-filters" aria-label="Filter by priority">{% for key,label,query in priority_links %}<a href="?{{ query }}" {% if selected_priority == key %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
   <div class="review-case-list">

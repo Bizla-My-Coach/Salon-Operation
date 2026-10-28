@@ -30,17 +30,16 @@ def scope(request):
 
 def filtered(request):
     query = scope(request)
-    if is_review_senior(request.user):
-        form = filter_form(request)
-        if not form.is_valid():
-            return query.none()
-        data = form.cleaned_data
-        if data['rating']:
-            query = query.filter(star_rating=data['rating'])
-        if data['since']:
-            query = query.filter(google_created_at__date__gte=data['since'])
-        if data['until']:
-            query = query.filter(google_created_at__date__lte=data['until'])
+    form = filter_form(request)
+    if not form.is_valid():
+        return query.none()
+    data = form.cleaned_data
+    if data.get('rating'):
+        query = query.filter(star_rating=data['rating'])
+    if data['since']:
+        query = query.filter(google_created_at__date__gte=data['since'])
+    if data['until']:
+        query = query.filter(google_created_at__date__lte=data['until'])
     branch = request.GET.get('branch', '')
     if branch.isdigit() and is_review_senior(request.user):
         query = query.filter(branch_id=branch)
@@ -57,7 +56,7 @@ def filtered(request):
 
 def filter_form(request):
     branches = Branch.objects.filter(google_reviews__in=scope(request)).distinct().order_by('name')
-    return GoogleReviewFilterForm(request.GET, branches=branches)
+    return GoogleReviewFilterForm(request.GET, branches=branches, senior=is_review_senior(request.user))
 
 
 def context(request):
@@ -96,7 +95,7 @@ def inbox(request):
     params.pop('page', None)
     return render(request, 'reviews/google_inbox.html', {**context(request), 'page_obj': page,
         'page_query': params.urlencode(), 'selected_status': tab,
-        'tabs': tabs, 'filter_form': filter_form(request) if is_review_senior(request.user) else None})
+        'tabs': tabs, 'filter_form': filter_form(request)})
 
 
 def detail_context(request, review, form=None):

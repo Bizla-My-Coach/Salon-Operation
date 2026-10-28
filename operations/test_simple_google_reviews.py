@@ -189,3 +189,43 @@ class SimpleGoogleReviewTests(TestCase):
         response = self.client.post(reverse('review_notification_open', args=[alert.pk]))
         self.assertRedirects(response, reverse('google_review_detail', args=[self.review.pk]))
         self.assertEqual(self.client.get('/health/').status_code, 200)
+
+    def test_date_range_is_available_to_managers_and_senior_roles(self):
+        for role in ('manager', 'gm', 'admin'):
+            self.client.force_login(self.people[role])
+            for page in ('google_review_inbox', 'review_inbox'):
+                with self.subTest(role=role, page=page):
+                    url = reverse(page)
+                    response = self.client.get(url, {'since': '2026-10-20', 'until': '2026-10-20'})
+                    self.assertContains(response, 'type="date"', count=2)
+                    self.assertEqual(response.context['page_obj'].paginator.count, 1)
+                    for dates in [
+                        {'since': '2026-10-21'}, {'until': '2026-10-19'},
+                        {'since': 'invalid'}, {'since': '2026-10-21', 'until': '2026-10-20'},
+                    ]:
+                        response = self.client.get(url, dates)
+                        self.assertEqual(response.status_code, 200)
+                        self.assertEqual(response.context['page_obj'].paginator.count, 0)
+                    response = self.client.get(url)
+                    self.assertEqual(response.context['page_obj'].paginator.count, 1)
+
+    def test_date_range_uses_google_posting_date_and_survives_tabs(self):
+        from datetime import datetime
+        from django.utils import timezone
+        # Received today, but posted just before local midnight on the chosen end date.
+        posted = timezone.make_aware(datetime(2026, 10, 20, 23, 59, 59))
+        GoogleReview.objects.filter(pk=self.review.pk).update(google_created_at=posted)
+        for page in ('google_review_inbox', 'review_inbox'):
+            response = self.client.get(reverse(page), {'since': '2026-10-20', 'until': '2026-10-20'})
+            self.assertEqual(response.context['page_obj'].paginator.count, 1)
+            self.assertIn('since=2026-10-20', response.context['page_query'])
+            self.assertIn('until=2026-10-20', response.context['page_query'])
+            if page == 'google_review_inbox':
+                for tab in response.context['tabs']:
+                    self.assertIn('since=2026-10-20', tab['query'])
+            else:
+                self.assertIn('since=2026-10-20', response.context['tab_prefix'])
+        response = self.client.get(reverse('google_review_inbox'), {
+            'branch': self.other_branch.pk, 'since': '2026-10-20', 'until': '2026-10-20'})
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+        self.assertEqual(list(response.context['filter_form'].fields), ['since', 'until'])
