@@ -32,12 +32,15 @@ class Branch(TimeStamped):
 
 class Profile(TimeStamped):
     ROLE_CHOICES = [("ADMIN", "Admin"), ("GENERAL_MANAGER", "General manager"), ("MANAGER", "Manager"), ("EMPLOYEE", "Employee")]
+    THEME_CHOICES = [("light", "Light"), ("dark", "Dark")]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="EMPLOYEE")
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, null=True, blank=True)
     employee_code = models.CharField(max_length=30, blank=True)
     job_title = models.CharField(max_length=80, blank=True)
     mobile = models.CharField(max_length=30, blank=True)
+    # An unset preference can inherit an existing per-account browser choice.
+    theme = models.CharField(max_length=5, choices=THEME_CHOICES, blank=True, default="")
     experience = models.CharField(max_length=80, blank=True)
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
                                  validators=[MinValueValidator(0)])

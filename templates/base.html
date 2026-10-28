@@ -1,23 +1,30 @@
 {% load static %}
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="{{ user.profile.theme|default:'light' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#003933">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hairship">
   <title>{% block title %}Hairship{% endblock %}</title>
   <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script>
-    (function(){try{var key='hairship-theme-{{ user.pk|default:"guest" }}';var saved=localStorage.getItem(key);document.documentElement.dataset.theme=saved==='dark'?'dark':'light';}catch(e){document.documentElement.dataset.theme='light';}}());
+    (function(){var saved='{{ user.profile.theme|default:"" }}';if(saved==='dark'||saved==='light'){document.documentElement.dataset.theme=saved;return;}document.documentElement.dataset.theme='light';try{var key='hairship-theme-{{ user.pk|default:"guest" }}';var legacy=localStorage.getItem(key);if(legacy==='dark'||legacy==='light'){document.documentElement.dataset.theme=legacy;document.documentElement.dataset.themeNeedsSave='true';}}catch(e){/* The account preference still works without browser storage. */}}());
   </script>
   <link rel="stylesheet" href="{% static 'css/accounts.css' %}">
   <link rel="stylesheet" href="{% static 'css/workflows.css' %}">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'js/accounts.js' %}" defer></script>
+  <script src="{% static 'js/pwa.js' %}" defer></script>
   <script src="{% static 'js/review-notifications.js' %}" defer></script>
 </head>
 <body data-theme-key="hairship-theme-{{ user.pk|default:'guest' }}">
+{% if user.is_authenticated %}<form id="theme-preference-form" method="post" action="{% url 'save_theme_preference' %}" hidden>{% csrf_token %}</form>{% endif %}
 {% if not plain_layout and user.is_authenticated and user.is_superuser or not plain_layout and user.is_authenticated and user.profile.role == 'ADMIN' or not plain_layout and user.is_authenticated and user.profile.role == 'GENERAL_MANAGER' or not plain_layout and user.is_authenticated and user.profile.role == 'MANAGER' %}
 <div class="app-shell">
   <aside class="sidebar" id="app-sidebar">

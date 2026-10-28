@@ -3,14 +3,14 @@
 {% block content %}
 <div class="workflow-page">
 <header class="page-head split">
-  <div><span class="eyebrow">Step 2 of 2 · Service plan</span><h1>Service assignments</h1><p>Choose services, staff and chairs in the order they should be performed.</p></div>
+  <div><span class="eyebrow">Step 2 of 2 · Service plan</span><h1>Service assignments</h1><p>Choose services, staff and chairs in the order shown on the visit.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
 <section class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }}{% if visit.customer.mobile %} · {{ visit.customer.mobile }}{% endif %}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
 <form method="post" class="visit-builder" id="assignment-form">
   {% csrf_token %}{{ formset.management_form }}{{ formset.non_form_errors }}
   <section class="panel assignment-list">
-    <header class="workflow-section-head"><h2>Service plan</h2><p>Lower order numbers run first. Started or completed work stays locked.</p></header>
+    <header class="workflow-section-head"><h2>Service plan</h2><p>Lower order numbers appear first. Started or completed work stays locked. Use Add another service to extend this visit.</p></header>
     <div id="assignment-rows">
     {% for form in formset %}
       {% include 'includes/assignment_row.html' %}
@@ -19,7 +19,7 @@
     <template id="empty-assignment-row">{% include 'includes/assignment_row.html' with form=formset.empty_form %}</template>
     <button type="button" class="button outline" id="add-assignment">+ Add another service</button>
   </section>
-  <div class="workflow-submit workflow-submit-bar"><p>Services within this visit run one at a time, in your chosen order.</p><button type="submit" class="button primary">Save service assignments</button></div>
+  <div class="workflow-submit workflow-submit-bar"><p>Services are listed in your chosen order and can run at the same time after the visit opening checks.</p><button type="submit" class="button primary">Save service assignments</button></div>
 </form>
 </div>
 <script>

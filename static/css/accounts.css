@@ -41,6 +41,7 @@
 .account-identity small{color:var(--muted);font-size:.8rem}
 .topbar .account-dropdown a,.account-dropdown a{margin:0;font-size:.9rem}
 .account-dropdown .account-profile-link{color:#fff}
+[data-install-app][hidden]{display:none}
 .account-signout{color:var(--ink)!important;text-decoration:none;border-top:1px solid var(--line);padding-top:14px}
 .theme-control{display:flex;align-items:center;gap:10px;position:relative;cursor:pointer;font-size:.9rem;color:var(--ink)}
 .theme-control>span:first-child{margin-right:auto;color:var(--ink);font-size:.9rem}
