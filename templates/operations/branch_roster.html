@@ -11,7 +11,7 @@
 {% endif %}
 <section class="panel narrow">
   <h2 class="section-title">Set a duty</h2>
-  <form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button class="button primary large" type="submit">Save roster</button></form>
+  <form method="post" class="form-grid" id="branch-roster-form">{% csrf_token %}{{ form.as_p }}<button class="button primary large" type="submit">Save roster</button></form>
 </section>
 <section>
   <h2 class="section-title">Upcoming exceptions</h2>
@@ -24,4 +24,20 @@
     </table>
   </div>
 </section>
+<script>
+(function () {
+  var form = document.getElementById('branch-roster-form');
+  var status = form.elements.status;
+  var branch = form.elements.branch;
+  function updateWorkingBranch() {
+    var onLeave = status.value === 'LEAVE';
+    if (onLeave) branch.value = '';
+    branch.disabled = onLeave;
+    branch.required = !onLeave;
+  }
+  status.addEventListener('change', updateWorkingBranch);
+  window.addEventListener('pageshow', updateWorkingBranch);
+  updateWorkingBranch();
+}());
+</script>
 {% endblock %}

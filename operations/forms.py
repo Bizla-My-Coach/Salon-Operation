@@ -288,7 +288,10 @@ class BranchDutyForm(BootstrapMixin, forms.Form):
     start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     end_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     status = forms.ChoiceField(choices=[("WORK", "Working at branch"), ("LEAVE", "On leave")])
-    branch = forms.ModelChoiceField(queryset=Branch.objects.filter(active=True), required=False, label="Working branch")
+    branch = forms.ModelChoiceField(
+        queryset=Branch.objects.filter(active=True), required=False, label="Working branch",
+        help_text="Only used for working duties. Leave overrides the person's branch for the selected dates.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -306,6 +309,6 @@ class BranchDutyForm(BootstrapMixin, forms.Form):
             self.add_error("end_date", "Choose up to 31 consecutive days.")
         if cleaned.get("status") == "WORK" and not cleaned.get("branch"):
             self.add_error("branch", "Choose a working branch.")
-        if cleaned.get("status") == "LEAVE" and cleaned.get("branch"):
-            self.add_error("branch", "Leave must not have a working branch.")
+        if cleaned.get("status") == "LEAVE":
+            cleaned["branch"] = None
         return cleaned
