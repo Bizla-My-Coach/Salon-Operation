@@ -23,7 +23,7 @@ def _task_type(sub_service_code):
     return "SERVICE", "DURING"
 
 
-def _append_sub_service_tasks(rows, visit_service, sub_service, start_sequence, required=True):
+def _append_sub_service_tasks(rows, visit_service, sub_service, start_sequence, required=True, skippable=False):
     task_type, phase = _task_type(sub_service.code)
     sequence = start_sequence
     for task in sub_service.tasks.filter(active=True).order_by("sequence", "id"):
@@ -42,8 +42,8 @@ def _append_sub_service_tasks(rows, visit_service, sub_service, start_sequence, 
                 supports_waiting=task.supports_waiting,
                 staff_instructions=task.staff_instructions,
                 required=required,
-                can_skip=task.is_skippable,
-                skip_reason_required=task.is_skippable,
+                can_skip=task.is_skippable or skippable,
+                skip_reason_required=task.is_skippable or skippable,
             )
         )
         sequence += 10
@@ -90,6 +90,7 @@ def build_visit_tasks(visit):
                 detail.sub_service,
                 sequence,
                 required=detail.mandatory,
+                skippable=detail.can_skip,
             )
 
         # Existing CSV/demo services continue to work until workbook data is imported.
@@ -148,7 +149,8 @@ def rebuild_service_tasks(visit_service, include_sanitisation=False, include_con
     )
     for detail in details:
         sequence = _append_sub_service_tasks(
-            rows, visit_service, detail.sub_service, sequence, required=detail.mandatory
+            rows, visit_service, detail.sub_service, sequence, required=detail.mandatory,
+            skippable=detail.can_skip,
         )
     if len(rows) == procedure_row_count:
         for legacy in visit_service.service.sop_tasks.filter(active=True).exclude(

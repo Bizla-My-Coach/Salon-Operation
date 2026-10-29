@@ -28,10 +28,12 @@ def current_flow(service):
         .select_related("sub_service")
         .order_by("sequence", "id")
     )
-    return [
-        {"code": detail.sub_service.code, "name": detail.sub_service.name, "mandatory": detail.mandatory}
-        for detail in details
-    ]
+    return [_step(detail) for detail in details]
+
+
+def _step(detail):
+    return {"code": detail.sub_service.code, "name": detail.sub_service.name,
+            "mandatory": detail.mandatory, "can_skip": detail.can_skip}
 
 
 def all_flows(service_ids=None):
@@ -48,21 +50,24 @@ def all_flows(service_ids=None):
         services = services.filter(pk__in=service_ids)
     flows = {pk: [] for pk in services.values_list("pk", flat=True)}
     for detail in details:
-        flows.setdefault(detail.service_id, []).append(
-            {"code": detail.sub_service.code, "name": detail.sub_service.name, "mandatory": detail.mandatory}
-        )
+        flows.setdefault(detail.service_id, []).append(_step(detail))
     return flows
 
 
 def same_flow(first, second):
     def key(flow):
-        return [(step["code"], bool(step["mandatory"])) for step in flow]
+        return [_key(step) for step in flow]
     return key(first) == key(second)
+
+
+def _key(step):
+    # Versions saved before "can skip" existed have no such key: not skippable.
+    return (step["code"], bool(step["mandatory"]), bool(step.get("can_skip", False)))
 
 
 def flow_digest(flows):
     payload = json.dumps(
-        {str(pk): [(step["code"], bool(step["mandatory"])) for step in flow] for pk, flow in sorted(flows.items())},
+        {str(pk): [_key(step) for step in flow] for pk, flow in sorted(flows.items())},
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -163,6 +168,7 @@ def apply_flow(service, steps):
         )
         row.sequence = index * 10
         row.mandatory = bool(step.get("mandatory", True))
+        row.can_skip = bool(step.get("can_skip", False))
         row.active = True
         row.save()
         used.add(row.pk)
@@ -180,7 +186,8 @@ def apply_flow(service, steps):
 def restore_version(version, user):
     service = Service.objects.select_for_update().get(pk=version.service_id)
     before = current_flow(service)
-    steps = [{"code": step["code"], "mandatory": step["mandatory"]} for step in version.steps]
+    steps = [{"code": step["code"], "mandatory": step["mandatory"], "can_skip": step.get("can_skip", False)}
+             for step in version.steps]
     apply_flow(service, steps)
     after = current_flow(service)
     return record_version(
@@ -210,4 +217,10 @@ def compare(before, after):
         if old is not None and old != step["mandatory"]:
             label = "mandatory" if step["mandatory"] else "optional"
             changes.append(("changed", f"{names[step['code']]} is now {label}"))
+    before_skip = {step["code"]: step.get("can_skip", False) for step in before}
+    for step in after:
+        old = before_skip.get(step["code"])
+        if old is not None and old != step.get("can_skip", False):
+            label = "can now be skipped" if step.get("can_skip") else "can no longer be skipped"
+            changes.append(("changed", f"{names[step['code']]} {label}"))
     return changes
