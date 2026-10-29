@@ -1,4 +1,4 @@
-from .models import SubService, VisitTask
+from .models import ServiceTaskSetting, SubService, VisitTask
 
 
 CONSULTATION_CODE = "SUB001"
@@ -23,10 +23,29 @@ def _task_type(sub_service_code):
     return "SERVICE", "DURING"
 
 
+def sort_service_tasks(tasks, settings):
+    """Order a sub-service's tasks for one service: [(task, can_skip), ...].
+
+    ``tasks`` are in their workbook order and ``settings`` maps task id to that
+    service's ServiceTaskSetting. Positioned tasks come first in their saved
+    order; any task added later keeps its workbook order after them.
+    """
+    def key(task):
+        setting = settings.get(task.pk)
+        return (0, setting.position) if setting and setting.position is not None else (1, 0)
+    return [(task, bool(settings.get(task.pk) and settings[task.pk].can_skip)) for task in sorted(tasks, key=key)]
+
+
+def service_tasks(sub_service, service):
+    tasks = list(sub_service.tasks.filter(active=True).order_by("sequence", "id"))
+    settings = {item.task_id: item for item in ServiceTaskSetting.objects.filter(service=service, task__in=tasks)}
+    return sort_service_tasks(tasks, settings)
+
+
 def _append_sub_service_tasks(rows, visit_service, sub_service, start_sequence, required=True, skippable=False):
     task_type, phase = _task_type(sub_service.code)
     sequence = start_sequence
-    for task in sub_service.tasks.filter(active=True).order_by("sequence", "id"):
+    for task, task_skippable in service_tasks(sub_service, visit_service.service):
         rows.append(
             VisitTask(
                 visit_service=visit_service,
@@ -42,8 +61,8 @@ def _append_sub_service_tasks(rows, visit_service, sub_service, start_sequence, 
                 supports_waiting=task.supports_waiting,
                 staff_instructions=task.staff_instructions,
                 required=required,
-                can_skip=task.is_skippable or skippable,
-                skip_reason_required=task.is_skippable or skippable,
+                can_skip=task.is_skippable or skippable or task_skippable,
+                skip_reason_required=task.is_skippable or skippable or task_skippable,
             )
         )
         sequence += 10
