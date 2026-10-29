@@ -253,33 +253,29 @@ class InvoiceForm(BootstrapMixin, forms.ModelForm):
 
 
 class UserCreateForm(BootstrapMixin, forms.Form):
-    username = forms.CharField(max_length=150, validators=User._meta.get_field('username').validators)
-    first_name = forms.CharField()
-    password = forms.CharField(widget=forms.PasswordInput, strip=False)
-    role = forms.ChoiceField(choices=Profile.ROLE_CHOICES)
-    branch = forms.ModelChoiceField(queryset=Branch.objects.filter(active=True), required=False, label="Home branch")
-    employee_code = forms.CharField(required=False)
-    job_title = forms.CharField(required=False)
+    branch = forms.ModelChoiceField(queryset=Branch.objects.filter(active=True), label="Branch")
+    first_name = forms.CharField(max_length=150, label="First name")
+    last_name = forms.CharField(max_length=150, required=False, label="Last name (optional)")
+    username = forms.CharField(required=False, disabled=True, label="Username", help_text="Generated automatically from the branch and name.")
+    role = forms.ChoiceField(choices=Profile.ROLE_CHOICES, initial='EMPLOYEE')
+    employee_code = forms.CharField(max_length=30, required=False)
+    job_title = forms.CharField(max_length=80, required=False)
 
-    def clean_username(self):
-        username = User.normalize_username(self.cleaned_data['username'].strip())
-        if len(username) > 150:
-            raise forms.ValidationError('Username must be 150 characters or fewer.')
-        if User.objects.filter(username=username).exists():
-            raise forms.ValidationError('This username is already in use. Choose another.')
-        return username
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not actor.is_superuser and actor.profile.role == 'GENERAL_MANAGER':
+            self.fields['role'].choices = [('MANAGER', 'Manager'), ('EMPLOYEE', 'Employee')]
 
     def clean(self):
+        from .staff_accounts import username_part
         cleaned = super().clean()
-        password = cleaned.get('password')
-        if password:
-            user = User(username=cleaned.get('username', ''), first_name=cleaned.get('first_name', ''))
-            try:
-                validate_password(password, user=user)
-            except forms.ValidationError as exc:
-                self.add_error('password', exc)
-        if cleaned.get("role") in ("MANAGER", "EMPLOYEE") and not cleaned.get("branch"):
-            self.add_error("branch", "Choose a home branch for a manager or employee.")
+        for field in ('first_name', 'last_name'):
+            value = cleaned.get(field)
+            if value and not username_part(value):
+                self.add_error(field, 'Enter a name containing letters or numbers.')
+        branch = cleaned.get('branch')
+        if branch and not username_part(branch.code):
+            self.add_error('branch', 'This branch needs a code containing letters or numbers.')
         return cleaned
 
 

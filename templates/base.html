@@ -46,6 +46,7 @@
         {% if can_manage_records %}<a href="/admin/">{% include 'includes/nav_icon.html' with icon='settings' only %}<span>Manage records</span></a>{% endif %}
       {% elif user.profile.role == 'GENERAL_MANAGER' %}
         <p>General management</p>
+        <a href="{% url 'create_user' %}">{% include 'includes/nav_icon.html' with icon='user-add' only %}<span>Add team member</span></a>
         <a href="{% url 'branch_roster' %}">{% include 'includes/nav_icon.html' with icon='calendar' only %}<span>Branch roster</span></a>
         <a href="{% url 'general_manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<span>All staff</span></a>
         <a href="{% url 'import_data' %}">{% include 'includes/nav_icon.html' with icon='upload' only %}<span>Import data</span></a>

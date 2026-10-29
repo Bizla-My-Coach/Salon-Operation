@@ -46,22 +46,25 @@ class ProductionRegressionTests(TestCase):
     def invoice_payload(self, number):
         return {'customer_name': 'Changed customer', 'mobile': '', 'invoice_number': number}
 
-    def test_account_creation_rejects_weak_and_user_similar_passwords(self):
-        for password in ['123', 'password', '1234567890123', 'new-administrator']:
-            with self.subTest(password=password):
-                response = self.create_account(password)
-                self.assertEqual(response.status_code, 200)
-                self.assertIn('password', response.context['form'].errors)
-                self.assertFalse(User.objects.filter(username='new-administrator').exists())
+    def test_account_creation_requires_a_branch_even_for_admins(self):
+        response = self.create_account('123')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('branch', response.context['form'].errors)
+        self.assertFalse(User.objects.filter(username='new-administrator').exists())
 
-    def test_account_creation_preserves_valid_password_whitespace(self):
-        password = '  Random-test-password!72  '
-        response = self.create_account(password)
-        self.assertRedirects(response, reverse('create_user'))
-        user = User.objects.get(username='new-administrator')
+    def test_account_creation_generates_a_valid_password(self):
+        from django.contrib.auth.password_validation import validate_password
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse('create_user'), {
+            'branch': self.branch.pk, 'first_name': 'Synthetic', 'role': 'ADMIN',
+            'username': 'forged', 'password': '123',
+        })
+        user = response.context['created_account']
+        password = response.context['generated_password']
         self.assertEqual(user.profile.role, 'ADMIN')
+        self.assertEqual(len(password), 8)
         self.assertTrue(user.check_password(password))
-        self.assertFalse(user.check_password(password.strip()))
+        validate_password(password, user=user)
 
     def test_chair_import_keeps_existing_branch_chair_and_visit_reference(self):
         chair = Chair.objects.create(branch=self.branch, code='C1', name='Original chair')

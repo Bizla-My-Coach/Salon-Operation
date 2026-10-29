@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Add team member · Hairship{% endblock %}
+{% block content %}
+<header class="page-head split"><h1>{% if created_account %}Team member created{% else %}Add team member{% endif %}</h1><a href="{% url 'dashboard' %}" class="button outline">← Back</a></header>
+<section class="panel narrow">
+{% if created_account %}
+  <h2>{{ created_account.get_full_name }}</h2>
+  <p>Share these credentials privately. Ask the team member to change their password after signing in.</p>
+  <div class="form-grid">
+    <p><label for="created-username">Username</label><input class="form-control" id="created-username" value="{{ created_account.username }}" readonly><button type="button" class="button outline" data-copy-field="created-username">Copy username</button></p>
+    <p><label for="created-password">Password</label><input class="form-control" id="created-password" value="{{ generated_password }}" readonly autocomplete="off"><button type="button" class="button outline" data-copy-field="created-password">Copy password</button></p>
+  </div>
+  <p role="status" aria-live="polite" data-copy-status></p>
+  <a class="button primary" href="{% url 'create_user' %}">Add another team member</a>
+{% else %}
+  <form method="post" class="form-grid" data-create-team-member data-preview-url="{{ request.path }}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <p>An 8-character password will be generated when you create the account.</p>
+    <button class="button primary large" type="submit">Create team member</button>
+  </form>
+{% endif %}
+</section>
+<script src="{% static 'js/staff-account.js' %}" defer></script>
+{% endblock %}

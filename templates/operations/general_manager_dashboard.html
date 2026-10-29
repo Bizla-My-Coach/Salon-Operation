@@ -34,6 +34,7 @@
 <section>
   <h2 class="section-title">Business-wide views</h2>
   <div class="action-grid">
+    <a class="action-card" href="{% url 'create_user' %}"><i>＋</i><strong>Add team member</strong><span>Create a manager or employee account</span></a>
     <a class="action-card" href="{% url 'general_manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<strong>All staff</strong><span>See teams across branches and reset employee passwords</span></a>
     <a class="action-card" href="{% url 'import_data' %}">{% include 'includes/nav_icon.html' with icon='upload' only %}<strong>Import data</strong><span>Onboard staff or see the administrator-only setup options</span></a>
     <a class="action-card" href="{% url 'admin_visits' %}"><i>☷</i><strong>All visits</strong><span>Review visits across branches</span></a>

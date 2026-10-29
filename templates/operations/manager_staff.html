@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}All staff · Hairship{% endblock %}
 {% block content %}
-<header class="page-head staff-page-head"><span class="eyebrow">{% if business_wide %}Team management{% else %}{{ branch.name|default:'Branch operations' }}{% endif %}</span><h1>All staff</h1><p>{% if business_wide %}Employees and managers across all branches{% else %}Your branch team and staff covering here today{% endif %} · {{ today|date:'d M Y' }}.</p>{% if can_import_staff %}<a class="button primary" href="{% url 'staff_csv_import' %}">{% include 'includes/nav_icon.html' with icon='upload' only %}Upload staff CSV</a>{% endif %}</header>
+<header class="page-head staff-page-head"><span class="eyebrow">{% if business_wide %}Team management{% else %}{{ branch.name|default:'Branch operations' }}{% endif %}</span><h1>All staff</h1><p>{% if business_wide %}Employees and managers across all branches{% else %}Your branch team and staff covering here today{% endif %} · {{ today|date:'d M Y' }}.</p>{% if can_import_staff %}<a class="button outline" href="{% url 'create_user' %}">Add team member</a><a class="button primary" href="{% url 'staff_csv_import' %}">{% include 'includes/nav_icon.html' with icon='upload' only %}Upload staff CSV</a>{% endif %}</header>
 <form method="get" class="staff-directory-tools">
   <div><label for="staff-search">Search staff</label><input class="form-control" id="staff-search" name="q" value="{{ query }}" maxlength="120" placeholder="Name, username, staff code or home branch"></div>
   <button class="button outline" type="submit">Search</button>

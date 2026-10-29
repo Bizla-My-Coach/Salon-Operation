@@ -68,7 +68,7 @@ class SidebarIconTests(TestCase):
     def test_all_existing_role_sidebars_use_consistent_decorative_svg_icons(self):
         for role, page, icons in [
             ('ADMIN', 'admin_dashboard', ['home', 'visits', 'reports', 'catalogue', 'user-add', 'staff', 'calendar', 'upload']),
-            ('GENERAL_MANAGER', 'general_manager_dashboard', ['home', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue']),
+            ('GENERAL_MANAGER', 'general_manager_dashboard', ['home', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue']),
             ('MANAGER', 'manager_dashboard', ['home', 'new', 'catalogue', 'staff']),
         ]:
             with self.subTest(role=role):
@@ -79,7 +79,7 @@ class SidebarIconTests(TestCase):
         BranchDuty.objects.create(user=user, date=timezone.localdate(), status='WORK',
                                   branch=self.branch, updated_by=user)
         self.check_sidebar(user, 'general_manager_dashboard',
-                           ['home', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue', 'activity', 'new', 'staff'])
+                           ['home', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue', 'activity', 'new', 'staff'])
 
     def test_superuser_records_icon_and_staff_minimal_navigation_are_preserved(self):
         admin = User.objects.create_superuser('icons_superuser', '', 'test')

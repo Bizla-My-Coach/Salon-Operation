@@ -475,21 +475,65 @@ def service_catalog(request):
             sections.append({'sub_service':sub_service,'mandatory':mandatory,'tasks':task_rows})
     return render(request,'operations/service_catalog.html',{'form':form,'selected':selected,'sections':sections,'totals':totals})
 
-@roles_required('ADMIN')
+@sensitive_post_parameters()
+@never_cache
+@roles_required('ADMIN', 'GENERAL_MANAGER')
+@require_http_methods(['GET', 'POST'])
 def create_user(request):
-    form=UserCreateForm(request.POST or None)
-    if request.method=='POST' and form.is_valid():
-        try:
-            with transaction.atomic():
-                u=User.objects.create_user(username=form.cleaned_data['username'],password=form.cleaned_data['password'],first_name=form.cleaned_data['first_name'])
-                p=u.profile; p.role=form.cleaned_data['role']; p.branch=form.cleaned_data['branch']; p.employee_code=form.cleaned_data['employee_code']; p.job_title=form.cleaned_data['job_title']; p.save()
-        except IntegrityError:
-            if not User.objects.filter(username=form.cleaned_data['username']).exists():
-                raise
-            form.add_error('username', 'This username is already in use. Choose another.')
+    from django.contrib.admin.models import ADDITION
+    from .staff_accounts import available_staff_username
+    from .staff_imports import generate_staff_password
+
+    form = UserCreateForm(request.POST if request.method == 'POST' else None, actor=request.user)
+    if request.method == 'GET' and request.GET.get('preview') == '1':
+        preview = UserCreateForm({
+            'branch': request.GET.get('branch', ''),
+            'first_name': request.GET.get('first_name', ''),
+            'last_name': request.GET.get('last_name', ''),
+            'role': 'EMPLOYEE',
+        }, actor=request.user)
+        if not preview.is_valid():
+            return JsonResponse({'username': ''})
+        data = preview.cleaned_data
+        return JsonResponse({'username': available_staff_username(data['branch'], data['first_name'], data['last_name'])})
+    if request.method == 'POST' and form.is_valid():
+        data = form.cleaned_data
+        # Serialize this form's allocations, including case-insensitive duplicates.
+        # The database's unique constraint still protects against other writers.
+        for attempt in range(5):
+            try:
+                with transaction.atomic():
+                    with connection.cursor() as cursor:
+                        cursor.execute('SELECT pg_advisory_xact_lock(%s)', [78124031])
+                    username = available_staff_username(data['branch'], data['first_name'], data['last_name'])
+                    password = generate_staff_password()
+                    user = User.objects.create_user(
+                        username=username, password=password,
+                        first_name=data['first_name'], last_name=data['last_name'],
+                    )
+                    profile = user.profile
+                    profile.role = data['role']
+                    profile.branch = data['branch']
+                    profile.employee_code = data['employee_code']
+                    profile.job_title = data['job_title']
+                    profile.save()
+                    LogEntry.objects.create(
+                        user=request.user, content_type=ContentType.objects.get_for_model(User),
+                        object_id=str(user.pk), object_repr=username[:200], action_flag=ADDITION,
+                        change_message='Team member created through staff management.',
+                    )
+                break
+            except IntegrityError:
+                if not User.objects.filter(username__iexact=username).exists():
+                    raise
         else:
-            messages.success(request,'User created.'); return redirect('create_user')
-    return render(request,'operations/form.html',{'form':form,'title':'Add team member'})
+            form.add_error(None, 'Another account was created at the same time. Please try again.')
+            return render(request, 'operations/create_user.html', {'form': form})
+        # Credentials are shown only in this uncached response, never persisted in sessions or messages.
+        return render(request, 'operations/create_user.html', {
+            'created_account': user, 'generated_password': password,
+        })
+    return render(request, 'operations/create_user.html', {'form': form})
 
 
 @roles_required('ADMIN', 'GENERAL_MANAGER')

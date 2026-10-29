@@ -187,23 +187,18 @@ class FlowRegressionTests(TestCase):
         self.client.force_login(self.employee)
         self.assertEqual(self.client.get(reverse('visit_detail', args=[visit.pk])).status_code, 403)
 
-    def test_duplicate_username_is_form_error_instead_of_server_error(self):
+    def test_supplied_username_and_password_cannot_override_generated_credentials(self):
         admin = User.objects.create_superuser('user_admin', 'a@example.com', 'test')
         self.client.force_login(admin)
         response = self.client.post(reverse('create_user'), {
             'username': self.employee.username, 'first_name': 'Duplicate', 'password': 'Example123!',
-            'role': 'EMPLOYEE', 'branch': self.branch.pk, 'employee_code': '', 'job_title': '',
+            'role': 'EMPLOYEE', 'branch': self.branch.pk,
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'This username is already in use.')
+        user = response.context['created_account']
+        self.assertNotEqual(user.username, self.employee.username)
+        self.assertFalse(user.check_password('Example123!'))
         self.assertEqual(User.objects.filter(username=self.employee.username).count(), 1)
-        full_width = ''.join(chr(ord(c) + 0xFEE0) for c in self.employee.username)
-        response = self.client.post(reverse('create_user'), {
-            'username': full_width, 'first_name': 'Duplicate', 'password': 'Example123!',
-            'role': 'EMPLOYEE', 'branch': self.branch.pk, 'employee_code': '', 'job_title': '',
-        })
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'This username is already in use.')
 
     def timed_task(self):
         visit, first, _ = self.create_visit()

@@ -43,7 +43,7 @@ class BranchRosterTests(TestCase):
         self.assertContains(roster_page, "No branch assigned today")
         self.assertNotContains(roster_page, f'href="{reverse("manager_dashboard")}"')
         self.assertEqual(self.client.get(reverse("admin_reports")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("create_user")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("create_user")).status_code, 200)
         self.duty(self.gm, self.b)
         manager_page = self.client.get(reverse("manager_dashboard"))
         self.assertEqual(manager_page.status_code, 200)
@@ -79,10 +79,11 @@ class BranchRosterTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.post(reverse("create_user"), {
             "username": "new_gm", "first_name": "New GM", "password": "safe-test-password",
-            "role": "GENERAL_MANAGER", "branch": "", "employee_code": "", "job_title": "General manager",
+            "role": "GENERAL_MANAGER", "branch": self.a.pk, "employee_code": "", "job_title": "General manager",
         })
-        self.assertEqual(response.status_code, 302)
-        user = User.objects.get(username="new_gm")
+        self.assertEqual(response.status_code, 200)
+        user = response.context["created_account"]
+        self.assertEqual(user.username, "a.newgm")
         self.assertEqual(user.profile.role, "GENERAL_MANAGER")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
