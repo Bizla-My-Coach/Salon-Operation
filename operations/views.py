@@ -28,6 +28,7 @@ from .workflow import (
     SANITISATION_CODE,
     build_visit_tasks,
     rebuild_service_tasks,
+    service_tasks,
     unfinished_verification_tasks,
 )
 
@@ -478,13 +479,13 @@ def service_catalog(request):
         ordered.extend((detail.sub_service,detail.mandatory,detail.can_skip) for detail in mapped if detail.sub_service.code not in [CONSULTATION_CODE,SANITISATION_CODE])
         for sub_service,mandatory,can_skip in ordered:
             task_rows=[]
-            for task in sub_service.tasks.filter(active=True).order_by('sequence','id'):
+            for task,task_skip in service_tasks(sub_service,selected):
                 inventory=list(task.inventory_requirements.filter(active=True,service=selected).select_related('inventory'))
                 equipment=list(task.equipment_requirements.filter(active=True).select_related('equipment'))
                 totals['labour']+=task.active_labour_minutes; totals['passive']+=task.passive_time_minutes
                 totals['equipment']+=sum(item.equipment_usage_minutes for item in equipment)
                 totals['utility']+=sum(item.utility_minutes for item in equipment)
-                task_rows.append({'task':task,'inventory':inventory,'equipment':equipment})
+                task_rows.append({'task':task,'can_skip':task_skip,'inventory':inventory,'equipment':equipment})
             sections.append({'sub_service':sub_service,'mandatory':mandatory,'can_skip':can_skip,'tasks':task_rows})
     can_edit=request.user.is_superuser or getattr(getattr(request.user,'profile',None),'role','')=='ADMIN'
     editor={}

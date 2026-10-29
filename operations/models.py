@@ -279,6 +279,25 @@ class OperationalTask(TimeStamped):
         return f"{self.external_id} - {self.name}"
 
 
+class ServiceTaskSetting(TimeStamped):
+    """Per-service order and skip permission for one task inside a sub-service.
+
+    Operational tasks are shared by every service that uses their sub-service,
+    so a service-specific change (wash after cut, wash skippable) lives here.
+    """
+
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="task_settings")
+    task = models.ForeignKey(OperationalTask, on_delete=models.CASCADE, related_name="service_settings")
+    position = models.PositiveIntegerField(null=True, blank=True)
+    can_skip = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("service", "task")
+
+    def __str__(self):
+        return f"{self.service.code} · {self.task.external_id}"
+
+
 class InventoryItem(TimeStamped):
     code = models.CharField(max_length=30, unique=True)
     name = models.CharField(max_length=160)

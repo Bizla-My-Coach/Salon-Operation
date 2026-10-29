@@ -1,7 +1,7 @@
 """Per-service SOP flow versions.
 
 A service's SOP flow is its ordered list of active sub-services (Service
-Detail rows). Sanitisation and consultation are excluded: the visit workflow
+Detail rows), each with its tasks in this service's order and skip settings. Sanitisation and consultation are excluded: the visit workflow
 adds them once per visit on its own. Each change from the catalogue editor, a
 workbook import or a restore is saved as a new, immutable SOPVersion.
 """
@@ -11,8 +11,8 @@ import json
 from django.db import transaction
 from django.db.models import Max
 
-from .models import Service, ServiceDetail, SOPVersion, SubService
-from .workflow import CONSULTATION_CODE, SANITISATION_CODE
+from .models import OperationalTask, Service, ServiceDetail, ServiceTaskSetting, SOPVersion, SubService
+from .workflow import CONSULTATION_CODE, SANITISATION_CODE, sort_service_tasks
 
 OPENING_CODES = (CONSULTATION_CODE, SANITISATION_CODE)
 
@@ -22,22 +22,18 @@ class FlowProblem(Exception):
 
 
 def current_flow(service):
-    details = (
-        service.service_details.filter(active=True, sub_service__active=True)
-        .exclude(sub_service__code__in=OPENING_CODES)
-        .select_related("sub_service")
-        .order_by("sequence", "id")
-    )
-    return [_step(detail) for detail in details]
+    return all_flows([service.pk])[service.pk]
 
 
-def _step(detail):
+def _step(detail, tasks_by_sub, settings):
+    tasks = sort_service_tasks(tasks_by_sub.get(detail.sub_service_id, []), settings)
     return {"code": detail.sub_service.code, "name": detail.sub_service.name,
-            "mandatory": detail.mandatory, "can_skip": detail.can_skip}
+            "mandatory": detail.mandatory, "can_skip": detail.can_skip,
+            "tasks": [{"id": task.external_id, "name": task.name, "can_skip": skip} for task, skip in tasks]}
 
 
 def all_flows(service_ids=None):
-    """Return {service_id: flow} with one query instead of one per service."""
+    """Return {service_id: flow} with a few queries instead of several per service."""
     details = (
         ServiceDetail.objects.filter(active=True, sub_service__active=True)
         .exclude(sub_service__code__in=OPENING_CODES)
@@ -48,9 +44,23 @@ def all_flows(service_ids=None):
     if service_ids is not None:
         details = details.filter(service_id__in=service_ids)
         services = services.filter(pk__in=service_ids)
+    details = list(details)
+    tasks_by_sub = {}
+    for task in OperationalTask.objects.filter(
+        active=True, sub_service_id__in={detail.sub_service_id for detail in details},
+    ).order_by("sequence", "id"):
+        tasks_by_sub.setdefault(task.sub_service_id, []).append(task)
+    settings = {}
+    task_settings = ServiceTaskSetting.objects.all()
+    if service_ids is not None:
+        task_settings = task_settings.filter(service_id__in=service_ids)
+    for item in task_settings:
+        settings.setdefault(item.service_id, {})[item.task_id] = item
     flows = {pk: [] for pk in services.values_list("pk", flat=True)}
     for detail in details:
-        flows.setdefault(detail.service_id, []).append(_step(detail))
+        flows.setdefault(detail.service_id, []).append(
+            _step(detail, tasks_by_sub, settings.get(detail.service_id, {}))
+        )
     return flows
 
 
@@ -61,8 +71,9 @@ def same_flow(first, second):
 
 
 def _key(step):
-    # Versions saved before "can skip" existed have no such key: not skippable.
-    return (step["code"], bool(step["mandatory"]), bool(step.get("can_skip", False)))
+    # Versions saved before "can skip" or task settings existed lack those keys.
+    tasks = tuple((task["id"], bool(task.get("can_skip", False))) for task in step.get("tasks", []))
+    return (step["code"], bool(step["mandatory"]), bool(step.get("can_skip", False)), tasks)
 
 
 def flow_digest(flows):
@@ -181,13 +192,40 @@ def apply_flow(service, steps):
         row.sequence = 2_000_000 + offset
         row.save(update_fields=["active", "sequence", "updated_at"])
 
+    for step in steps:
+        _apply_task_settings(service, sub_services[step["code"]], step.get("tasks"))
+
+
+def _apply_task_settings(service, sub_service, wanted):
+    """Store this service's task order and skips for one sub-service.
+
+    Settings that match the workbook order with no skips are removed, so the
+    service simply follows the shared sub-service again.
+    """
+    tasks = list(sub_service.tasks.filter(active=True).order_by("sequence", "id"))
+    existing = ServiceTaskSetting.objects.filter(service=service, task__sub_service=sub_service)
+    by_id = {task.external_id: task for task in tasks}
+    wanted = [item for item in (wanted or []) if item["id"] in by_id]
+    listed = {item["id"] for item in wanted}
+    wanted += [{"id": task.external_id, "can_skip": False} for task in tasks if task.external_id not in listed]
+    if [item["id"] for item in wanted] == [task.external_id for task in tasks] and not any(
+        item.get("can_skip") for item in wanted
+    ):
+        existing.delete()
+        return
+    for position, item in enumerate(wanted, 1):
+        ServiceTaskSetting.objects.update_or_create(
+            service=service, task=by_id[item["id"]],
+            defaults={"position": position * 10, "can_skip": bool(item.get("can_skip", False))},
+        )
+
 
 @transaction.atomic
 def restore_version(version, user):
     service = Service.objects.select_for_update().get(pk=version.service_id)
     before = current_flow(service)
-    steps = [{"code": step["code"], "mandatory": step["mandatory"], "can_skip": step.get("can_skip", False)}
-             for step in version.steps]
+    steps = [{"code": step["code"], "mandatory": step["mandatory"], "can_skip": step.get("can_skip", False),
+              "tasks": step.get("tasks", [])} for step in version.steps]
     apply_flow(service, steps)
     after = current_flow(service)
     return record_version(
@@ -223,4 +261,17 @@ def compare(before, after):
         if old is not None and old != step.get("can_skip", False):
             label = "can now be skipped" if step.get("can_skip") else "can no longer be skipped"
             changes.append(("changed", f"{names[step['code']]} {label}"))
+    before_tasks = {step["code"]: step["tasks"] for step in before if "tasks" in step}
+    for step in after:
+        old, new = before_tasks.get(step["code"]), step.get("tasks")
+        if old is None or new is None:
+            continue
+        old_ids, new_ids = [task["id"] for task in old], [task["id"] for task in new]
+        if [i for i in old_ids if i in new_ids] != [i for i in new_ids if i in old_ids]:
+            changes.append(("moved", f"{names[step['code']]} tasks: " + " → ".join(task["name"] for task in new)))
+        old_skip = {task["id"]: task.get("can_skip", False) for task in old}
+        for task in new:
+            if task["id"] in old_skip and old_skip[task["id"]] != task.get("can_skip", False):
+                label = "can now be skipped" if task.get("can_skip") else "can no longer be skipped"
+                changes.append(("changed", f"{task['name']} {label} in {names[step['code']]}"))
     return changes

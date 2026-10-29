@@ -3,7 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .models import (
-    Branch, Customer, OperationalTask, Service, ServiceDetail, SOPVersion, SubService, Visit, VisitService,
+    Branch, Customer, OperationalTask, Service, ServiceDetail, ServiceTaskSetting, SOPVersion, SubService, Visit,
+    VisitService,
 )
 from .sop_flow_views import service_flow_digest
 from .sop_versions import FlowProblem, all_flows, apply_flow, current_flow, record_changed_versions
@@ -216,3 +217,85 @@ class SOPSkipTests(SOPEditorTests):
     def test_add_step_as_skippable(self):
         self.edit("add", sub_service=SubService.objects.get(code="MASK").pk, mandatory="on", can_skip="on")
         self.assertTrue(current_flow(self.service)[-1]["can_skip"])
+
+
+class SOPTaskControlTests(TestCase):
+    """Per-service task order and skips inside one sub-service (wash in a men's haircut)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("task_admin", password="test-password")
+        self.admin.profile.role = "ADMIN"
+        self.admin.profile.save()
+        self.client.force_login(self.admin)
+        self.men = Service.objects.create(code="MEN", name="Haircut Men")
+        self.combo = Service.objects.create(code="COMBO", name="Haircut and beard")
+        self.sub = SubService.objects.create(code="SUB066", name="Men haircut")
+        self.wash = OperationalTask.objects.create(external_id="V5T0039", sub_service=self.sub, sequence=10, name="Wash and condition")
+        self.cut = OperationalTask.objects.create(external_id="V5T0040", sub_service=self.sub, sequence=20, name="Cut and finish")
+        for service in (self.men, self.combo):
+            ServiceDetail.objects.create(external_id=f"D-{service.code}", service=service, sub_service=self.sub)
+        self.url = reverse("sop_edit", args=[self.men.pk])
+
+    def edit(self, action, task, **extra):
+        return self.client.post(self.url, {"action": action, "index": 0, "task": task,
+                                           "digest": service_flow_digest(self.men), **extra})
+
+    def visit_tasks(self, service):
+        branch, _ = Branch.objects.get_or_create(code="TASK", defaults={"name": "Task branch"})
+        visit = Visit.objects.create(branch=branch, customer=Customer.objects.create(name="Task"), created_by=self.admin)
+        VisitService.objects.create(visit=visit, service=service, employee=self.admin, assigned_by=self.admin)
+        build_visit_tasks(visit)
+        return list(visit.services.get().tasks.order_by("sequence").values_list("title", "can_skip"))
+
+    def test_wash_after_cut_and_skippable_for_men_only(self):
+        self.edit("task_down", 0)
+        self.edit("task_skip", 1, allow="on")
+        self.assertEqual(self.visit_tasks(self.men), [("Cut and finish", False), ("Wash and condition", True)])
+        self.assertEqual(self.visit_tasks(self.combo), [("Wash and condition", False), ("Cut and finish", False)])
+        notes = list(self.men.sop_versions.order_by("number").values_list("source", "note"))
+        self.assertEqual(notes[0][0], "BASELINE")
+        self.assertEqual([note for _, note in notes[1:]], [
+            "Moved Wash and condition down in Men haircut",
+            "Wash and condition can now be skipped in Men haircut",
+        ])
+        self.assertFalse(self.combo.sop_versions.exists())
+        history = self.client.get(reverse("sop_history", args=[self.men.pk]))
+        self.assertContains(history, "Men haircut tasks: Cut and finish → Wash and condition")
+        self.assertContains(history, "Wash and condition can now be skipped in Men haircut")
+        page = self.client.get(f"{reverse('service_catalog')}?service={self.men.pk}")
+        self.assertContains(page, 'aria-label="Move task Wash and condition up"')
+        self.assertContains(page, "Don't allow task skip")
+
+    def test_restore_and_back_to_default_clears_settings(self):
+        self.edit("task_down", 0)
+        self.assertEqual(ServiceTaskSetting.objects.filter(service=self.men).count(), 2)
+        self.edit("task_up", 1)
+        self.assertFalse(ServiceTaskSetting.objects.exists())
+        moved = self.men.sop_versions.get(number=2)
+        self.client.post(reverse("sop_restore", args=[moved.pk]))
+        self.assertEqual([t["id"] for t in current_flow(self.men)[0]["tasks"]], ["V5T0040", "V5T0039"])
+        baseline = self.men.sop_versions.get(number=1)
+        self.client.post(reverse("sop_restore", args=[baseline.pk]))
+        self.assertFalse(ServiceTaskSetting.objects.exists())
+
+    def test_new_workbook_task_lands_after_reordered_tasks(self):
+        self.edit("task_down", 0)
+        OperationalTask.objects.create(external_id="V5T0041", sub_service=self.sub, sequence=5, name="Hot towel")
+        self.assertEqual([title for title, _ in self.visit_tasks(self.men)],
+                         ["Cut and finish", "Wash and condition", "Hot towel"])
+        self.assertEqual([title for title, _ in self.visit_tasks(self.combo)],
+                         ["Hot towel", "Wash and condition", "Cut and finish"])
+
+    def test_bad_task_index_and_stale_page_change_nothing(self):
+        self.edit("task_down", 5)
+        self.edit("task_skip", "x", allow="on")
+        self.client.post(self.url, {"action": "task_down", "index": 0, "task": 0, "digest": "stale"})
+        self.assertFalse(ServiceTaskSetting.objects.exists())
+        self.assertFalse(SOPVersion.objects.exists())
+
+    def test_only_admins_can_change_tasks(self):
+        for role in ["GENERAL_MANAGER", "MANAGER", "EMPLOYEE"]:
+            self.admin.profile.role = role
+            self.admin.profile.save()
+            self.assertEqual(self.edit("task_down", 0).status_code, 403)
+        self.assertFalse(ServiceTaskSetting.objects.exists())
