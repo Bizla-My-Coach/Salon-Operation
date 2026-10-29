@@ -318,8 +318,11 @@ selects exactly one eligible owner; missing/ambiguous owners go to Needs assignm
 Google Review uses All, Open and Closed tabs. Managers see their working branch;
 Admin/GM see all branches with branch, rating, date-range and text/ID search
 filters. Review details show the source review, system reply and one form with
-customer follow-up status, staff follow-up status and justification. Terminal staff
-statuses close a review without a separate case or issue step. Existing internal
+customer follow-up status, staff follow-up status and justification. The optional
+dropdowns default to Not contacted and Not discussed. Justification is required
+only for 1–2 star reviews. Close review and Reopen review control closure
+independently of the dropdown values; Save review preserves the current closure
+state. Existing internal
 case/issue records and their history are retained; no customer is created or linked.
 A public reply does not automatically close a review or confirm customer
 satisfaction. The legacy analytics, issue-reporting and diagnostic routes remain
@@ -349,6 +352,8 @@ Neither deletes manager actions, source events or operational data.
 Migration **0023_simple_google_review_updates** adds review-level status,
 justification, revision and audit metadata. Existing case/issue notes are preserved
 and used as initial form values. Apply this migration before running the new UI.
+Migration **0026_google_review_optional_followup** updates the default staff label
+to Not discussed without rewriting stored follow-up values.
 
 Migration **0022_google_review_reviewer_anonymity** adds the optional anonymity flag
 with a false default for existing records. Apply it before running the updated app.

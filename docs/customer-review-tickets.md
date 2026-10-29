@@ -34,14 +34,16 @@ optional `analysis.appreciations` array may contain strings or objects with
 `reported_appreciation` and an optional `category`.
 
 Customer status is Not contacted / Awaiting reply / Contacted. Staff status is
-Not started / In progress / Awaiting follow-up / Resolved / Unresolved /
-Not actionable. Justification is required. Resolved, Unresolved and Not actionable
-move a review into Closed. The other staff statuses keep it Open. Change the
-staff status back to In progress and explain why to reopen a review using the same
-form. Contacting a customer does not automatically close the review or establish
-customer satisfaction. Unresolved remains a separate outcome from Resolved.
-The explicit **Close review** action requires a terminal staff status and a
-justification, and respects the existing sensitive-review closure permissions.
+Not discussed / In progress / Awaiting follow-up / Resolved / Unresolved /
+Not actionable. Both dropdowns are optional and default to **Not contacted** and
+**Not discussed**. They do not control whether a review is open or closed.
+Justification is required for **1–2 stars** and optional for **3–5 stars**, both
+when saving and closing. A five-star review can be closed with its defaults and
+no justification. **Close review** closes the review; **Reopen review** reopens it.
+**Save review** updates the notes and statuses while keeping it open or closed.
+Closing without a staff outcome records it as closed without claiming the issue
+was resolved. Explicit Unresolved remains distinct from Resolved. Existing
+sensitive-review closure permissions still apply.
 
 The same form works for appreciations, complaints, mixed feedback and rating-only
 reviews. There is no separate Follow-up tab, assignment step, acceptance step,
@@ -52,6 +54,8 @@ Existing sensitive-review closure policy remains enforced on the server.
 
 Migration **0023_simple_google_review_updates** adds review-level status and
 justification fields without deleting earlier cases, issues, notes or history.
+Migration **0026_google_review_optional_followup** renames the default staff label
+to Not discussed while preserving existing status values and saved follow-ups.
 Older notes populate the form until a review-level update is saved. The old
 issue records remain historical; the daily form does not rewrite their notes.
 New Google review versions or newly reported concerns continue to preserve staff

@@ -39,10 +39,11 @@
     <form method="post" class="form-grid" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">
       {% csrf_token %}<input type="hidden" name="action" value="update">
       {{ update_form.as_p }}
-      <p class="review-footnote">Resolved, Unresolved and Not actionable move the review to Closed. Other staff statuses keep it Open.</p>
+      <p class="review-footnote">Follow-up statuses are optional. You can close the review without changing them.</p>
       <div class="review-submit-actions">
         <button class="button primary" type="submit" name="intent" value="save">Save review</button>
-        {% if not review.is_closed %}<button class="button outline" type="submit" name="intent" value="close">Close review</button>{% endif %}
+        {% if review.is_closed %}<button class="button outline" type="submit" name="intent" value="reopen">Reopen review</button>
+        {% else %}<button class="button outline" type="submit" name="intent" value="close">Close review</button>{% endif %}
       </div>
     </form>
     {% if review.followup_updated_at %}<p class="review-footnote">Last saved {{ review.followup_updated_at|date:'d M Y, H:i' }}{% if review.followup_updated_by %} · {{ review.followup_updated_by.get_full_name|default:review.followup_updated_by.username }}{% endif %}</p>{% endif %}

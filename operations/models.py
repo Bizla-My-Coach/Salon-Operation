@@ -765,7 +765,7 @@ class GoogleReviewLocation(TimeStamped):
 
 
 class GoogleReview(TimeStamped):
-    STAFF_FOLLOWUP = [('NEW', 'Not started'), ('IN_PROGRESS', 'In progress'),
+    STAFF_FOLLOWUP = [('NEW', 'Not discussed'), ('IN_PROGRESS', 'In progress'),
         ('WAITING', 'Awaiting follow-up'), ('RESOLVED', 'Resolved'),
         ('CLOSED_UNRESOLVED', 'Unresolved'), ('NOT_ACTIONABLE', 'Not actionable')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
