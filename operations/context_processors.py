@@ -20,7 +20,7 @@ def acting_branch(request):
         'review_inbox', 'review_detail', 'google_review_inbox', 'google_review_detail',
     }
     full = fast | {
-        'admin_reports', 'service_catalog', 'review_reports', 'google_review_analytics',
+        'admin_reports', 'branch_reports', 'service_catalog', 'review_reports', 'google_review_analytics',
         'google_review_assignments', 'import_data',
     }
     partial = {
