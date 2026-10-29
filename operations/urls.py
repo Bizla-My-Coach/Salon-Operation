@@ -1,7 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
-from . import workbook_views
+from . import sop_flow_views, workbook_views
 from . import staff_import_views
 from . import import_views
 from . import review_views
@@ -30,6 +30,9 @@ path('imports/branches/', import_views.branch_csv_import, name='branch_csv_impor
 path('imports/branches/template/', import_views.branch_csv_template, name='branch_csv_template'),
 path('admin-panel/import/workbook/', workbook_views.workbook_import, name='workbook_import'),
 path('admin-panel/import/workbook/<uuid:import_id>/snapshot/', workbook_views.workbook_snapshot, name='workbook_snapshot'),
+path('admin-panel/services/<int:service_id>/sop-edit/', sop_flow_views.sop_edit, name='sop_edit'),
+path('services/<int:service_id>/sop-history/', sop_flow_views.sop_history, name='sop_history'),
+path('admin-panel/sop-versions/<int:version_id>/restore/', sop_flow_views.sop_restore, name='sop_restore'),
 path('visits/<int:visit_id>/', views.visit_detail, name='visit_detail'),
 path('profile/', views.my_profile, name='my_profile'),
 path('profile/theme/', views.save_theme_preference, name='save_theme_preference'),

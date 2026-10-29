@@ -21,6 +21,7 @@ from .models import (
     Equipment, InventoryItem, OperationalTask, Service, ServiceDetail,
     SOPWorkbookImport, SubService, TaskEquipment, TaskInventory,
 )
+from .sop_versions import all_flows, record_changed_versions
 
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_EXPANDED = 64 * 1024 * 1024
@@ -186,7 +187,9 @@ def apply_workbook(stage_id, user):
         raise ImportProblem("Master data changed after validation. Upload again to review a fresh preview.")
     # Snapshot and master changes commit together or both roll back. No visit models touched.
     stage.master_snapshot = gzip.compress(before, mtime=0)
+    flows_before = all_flows()
     stage.summary = run_import(payload, dry_run=False)
+    record_changed_versions(flows_before, "WORKBOOK", user=user, note=f"Workbook {stage.filename}")
     stage.status = "APPLIED"
     stage.applied_at = timezone.now()
     stage.workbook = b""

@@ -288,3 +288,25 @@ class WorkbookImportTests(TestCase):
         self.assertContains(self.client.get(reverse("import_data")), self.url)
         self.assertRedirects(self.client.get(reverse("csv_import")), reverse("import_data"))
         self.assertContains(self.client.get(reverse("import_data")), "Excel SOP workbook")
+
+    def test_workbook_imports_save_sop_versions_for_changed_services(self):
+        from .models import SOPVersion
+
+        self.upload()
+        self.confirm(SOPWorkbookImport.objects.get(status="PENDING"))
+        service = Service.objects.get(code="TEST_SOP")
+        self.assertEqual(list(service.sop_versions.values_list("number", "source")), [(1, "WORKBOOK")])
+
+        # Re-importing the same workbook changes no flow and adds no version.
+        self.upload()
+        self.confirm(SOPWorkbookImport.objects.get(status="PENDING"))
+        self.assertEqual(service.sop_versions.count(), 1)
+
+        def make_optional(records):
+            records["Service Detail"][0]["mandatory"] = False
+        self.upload(synthetic_workbook(make_optional))
+        self.confirm(SOPWorkbookImport.objects.get(status="PENDING"))
+        latest = SOPVersion.objects.filter(service=service).order_by("-number").first()
+        self.assertEqual((latest.number, latest.source, latest.created_by), (2, "WORKBOOK", self.admin))
+        self.assertFalse(latest.steps[0]["mandatory"])
+        self.assertIn("synthetic.xlsx", latest.note)

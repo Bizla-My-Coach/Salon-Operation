@@ -19,6 +19,7 @@ from .models import *
 from .forms import *
 from .timing import add_timing_summary, adopt_legacy_active_segment, close_segment, start_segment
 from .decorators import roles_required
+from .sop_flow_views import service_flow_digest
 from .roster import employee_services, working_branch
 from .staff_access import resettable_employees
 from .workflow import (
@@ -485,7 +486,12 @@ def service_catalog(request):
                 totals['utility']+=sum(item.utility_minutes for item in equipment)
                 task_rows.append({'task':task,'inventory':inventory,'equipment':equipment})
             sections.append({'sub_service':sub_service,'mandatory':mandatory,'tasks':task_rows})
-    return render(request,'operations/service_catalog.html',{'form':form,'selected':selected,'sections':sections,'totals':totals})
+    can_edit=request.user.is_superuser or getattr(getattr(request.user,'profile',None),'role','')=='ADMIN'
+    editor={}
+    if selected and can_edit:
+        editor={'digest':service_flow_digest(selected),
+                'sub_services':SubService.objects.filter(active=True).exclude(code__in=[CONSULTATION_CODE,SANITISATION_CODE]).order_by('name')}
+    return render(request,'operations/service_catalog.html',{'form':form,'selected':selected,'sections':sections,'totals':totals,'can_edit':can_edit,'editor':editor})
 
 @sensitive_post_parameters()
 @never_cache
