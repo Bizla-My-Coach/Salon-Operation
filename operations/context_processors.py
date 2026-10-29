@@ -14,7 +14,7 @@ def acting_branch(request):
     match = getattr(request, 'resolver_match', None)
     view = match.url_name if match else ''
     fast = {
-        'dashboard', 'manager_dashboard', 'general_manager_dashboard', 'admin_dashboard',
+        'dashboard', 'manager_dashboard', 'manager_summary', 'general_manager_overview', 'general_manager_dashboard', 'admin_dashboard',
         'employee_dashboard', 'execute_service', 'admin_visits', 'visit_detail',
         'manager_staff', 'general_manager_staff', 'admin_staff',
         'review_inbox', 'review_detail', 'google_review_inbox', 'google_review_detail',

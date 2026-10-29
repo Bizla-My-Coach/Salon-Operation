@@ -46,7 +46,7 @@ class RoleDashboardTests(TestCase):
         self.visit(self.north, 'CLOSED')
         self.visit(self.north, 'CANCELLED')
         self.client.force_login(self.manager)
-        response = self.client.get(reverse('manager_dashboard'), {'branch': self.south.pk})
+        response = self.client.get(reverse('manager_summary'), {'branch': self.south.pk})
         self.assertEqual(response.status_code, 200)
         self.assertEqual({u.pk for u in response.context['active_users']},
                          {self.manager.pk, self.employee.pk, cover.pk, self.gm.pk})
@@ -90,6 +90,7 @@ class RoleDashboardTests(TestCase):
     def test_management_pages_enable_live_updates_for_current_branch(self):
         for user, page, query in [
             (self.manager, 'manager_dashboard', {}),
+            (self.manager, 'manager_summary', {}),
             (self.gm, 'general_manager_dashboard', {'branch': self.north.pk}),
         ]:
             with self.subTest(page=page):
@@ -99,6 +100,51 @@ class RoleDashboardTests(TestCase):
                 self.assertContains(response, static('js/live-dashboard.js'))
                 self.assertContains(response, 'data-live-status')
                 self.assertEqual(response.context['dashboard_branch'], self.north)
+
+    def test_overview_contains_operations_and_dashboard_contains_summaries(self):
+        own = self.visit(self.north, 'WAITING')
+        other = self.visit(self.south, 'WAITING')
+        for actor, overview, summary in [
+            (self.manager, 'manager_dashboard', 'manager_summary'),
+            (self.gm, 'general_manager_overview', 'general_manager_dashboard'),
+        ]:
+            if actor == self.gm:
+                BranchDuty.objects.create(user=actor, branch=self.north, status='WORK',
+                                          date=timezone.localdate(), updated_by=actor)
+            self.client.force_login(actor)
+            response = self.client.get(reverse(overview), {'branch': self.south.pk})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual({visit.pk for visit in response.context['visits']}, {own.pk})
+            self.assertContains(response, '<h1>Live operations</h1>', html=True)
+            self.assertNotContains(response, 'class="branch-dashboard"')
+            sidebar = response.content.decode().split('<nav>', 1)[1].split('</nav>', 1)[0]
+            self.assertLess(sidebar.index('<span>Overview</span>'), sidebar.index('<span>Dashboard</span>'))
+            self.assertContains(response, 'data-live-interval="5000"')
+            self.assertContains(response, 'data-live-region="page"')
+            response = self.client.get(reverse(summary))
+            self.assertContains(response, 'class="branch-dashboard"')
+            self.assertNotContains(response, 'class="visit-list manager-visit-list"')
+            self.assertContains(response, 'data-live-interval="5000"')
+            self.assertContains(response, 'data-live-region="page"')
+
+    def test_general_manager_overview_without_assignment_has_no_branch_data(self):
+        self.visit(self.north, 'WAITING')
+        self.client.force_login(self.gm)
+        self.assertRedirects(self.client.get(reverse('dashboard')), reverse('general_manager_overview'))
+        response = self.client.get(reverse('general_manager_overview'), {'branch': self.north.pk})
+        self.assertContains(response, 'No working branch is assigned')
+        self.assertNotIn('visits', response.context)
+        self.assertNotContains(response, 'class="visit-card manager-visit-card"')
+        self.assertContains(response, 'data-live-interval="5000"')
+
+    def test_manager_summary_preserves_role_and_roster_authorization(self):
+        self.client.force_login(self.employee)
+        self.assertEqual(self.client.get(reverse('manager_summary')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('general_manager_overview')).status_code, 403)
+        self.client.force_login(self.manager)
+        self.assertEqual(self.client.get(reverse('general_manager_overview')).status_code, 403)
+        BranchDuty.objects.create(user=self.manager, status='LEAVE', date=timezone.localdate(), updated_by=self.gm)
+        self.assertEqual(self.client.get(reverse('manager_summary')).status_code, 403)
 
     def test_site_polling_intervals_and_safe_form_regions(self):
         admin = self.person('overview_admin', 'ADMIN')

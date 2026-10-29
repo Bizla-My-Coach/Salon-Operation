@@ -207,7 +207,7 @@ def with_progress(queryset):
 def dashboard(request):
     p=request.user.profile
     if request.user.is_superuser or p.role=='ADMIN': return redirect('admin_dashboard')
-    if p.role=='GENERAL_MANAGER': return redirect('general_manager_dashboard')
+    if p.role=='GENERAL_MANAGER': return redirect('general_manager_overview')
     if p.role=='MANAGER':
         return redirect('manager_dashboard') if user_branch(request.user) else render(request, 'operations/off_duty.html')
     return redirect('employee_dashboard')
@@ -261,6 +261,18 @@ def _branch_dashboard(branch=None):
         'dashboard_branch': branch, 'active_users': active_users, 'pending_chart': chart,
         'pending_visits': sum(row['count'] for row in chart), 'dashboard_today': today,
     }
+
+
+@roles_required('GENERAL_MANAGER')
+def general_manager_overview(request):
+    if user_branch(request.user):
+        return manager_dashboard(request)
+    return render(request, 'operations/manager_dashboard.html', {'dashboard_branch': None})
+
+
+@roles_required('MANAGER')
+def manager_summary(request):
+    return render(request, 'operations/manager_summary.html', _branch_dashboard(user_branch(request.user)))
 
 
 @roles_required('GENERAL_MANAGER')
@@ -617,9 +629,7 @@ def manager_dashboard(request):
         visit.can_verify_all = bool(active_services) and all(
             item.status in ['EMPLOYEE_DONE', 'VERIFIED'] for item in active_services
         ) and any(item.status == 'EMPLOYEE_DONE' for item in active_services)
-    context = _branch_dashboard(branch)
-    context['visits'] = visits
-    return render(request, 'operations/manager_dashboard.html', context)
+    return render(request, 'operations/manager_dashboard.html', {'dashboard_branch': branch, 'visits': visits})
 
 @roles_required('MANAGER')
 def new_visit(request):

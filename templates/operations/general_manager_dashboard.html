@@ -24,7 +24,7 @@
   <div class="panel">
     {% if acting_branch %}
       <p>You are working as manager at <strong>{{ acting_branch.name }}</strong> today.</p>
-      <a class="button primary" href="{% url 'manager_dashboard' %}">Open live operations</a>
+      <a class="button primary" href="{% url 'general_manager_overview' %}">Open live operations</a>
     {% else %}
       <p>No working branch is assigned to you today. Set a duty before using acting-manager operations.</p>
       <a class="button primary" href="{% url 'branch_roster' %}">Set today's branch</a>

@@ -28,7 +28,8 @@ class ManagerCardTests(TestCase):
     def test_compact_page_heading_preserves_new_visit_action(self):
         page = self.dashboard()
         self.assertContains(page, 'class="page-head split manager-page-head"')
-        self.assertContains(page, '<h1>Test Branch dashboard</h1>')
+        self.assertContains(page, '<h1>Live operations</h1>')
+        self.assertContains(page, '<span class="eyebrow">Test Branch</span>')
         self.assertContains(page, f'href="{reverse("new_visit")}" class="button primary">+ New service visit</a>')
 
     def test_submitted_card_has_timings_review_and_add_services(self):

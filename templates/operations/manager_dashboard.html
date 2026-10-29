@@ -1,13 +1,12 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard · Hairship{% endblock %}
+{% block title %}Overview · Hairship{% endblock %}
 {% block content %}
-<div data-live-dashboard="manager_dashboard">
+<div data-live-dashboard="{{ request.resolver_match.url_name }}">
+{% if dashboard_branch %}
 <header class="page-head split manager-page-head">
-  <div><span class="eyebrow">Today</span><h1>{{ dashboard_branch.name }} dashboard</h1><p>Track, verify, invoice, and collect feedback for every combined visit.</p></div>
+  <div><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Live operations</h1></div>
   <a href="{% url 'new_visit' %}" class="button primary">+ New service visit</a>
 </header>
-{% include 'includes/branch_dashboard.html' %}
-<h2 class="section-title">Live operations</h2>
 <div class="visit-list manager-visit-list">
   {% for visit in visits %}
   <article class="visit-card manager-visit-card">
@@ -48,5 +47,9 @@
   </article>
   {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">Create first visit</a></div>{% endfor %}
 </div>
+{% else %}
+<header class="page-head"><h1>Live operations</h1></header>
+<div class="panel"><p>No working branch is assigned to you today.</p><a class="button primary" href="{% url 'branch_roster' %}">Set today's branch</a></div>
+{% endif %}
 </div>
 {% endblock %}

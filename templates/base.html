@@ -33,7 +33,15 @@
   <aside class="sidebar" id="app-sidebar">
     <div class="sidebar-head"><a class="brand" href="{% url 'dashboard' %}" aria-label="Hair Ship home"><img class="brand-mark" src="{% static 'img/hairship-logo.png' %}" alt=""><strong>HAIR SHIP</strong></a><button class="sidebar-close" type="button" aria-label="Close menu" data-menu-close>{% include 'includes/nav_icon.html' with icon='close' only %}</button></div>
     <nav>
-      <a href="{% url 'dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>{% if user.profile.role == 'MANAGER' or user.profile.role == 'GENERAL_MANAGER' %}Dashboard{% else %}Overview{% endif %}</span></a>
+      {% if user.is_superuser or user.profile.role == 'ADMIN' %}
+        <a href="{% url 'dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
+      {% elif user.profile.role == 'GENERAL_MANAGER' %}
+        <a href="{% url 'general_manager_overview' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
+        <a href="{% url 'general_manager_dashboard' %}">{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
+      {% else %}
+        <a href="{% url 'manager_dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
+        <a href="{% url 'manager_summary' %}">{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
+      {% endif %}
       {% if user.is_superuser or user.profile.role == 'ADMIN' %}
         <p>Administration</p>
         <a href="{% url 'admin_visits' %}">{% include 'includes/nav_icon.html' with icon='visits' only %}<span>Visits</span></a>
@@ -55,7 +63,6 @@
         <a href="{% url 'service_catalog' %}">{% include 'includes/nav_icon.html' with icon='catalogue' only %}<span>Service catalogue</span></a>
         <p>Acting branch manager</p>
         {% if acting_branch %}
-          <a href="{% url 'manager_dashboard' %}">{% include 'includes/nav_icon.html' with icon='activity' only %}<span>Live operations · {{ acting_branch.name }}</span></a>
           <a href="{% url 'new_visit' %}">{% include 'includes/nav_icon.html' with icon='new' only %}<span>New service order</span></a>
           <a href="{% url 'manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<span>Today's branch staff</span></a>
         {% else %}

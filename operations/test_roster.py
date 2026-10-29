@@ -47,7 +47,8 @@ class BranchRosterTests(TestCase):
         self.duty(self.gm, self.b)
         manager_page = self.client.get(reverse("manager_dashboard"))
         self.assertEqual(manager_page.status_code, 200)
-        self.assertContains(manager_page, "Live operations · Branch B")
+        self.assertContains(manager_page, "Live operations")
+        self.assertContains(manager_page, "Branch B")
         response = self.client.post(reverse("new_visit"), {
             "customer_name": "Roster Customer", "mobile": "",
         })
@@ -58,7 +59,7 @@ class BranchRosterTests(TestCase):
 
     def test_general_manager_overview_is_distinct_from_roster(self):
         self.client.force_login(self.gm)
-        self.assertRedirects(self.client.get(reverse("dashboard")), reverse("general_manager_dashboard"))
+        self.assertRedirects(self.client.get(reverse("dashboard")), reverse("general_manager_overview"))
         response = self.client.get(reverse("general_manager_dashboard"))
         self.assertContains(response, "<h1>Dashboard</h1>", html=True)
         self.assertContains(response, "Set today's branch")

@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · Hairship{% endblock %}
+{% block content %}
+<div data-live-dashboard="manager_summary">
+<header class="page-head"><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Dashboard</h1></header>
+{% include 'includes/branch_dashboard.html' %}
+</div>
+{% endblock %}
