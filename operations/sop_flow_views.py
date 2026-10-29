@@ -1,4 +1,6 @@
 """Edit a service's SOP card order in the catalogue, with per-service version history."""
+import copy
+
 from django.contrib import messages
 from django.db import DatabaseError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
@@ -39,9 +41,9 @@ def sop_edit(request, service_id):
         if request.POST.get("digest") != service_flow_digest(service, before):
             messages.error(request, "This service's steps changed since you opened the page. Check the list and try again.")
             return _back(service)
-        steps = [{"code": step["code"], "mandatory": step["mandatory"], "can_skip": step["can_skip"]} for step in before]
+        steps = copy.deepcopy(before)
         index = _position(request, steps)
-        if action in ("up", "down", "remove", "skip", "skip_everywhere") and index is None:
+        if action in ("up", "down", "remove", "skip", "skip_everywhere", "task_up", "task_down", "task_skip") and index is None:
             messages.error(request, "Choose a step to change.")
             return _back(service)
         if action == "up" and index > 0:
@@ -58,6 +60,30 @@ def sop_edit(request, service_id):
             steps[index]["can_skip"] = allow
             verb = "can now be skipped" if allow else "can no longer be skipped"
             note, target = f"{before[index]['name']} {verb}", index
+        elif action in ("task_up", "task_down", "task_skip"):
+            tasks = steps[index]["tasks"]
+            try:
+                position = int(request.POST.get("task", ""))
+            except ValueError:
+                position = -1
+            if not 0 <= position < len(tasks):
+                messages.error(request, "Choose a task to change.")
+                return _back(service)
+            name, step_name = tasks[position]["name"], before[index]["name"]
+            if action == "task_up" and position > 0:
+                tasks[position - 1], tasks[position] = tasks[position], tasks[position - 1]
+                note = f"Moved {name} up in {step_name}"
+            elif action == "task_down" and position < len(tasks) - 1:
+                tasks[position + 1], tasks[position] = tasks[position], tasks[position + 1]
+                note = f"Moved {name} down in {step_name}"
+            elif action == "task_skip":
+                allow = request.POST.get("allow") == "on"
+                tasks[position]["can_skip"] = allow
+                verb = "can now be skipped" if allow else "can no longer be skipped"
+                note = f"{name} {verb} in {step_name}"
+            else:
+                return _back(service, f"#step-{index + 1}")
+            target = index
         elif action == "skip_everywhere":
             allow = request.POST.get("allow") == "on"
             count = _skip_everywhere(before[index]["code"], allow, request.user)
