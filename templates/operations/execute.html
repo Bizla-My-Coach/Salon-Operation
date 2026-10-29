@@ -4,7 +4,6 @@
 <div class="employee-work">
   <nav class="service-back-nav" aria-label="Service navigation">
     <a class="button outline" href="{% url 'employee_dashboard' %}">← Back to my services</a>
-    <span class="muted">Switch between your assigned services. Each task keeps its own timer.</span>
   </nav>
   <header class="task-head">
     <div><span class="eyebrow">Current service</span><h1>{{ vs.visit.customer.name }}</h1><p class="muted">{{ vs.service.name }} · {{ vs.chair|default:'No chair' }}</p></div>
