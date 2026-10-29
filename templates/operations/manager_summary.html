@@ -1,8 +1,11 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Dashboard · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">{% endblock %}
 {% block content %}
-<div data-live-dashboard="manager_summary">
-<header class="page-head"><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Dashboard</h1></header>
+<div data-live-dashboard="manager_summary" class="salon-dashboard">
+{% include 'includes/dashboard_heading.html' %}
 {% include 'includes/branch_dashboard.html' %}
+<div class="dashboard-bottom-note"><span>Good service starts with a clear picture.</span><a href="{% url 'manager_staff' %}">View your team <span aria-hidden="true">→</span></a></div>
 </div>
 {% endblock %}

@@ -1,0 +1,4 @@
+<header class="dashboard-heading">
+  <div><span class="dashboard-overline">{% if request.user.profile.role == 'GENERAL_MANAGER' %}BUSINESS AT A GLANCE{% else %}YOUR BRANCH AT A GLANCE{% endif %}</span><h1>Dashboard</h1><p>{% if dashboard_branch %}{{ dashboard_branch.name }}{% else %}All branches{% endif %}<span class="heading-divider">/</span>{{ dashboard_today|date:'l, j F Y' }}</p></div>
+  <a class="button primary dashboard-open" href="{% if request.user.profile.role == 'GENERAL_MANAGER' %}{% url 'general_manager_overview' %}{% else %}{% url 'manager_dashboard' %}{% endif %}">{% include 'includes/nav_icon.html' with icon='activity' only %}Live operations <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 18 18 6M6 6h12v12"/></svg></a>
+</header>

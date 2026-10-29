@@ -1,28 +1,35 @@
+<section class="dashboard-kpis" aria-label="Current workload">
+  <article class="dashboard-kpi featured"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='activity' only %}</span><span>Open visits</span></div><strong>{{ pending_visits }}</strong><small>Across every stage of service</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='staff' only %}</span><span>Team on duty</span></div><strong>{{ active_users|length }}</strong><small>Working on today's roster</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon amber">{% include 'includes/nav_icon.html' with icon='new' only %}</span><span>Ready to start</span></div><strong>{{ pending_chart.1.count }}</strong><small>Assigned and awaiting service</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon violet">{% include 'includes/nav_icon.html' with icon='visits' only %}</span><span>To verify</span></div><strong>{{ pending_chart.3.count }}</strong><small>Submitted for manager review</small></article>
+</section>
 <section class="branch-dashboard" aria-label="Live branch dashboard">
-  <div class="dashboard-team panel">
-    <h2>Active users · {{ active_users|length }}</h2>
-    <p class="dashboard-note">{% if dashboard_branch %}{{ dashboard_branch.name }}{% else %}All branches{% endif %} · {{ dashboard_today|date:"j M Y" }}. Today's working roster; excludes leave and inactive accounts.</p>
-    <div class="dashboard-team-grid">
-      {% for person in active_users %}
-      <article class="dashboard-person">
-        <strong>{{ person.get_full_name|default:person.username }}</strong>
-        <span>{{ person.profile.get_role_display }}{% if not dashboard_branch %} · {{ person.dashboard_branch.name }}{% endif %}</span>
-        <span>{{ person.dashboard_pending }} pending service{{ person.dashboard_pending|pluralize }}</span>
-      </article>
-      {% empty %}<p>No active users rostered here today.</p>{% endfor %}
-    </div>
-  </div>
   <div class="dashboard-work panel">
-    <h2>Pending work · {{ pending_visits }}</h2>
-    <p class="dashboard-note">Open visits by next step. Each visit is counted once, including unfinished visits from earlier days.</p>
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">THE DAY IN MOTION</span><h2>Visit pipeline</h2></div><span class="dashboard-count">{{ pending_visits }} open</span></header>
+    <p class="dashboard-note">A clear view of what needs to happen next.</p>
     <div class="dashboard-chart" role="group" aria-label="Pending visits by next step">
       {% for row in pending_chart %}
-      <div class="dashboard-chart-row">
-        <span>{{ row.label }}</span><strong>{{ row.count }}</strong>
+      <div class="dashboard-chart-row stage-{{ forloop.counter }}">
+        <span class="pipeline-label"><i>{{ forloop.counter|stringformat:'02d' }}</i>{{ row.label }}</span><strong>{{ row.count }}</strong>
         <div class="dashboard-chart-track" aria-hidden="true"><div style="width: {{ row.width }}%"></div></div>
       </div>
       {% endfor %}
     </div>
+    <footer class="dashboard-panel-foot"><span class="dashboard-dot"></span>One visit, one stage. Includes open visits from earlier days.</footer>
     {% if not pending_visits %}<p class="dashboard-note">All clear — no pending visits.</p>{% endif %}
+  </div>
+  <div class="dashboard-team panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">PEOPLE MAKE IT HAPPEN</span><h2>Team on duty</h2></div><span class="dashboard-count">{{ active_users|length }}</span></header>
+    <div class="dashboard-team-grid">
+      {% for person in active_users %}
+      <article class="dashboard-person">
+        <span class="dashboard-avatar avatar-{{ forloop.counter0|divisibleby:2|yesno:'green,sand' }}">{{ person.first_name|default:person.username|slice:':1'|upper }}{{ person.last_name|slice:':1'|upper }}</span>
+        <div><strong>{{ person.get_full_name|default:person.username }}</strong><span>{{ person.profile.get_role_display }}{% if not dashboard_branch %} · {{ person.dashboard_branch.name }}{% endif %}</span></div>
+        <span class="dashboard-load {% if not person.dashboard_pending %}available{% endif %}">{% if person.dashboard_pending %}{{ person.dashboard_pending }} pending{% else %}No pending work{% endif %}</span>
+      </article>
+      {% empty %}<div class="dashboard-empty">{% include 'includes/nav_icon.html' with icon='staff' only %}<strong>A quiet moment</strong><p>No active users rostered here today.</p></div>{% endfor %}
+    </div>
+    <footer class="dashboard-panel-foot">Today's working roster · leave and inactive accounts excluded</footer>
   </div>
 </section>
