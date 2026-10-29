@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}SOP history · {{ service.code }} · Hairship{% endblock %}
+{% block content %}
+<header class="page-head split">
+  <div><span class="eyebrow">{{ service.code }} · SOP history</span><h1>{{ service.name }}</h1><p>Every saved version of this service's step order, newest first.</p></div>
+  <a class="button outline" href="{% url 'service_catalog' %}?service={{ service.pk }}">Back to service plan</a>
+</header>
+<section class="panel narrow">
+  <h2 class="section-title">Current steps</h2>
+  <ol>{% for step in current %}<li>{{ step.name }} <span class="muted">{{ step.code }}{% if not step.mandatory %} · optional{% endif %}</span></li>{% empty %}<li class="muted">No steps mapped.</li>{% endfor %}</ol>
+  <p class="muted">Sanitisation and consultation are added at the start of every visit and are not part of this list.</p>
+</section>
+<div class="catalogue-list">{% for entry in entries %}
+<section class="panel catalogue-section">
+  <header><span class="order-badge">v{{ entry.version.number }}</span><div><small>{{ entry.version.get_source_display }} · {{ entry.version.created_at|date:'d M Y, H:i' }} · {% if entry.version.created_by %}{{ entry.version.created_by.get_full_name|default:entry.version.created_by.username }}{% else %}System{% endif %}</small><h3>{{ entry.version.note|default:'No note' }}</h3></div>{% if entry.is_latest %}<span class="status">Latest</span>{% endif %}</header>
+  {% if entry.changes %}<ul>{% for kind, text in entry.changes %}<li>{{ text }}</li>{% endfor %}</ul>{% endif %}
+  <ol>{% for step in entry.version.steps %}<li>{{ step.name }}{% if not step.mandatory %} <span class="muted">(optional)</span>{% endif %}</li>{% endfor %}</ol>
+  {% if can_restore and not entry.is_latest %}<form method="post" action="{% url 'sop_restore' entry.version.pk %}">{% csrf_token %}<button class="button" type="submit">Restore this version</button></form>{% endif %}
+</section>
+{% empty %}<div class="empty-state"><b>No versions yet</b><span>A version is saved the first time this service's steps change in the service catalogue or through a workbook import.</span></div>{% endfor %}</div>
+{% endblock %}

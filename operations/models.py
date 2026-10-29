@@ -79,6 +79,30 @@ class SOPWorkbookImport(models.Model):
         ordering = ["-created_at"]
 
 
+class SOPVersion(models.Model):
+    """Immutable per-service record of the ordered sub-service flow."""
+
+    SOURCES = [
+        ("BASELINE", "Before first tracked change"), ("EDITOR", "Edited in service catalogue"),
+        ("WORKBOOK", "Workbook import"), ("RESTORE", "Restored version"),
+    ]
+    service = models.ForeignKey("Service", on_delete=models.CASCADE, related_name="sop_versions")
+    number = models.PositiveIntegerField()
+    source = models.CharField(max_length=12, choices=SOURCES)
+    # [{"code": "SUB010", "name": "Hair wash", "mandatory": true}, ...] in execution order.
+    steps = models.JSONField(default=list)
+    note = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="sop_versions")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["service", "-number"]
+        unique_together = ("service", "number")
+
+    def __str__(self):
+        return f"{self.service.code} v{self.number}"
+
+
 class StaffCSVImport(models.Model):
     """Private, expiring account-creation preview; never stores plaintext passwords."""
 
