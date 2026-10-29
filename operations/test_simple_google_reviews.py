@@ -66,17 +66,17 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertEqual(GoogleReviewAction.objects.count(), 1)
         self.assertFalse(self.review.is_closed)
 
-    def test_terminal_staff_statuses_close_and_same_form_can_reopen(self):
+    def test_explicit_close_preserves_outcomes_and_same_form_can_reopen(self):
         for status, outcome in [('RESOLVED', 'RESOLVED'), ('CLOSED_UNRESOLVED', 'UNRESOLVED'),
                                 ('NOT_ACTIONABLE', 'NOT_ACTIONABLE')]:
             with self.subTest(status=status):
-                self.assertEqual(self.update(staff_followup=status).status_code, 302)
+                self.assertEqual(self.update(intent='close', staff_followup=status).status_code, 302)
                 self.review.refresh_from_db()
                 self.assertTrue(self.review.is_closed)
                 self.assertEqual(self.review.case.closure_outcome, outcome)
                 self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=closed').context['page_obj'].paginator.count, 1)
                 self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=open').context['page_obj'].paginator.count, 0)
-                self.assertEqual(self.update(staff_followup='IN_PROGRESS', justification='Reviewer asked us to check again.').status_code, 302)
+                self.assertEqual(self.update(intent='reopen', staff_followup='IN_PROGRESS', justification='Reviewer asked us to check again.').status_code, 302)
                 self.review.refresh_from_db()
                 self.assertFalse(self.review.is_closed)
                 self.assertIsNone(self.review.closed_at)
@@ -92,7 +92,7 @@ class SimpleGoogleReviewTests(TestCase):
             source['review_snapshot'].update(star_rating=rating, text='')
             self.assertEqual(self.send(data).status_code, 200)
             self.review = GoogleReview.objects.get(google_review_id=source['review_id'])
-            self.assertEqual(self.update(staff_followup='RESOLVED').status_code, 302)
+            self.assertEqual(self.update(intent='close', staff_followup='RESOLVED').status_code, 302)
             self.review.refresh_from_db()
             self.assertTrue(self.review.is_closed)
         self.assertEqual(ReviewIssue.objects.count(), 1)
@@ -107,6 +107,70 @@ class SimpleGoogleReviewTests(TestCase):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.people['manager'])
         self.assertEqual(client.post(reverse('google_review_action', args=[self.review.pk]), {'action': 'update'}).status_code, 403)
+
+    def test_justification_is_required_only_for_one_and_two_stars_on_save_and_close(self):
+        for rating in range(1, 6):
+            GoogleReview.objects.filter(pk=self.review.pk).update(star_rating=rating)
+            self.review.refresh_from_db()
+            page = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
+            self.assertEqual(page.context['update_form'].fields['justification'].required, rating <= 2)
+            for intent in ('save', 'close'):
+                for justification in ('', '  '):
+                    with self.subTest(rating=rating, intent=intent, justification=justification):
+                        revision = self.review.followup_revision
+                        response = self.update(intent=intent, justification=justification,
+                            customer_followup='', staff_followup='')
+                        self.assertEqual(response.status_code, 400 if rating <= 2 else 302)
+                        self.review.refresh_from_db()
+                        self.assertEqual(self.review.followup_revision, revision + (rating >= 3))
+                        if rating >= 3:
+                            self.assertEqual(self.review.justification, '')
+                            self.assertEqual(self.review.customer_followup, 'NOT_CONTACTED')
+                            self.assertEqual(self.review.staff_followup, 'NEW')
+            self.assertEqual(self.update(intent='reopen', justification='Review checked.').status_code, 302)
+
+    def test_omitted_dropdowns_default_and_high_rating_can_close_without_any_followup(self):
+        data = base.GoogleReviewTests.positive(self)
+        data['event_id'] = 'quick-close-appreciation'
+        data['source']['review_id'] = 'QUICK_CLOSE'
+        data['source']['review_name'] = data['source']['review_name'].rsplit('/', 1)[0] + '/QUICK_CLOSE'
+        self.assertEqual(self.send(data).status_code, 200)
+        self.review = GoogleReview.objects.get(google_review_id=data['source']['review_id'])
+        self.assertIsNone(self.review.case_id)
+        page = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
+        form = page.context['update_form']
+        self.assertEqual(form['customer_followup'].value(), 'NOT_CONTACTED')
+        self.assertEqual(form['staff_followup'].value(), 'NEW')
+        self.assertFalse(form.fields['customer_followup'].required)
+        self.assertFalse(form.fields['staff_followup'].required)
+        self.assertContains(page, 'Not discussed')
+        response = self.client.post(reverse('google_review_action', args=[self.review.pk]), {
+            'action': 'update', 'intent': 'close', 'version': self.review.edit_token,
+        })
+        self.assertEqual(response.status_code, 302)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.is_closed)
+        self.assertEqual(self.review.customer_followup, 'NOT_CONTACTED')
+        self.assertEqual(self.review.staff_followup, 'NEW')
+        self.assertEqual(self.review.justification, '')
+
+    def test_dropdowns_do_not_control_close_or_reopen(self):
+        for staff_status, _ in GoogleReview.STAFF_FOLLOWUP:
+            with self.subTest(staff_status=staff_status):
+                self.assertEqual(self.update(staff_followup=staff_status, customer_followup='NOT_CONTACTED').status_code, 302)
+                self.review.refresh_from_db()
+                self.assertFalse(self.review.is_closed)
+                self.assertEqual(self.update(intent='close', staff_followup=staff_status).status_code, 302)
+                self.review.refresh_from_db()
+                self.assertTrue(self.review.is_closed)
+                closed_at = self.review.closed_at
+                self.assertEqual(self.update(staff_followup='NEW').status_code, 302)
+                self.review.refresh_from_db()
+                self.assertTrue(self.review.is_closed)
+                self.assertEqual(self.review.closed_at, closed_at)
+                self.assertEqual(self.update(intent='reopen', staff_followup=staff_status).status_code, 302)
+                self.review.refresh_from_db()
+                self.assertFalse(self.review.is_closed)
 
     def test_stale_staff_and_google_versions_do_not_overwrite_saved_work(self):
         token = self.review.edit_token
@@ -126,7 +190,7 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertEqual(self.review.justification, 'Latest staff work.')
 
     def test_new_issue_reopens_review_without_removing_justification(self):
-        self.update(staff_followup='RESOLVED', justification='Saved original outcome.')
+        self.update(intent='close', staff_followup='RESOLVED', justification='Saved original outcome.')
         edited = deepcopy(self.payload)
         edited['event_id'] = 'additional-concern'
         edited['source']['review_update_time'] = '2026-10-20T10:00:00Z'
@@ -137,13 +201,13 @@ class SimpleGoogleReviewTests(TestCase):
         self.review.refresh_from_db()
         self.assertFalse(self.review.is_closed)
         response = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
-        self.assertEqual(response.context['update_form'].initial['staff_followup'], 'IN_PROGRESS')
+        self.assertEqual(response.context['update_form'].initial['staff_followup'], 'RESOLVED')
         self.assertContains(response, 'Saved original outcome.')
 
     def test_failed_audit_rolls_back_status_and_case(self):
         with patch('operations.google_review_workflow.GoogleReviewAction.objects.create', side_effect=RuntimeError('Audit failed')):
             with self.assertRaises(RuntimeError):
-                self.update(staff_followup='RESOLVED')
+                self.update(intent='close', staff_followup='RESOLVED')
         self.review.refresh_from_db()
         self.assertIsNone(self.review.followup_updated_at)
         self.assertFalse(self.review.is_closed)

@@ -100,7 +100,7 @@ def inbox(request):
 
 def detail_context(request, review, form=None):
     return {**context(request), **review_findings(review), 'review': review,
-        'update_form': form if form is not None else GoogleReviewUpdateForm(initial=form_initial(review))}
+        'update_form': form if form is not None else GoogleReviewUpdateForm(review=review, initial=form_initial(review))}
 
 
 @never_cache
@@ -119,12 +119,13 @@ def action(request, review_id):
     review = get_object_or_404(scope(request).select_for_update(), pk=review_id)
     if request.POST.get('action') != 'update':
         return HttpResponseBadRequest('Choose a valid review update.')
-    form = GoogleReviewUpdateForm(request.POST)
-    if form.is_valid() and request.POST.get('intent') == 'close' and form.cleaned_data['staff_followup'] not in ReviewIssue.TERMINAL:
-        form.add_error('staff_followup', 'Choose Resolved, Unresolved or Not actionable before closing the review.')
+    intent = request.POST.get('intent', 'save')
+    if intent not in ('save', 'close', 'reopen'):
+        return HttpResponseBadRequest('Choose a valid review update.')
+    form = GoogleReviewUpdateForm(request.POST, review=review)
     if form.is_valid():
         try:
-            saved = save_update(review, request.user, form.cleaned_data)
+            saved = save_update(review, request.user, form.cleaned_data, intent=intent)
         except ValidationError as exc:
             form.add_error(None, exc)
         else:

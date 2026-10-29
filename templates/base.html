@@ -35,12 +35,15 @@
     <nav>
       {% if user.is_superuser or user.profile.role == 'ADMIN' %}
         <a href="{% url 'dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
+        <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
       {% elif user.profile.role == 'GENERAL_MANAGER' %}
         <a href="{% url 'general_manager_overview' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
         <a href="{% url 'general_manager_dashboard' %}"{% if request.resolver_match.url_name == 'general_manager_dashboard' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
+        <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
       {% else %}
         <a href="{% url 'manager_dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
         <a href="{% url 'manager_summary' %}"{% if request.resolver_match.url_name == 'manager_summary' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
+        <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
       {% endif %}
       {% if user.is_superuser or user.profile.role == 'ADMIN' %}
         <p>Administration</p>

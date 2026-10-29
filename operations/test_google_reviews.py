@@ -108,7 +108,7 @@ class GoogleReviewTests(TestCase):
         record = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
         url = reverse('google_review_action', args=[record.pk])
-        values = {'action': 'update', 'version': record.edit_token, 'customer_followup': 'NOT_CONTACTED',
+        values = {'action': 'update', 'intent': 'close', 'version': record.edit_token, 'customer_followup': 'NOT_CONTACTED',
             'staff_followup': 'RESOLVED', 'justification': 'Appreciation reviewed.'}
         self.assertEqual(self.client.post(url, values).status_code, 302)
         self.client.post(url, values)
@@ -117,7 +117,7 @@ class GoogleReviewTests(TestCase):
         self.assertEqual(record.closed_by, self.people['manager'])
         self.assertEqual(GoogleReviewAction.objects.count(), 1)
         self.assertFalse(ReviewCase.objects.exists())
-        self.client.post(url, {**values, 'version': record.edit_token, 'staff_followup': 'IN_PROGRESS',
+        self.client.post(url, {**values, 'intent': 'reopen', 'version': record.edit_token, 'staff_followup': 'IN_PROGRESS',
             'justification': 'Check this appreciation again.'})
         record.refresh_from_db()
         self.assertFalse(record.simple_closed)
@@ -526,7 +526,7 @@ class GoogleReviewTests(TestCase):
         review = GoogleReview.objects.get()
         self.client.force_login(self.people['manager'])
         self.client.post(reverse('google_review_action', args=[review.pk]),
-            {'action': 'update', 'version': review.edit_token, 'customer_followup': 'NOT_CONTACTED',
+            {'action': 'update', 'intent': 'close', 'version': review.edit_token, 'customer_followup': 'NOT_CONTACTED',
              'staff_followup': 'RESOLVED', 'justification': 'Appreciation reviewed.'})
         data['event_id'] = 'appreciation-edit'
         data['source']['review_update_time'] = '2026-10-20T09:01:00Z'

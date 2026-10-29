@@ -10,8 +10,6 @@ def form_initial(review):
     values = {'version': review.edit_token, 'customer_followup': review.customer_followup,
         'staff_followup': review.staff_followup, 'justification': review.justification}
     if review.followup_updated_at:
-        if not review.is_closed and review.staff_followup in ReviewIssue.TERMINAL:
-            values['staff_followup'] = 'IN_PROGRESS'
         return values
     if review.case_id:
         case = review.case
@@ -37,14 +35,14 @@ def form_initial(review):
     return values
 
 
-def save_update(review, actor, data):
+def save_update(review, actor, data, *, intent='save'):
     """Called inside the view's transaction after locking the review row."""
     case = ReviewCase.objects.select_for_update().get(pk=review.case_id) if review.case_id else None
     if case:
         review.case = case
     if data['version'] != review.edit_token:
         return False
-    closing = data['staff_followup'] in ReviewIssue.TERMINAL
+    closing = intent == 'close' or (intent != 'reopen' and review.is_closed)
     if case:
         workflow.apply_sensitive_policy(case)
         if closing and case.requires_senior_closure and not workflow.is_review_senior(actor):
@@ -55,12 +53,13 @@ def save_update(review, actor, data):
     review.justification = data['justification']
     review.followup_updated_at, review.followup_updated_by = now, actor
     review.followup_revision += 1
-    review.closed_at = now if closing else None
-    review.closed_by = actor if closing else None
+    review.closed_at = (review.closed_at or (case.closed_at if case else None) or now) if closing else None
+    review.closed_by = (review.closed_by or (case.closed_by if case else None) or actor) if closing else None
     review.closed_review_version = review.google_updated_at if closing else None
     review.save(update_fields=['customer_followup', 'staff_followup', 'justification', 'followup_updated_at',
         'followup_updated_by', 'followup_revision', 'closed_at', 'closed_by', 'closed_review_version', 'updated_at'])
-    note = f'Customer: {review.get_customer_followup_display()}\nStaff: {review.get_staff_followup_display()}\n{review.justification}'
+    note = (f'Review: {"Closed" if closing else "Open"}\nCustomer: {review.get_customer_followup_display()}'
+        f'\nStaff: {review.get_staff_followup_display()}\n{review.justification}')
     GoogleReviewAction.objects.create(review=review, actor=actor, action='Review updated',
         review_version=review.google_updated_at, note=note)
     if case:
@@ -68,8 +67,8 @@ def save_update(review, actor, data):
         case.status = 'CLOSED' if closing else {'NEW': 'NEW', 'WAITING': 'WAITING'}.get(review.staff_followup, 'IN_PROGRESS')
         case.closed_at, case.closed_by = review.closed_at, review.closed_by
         case.closure_summary = review.justification if closing else ''
-        case.closure_outcome = {'RESOLVED': 'RESOLVED', 'CLOSED_UNRESOLVED': 'UNRESOLVED',
-            'NOT_ACTIONABLE': 'NOT_ACTIONABLE'}.get(review.staff_followup, '')
+        case.closure_outcome = ({'RESOLVED': 'RESOLVED', 'CLOSED_UNRESOLVED': 'UNRESOLVED',
+            'NOT_ACTIONABLE': 'NOT_ACTIONABLE'}.get(review.staff_followup, '') if closing else '')
         workflow.log(case, actor, 'Review updated', note, previous=previous, current=case.status)
         # The review-level status now drives this case; historical issue statuses
         # must not recalculate it back to the old per-issue workflow.

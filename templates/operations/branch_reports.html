@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Reports · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}"><link rel="stylesheet" href="{% static 'css/reports.css' %}">{% endblock %}
+{% block content %}
+<div class="salon-dashboard branch-report">
+<header class="dashboard-heading">
+  <div>
+    <span class="dashboard-overline">{% if not see_all %}YOUR BRANCH{% elif selected %}BRANCH REPORT{% else %}ALL BRANCHES{% endif %}</span>
+    <h1>{% if selected %}{{ selected.name }}{% else %}Branch reports{% endif %}</h1>
+    <p>{{ period_label }}{% if first != last %} · {{ first|date:"j M" }} – {{ last|date:"j M Y" }}{% else %} · {{ last|date:"j M Y" }}{% endif %}</p>
+  </div>
+  <nav class="report-periods" aria-label="Report period">
+    {% for value, label, days in periods %}<a href="?period={{ value }}{% if see_all and selected %}&branch={{ selected.pk }}{% endif %}"{% if value == period %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+</header>
+
+{% if see_all %}
+<nav class="dashboard-branch-tabs report-branch-tabs" aria-label="Branch">
+  <a href="?period={{ period }}"{% if not selected %} aria-current="page"{% endif %}>All branches</a>
+  {% for branch in branch_tabs %}<a href="?period={{ period }}&branch={{ branch.pk }}"{% if selected.pk == branch.pk %} aria-current="page"{% endif %}>{{ branch.name }}</a>{% endfor %}
+</nav>
+{% endif %}
+
+{% if no_branch %}
+<div class="panel dashboard-empty"><strong>No branch linked to your account</strong><p>Ask an admin to set your home branch or today's roster.</p></div>
+
+{% elif rows is not None %}
+{# ---------- All branches (admin and general manager) ---------- #}
+<section class="dashboard-kpis" aria-label="All branches summary">
+  <article class="dashboard-kpi featured"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='reports' only %}</span><span>Money collected</span></div><strong>₹{{ total.revenue|floatformat:"0g" }}</strong><small>{{ total.bills }} bills · average ₹{{ total.average_bill|floatformat:"0g" }}</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='staff' only %}</span><span>Customers</span></div><strong>{{ total.customers }}</strong><small>{{ total.finished }} finished · {{ total.open_now }} open right now</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon amber">{% include 'includes/nav_icon.html' with icon='reviews' only %}</span><span>Google rating</span></div><strong>{% if total.google_stars %}{{ total.google_stars|floatformat:1 }}★{% else %}—{% endif %}</strong><small>{{ total.google_count }} new reviews · {{ total.google_open }} not closed</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon violet">{% include 'includes/nav_icon.html' with icon='activity' only %}</span><span>Need attention</span></div><strong>{{ total.needs_attention }}<span class="kpi-of">/{{ rows|length }}</span></strong><small>Branches with something to fix</small></article>
+</section>
+
+<h2 class="section-title">How each branch is doing</h2>
+<div class="report-branch-grid">
+  {% for row in rows %}
+  <article class="panel report-branch-card">
+    <header>
+      <div><strong>{{ row.branch.name }}</strong><span>{{ row.branch.code }}</span></div>
+      {% if row.attention %}<span class="report-status warn">Needs attention</span>{% else %}<span class="report-status ok">All on track</span>{% endif %}
+    </header>
+    <dl class="report-figures">
+      <div><dt>Money</dt><dd>₹{{ row.revenue|floatformat:"0g" }}</dd></div>
+      <div><dt>Customers</dt><dd>{{ row.customers }}</dd></div>
+      <div><dt>Google</dt><dd>{% if row.google_stars %}{{ row.google_stars|floatformat:1 }}★{% else %}—{% endif %}</dd></div>
+      <div><dt>Feedback</dt><dd>{% if row.feedback_rating %}{{ row.feedback_rating|floatformat:1 }}/5{% else %}—{% endif %}</dd></div>
+    </dl>
+    {% if row.attention %}<ul class="report-attention">{% for item in row.attention %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% else %}<p class="report-calm">Nothing waiting. Work, bills and reviews are up to date.</p>{% endif %}
+    <a class="report-more" href="?period={{ period }}&branch={{ row.branch.pk }}">Open branch report <span aria-hidden="true">→</span></a>
+  </article>
+  {% empty %}<div class="panel dashboard-empty"><strong>No active branches</strong></div>{% endfor %}
+</div>
+
+<h2 class="section-title">Side-by-side</h2>
+<div class="report-table-wrap"><table class="report-table">
+  <thead><tr><th>Branch</th><th>Customers</th><th>Services done</th><th>Money</th><th>Average bill</th><th>Feedback</th><th>Google</th><th>Open now</th></tr></thead>
+  <tbody>{% for row in rows %}<tr><td><a href="?period={{ period }}&branch={{ row.branch.pk }}"><b>{{ row.branch.name }}</b></a></td><td>{{ row.customers }}</td><td>{{ row.services_done }}</td><td>₹{{ row.revenue|floatformat:"0g" }}</td><td>₹{{ row.average_bill|floatformat:"0g" }}</td><td>{% if row.feedback_rating %}{{ row.feedback_rating|floatformat:1 }}/5{% else %}—{% endif %}</td><td>{% if row.google_stars %}{{ row.google_stars|floatformat:1 }}★ ({{ row.google_count }}){% else %}—{% endif %}</td><td>{{ row.open_now }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><td><b>Total</b></td><td>{{ total.customers }}</td><td>{{ total.services_done }}</td><td>₹{{ total.revenue|floatformat:"0g" }}</td><td>₹{{ total.average_bill|floatformat:"0g" }}</td><td>{% if total.feedback_rating %}{{ total.feedback_rating|floatformat:1 }}/5{% else %}—{% endif %}</td><td>{% if total.google_stars %}{{ total.google_stars|floatformat:1 }}★ ({{ total.google_count }}){% else %}—{% endif %}</td><td>{{ total.open_now }}</td></tr></tfoot>
+</table></div>
+
+{% else %}
+{# ---------- One branch ---------- #}
+<section class="dashboard-kpis" aria-label="Branch summary">
+  <article class="dashboard-kpi featured"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='reports' only %}</span><span>Money collected</span></div><strong>₹{{ row.revenue|floatformat:"0g" }}</strong><small>{{ row.bills }} bills · average ₹{{ row.average_bill|floatformat:"0g" }}</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='staff' only %}</span><span>Customers</span></div><strong>{{ row.customers }}</strong><small>{{ row.finished }} finished · {{ row.services_done }} services done</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon amber">{% include 'includes/nav_icon.html' with icon='reviews' only %}</span><span>Google rating</span></div><strong>{% if row.google_stars %}{{ row.google_stars|floatformat:1 }}★{% else %}—{% endif %}</strong><small>{{ row.google_count }} new reviews · {{ row.google_low }} low</small></article>
+  <article class="dashboard-kpi"><div><span class="kpi-icon violet">{% include 'includes/nav_icon.html' with icon='activity' only %}</span><span>Customer feedback</span></div><strong>{% if row.feedback_rating %}{{ row.feedback_rating|floatformat:1 }}<span class="kpi-of">/5</span>{% else %}—{% endif %}</strong><small>From {{ row.feedback_count }} feedback form{{ row.feedback_count|pluralize }}</small></article>
+</section>
+
+<section class="report-two">
+  <article class="panel report-panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">TO DO NOW</span><h2>Needs attention</h2></div>{% if row.attention %}<span class="report-status warn">{{ row.attention|length }}</span>{% else %}<span class="report-status ok">All on track</span>{% endif %}</header>
+    {% if row.attention %}<ul class="report-attention big">{% for item in row.attention %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% else %}<p class="report-calm">Nothing waiting. Work, bills and reviews are up to date.</p>{% endif %}
+    <footer class="dashboard-panel-foot"><span class="dashboard-dot"></span>{{ row.open_now }} visit{{ row.open_now|pluralize }} open in the salon right now.</footer>
+  </article>
+  <article class="panel report-panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">WHAT CUSTOMERS CAME FOR</span><h2>Top services</h2></div><span class="dashboard-count">{{ row.services_done }} done</span></header>
+    <div class="report-bars">
+      {% for s in top_services %}<div class="report-bar-row"><span>{{ s.service__name }}</span><strong>{{ s.total }}</strong><div class="dashboard-chart-track"><div style="width:{{ s.width }}%"></div></div></div>
+      {% empty %}<p class="muted">No services finished in this period.</p>{% endfor %}
+    </div>
+  </article>
+</section>
+
+{% if daily %}
+<article class="panel report-panel">
+  <header class="dashboard-panel-head"><div><span class="dashboard-overline">DAY BY DAY</span><h2>Customers per day</h2></div><span class="dashboard-count">{{ row.customers }} total</span></header>
+  <div class="report-daily{% if daily|length > 10 %} dense{% endif %}" role="img" aria-label="Customers per day">
+    {% for d in daily %}<div class="report-day" title="{{ d.day|date:'D j M' }}: {{ d.customers }} customers, ₹{{ d.revenue|floatformat:'0g' }}"><b>{{ d.customers }}</b><div class="report-day-bar"><div style="height:{{ d.height }}%"></div></div><small>{% if daily|length > 10 %}{{ d.day|date:"j" }}{% else %}{{ d.day|date:"D" }}{% endif %}</small></div>{% endfor %}
+  </div>
+</article>
+{% endif %}
+
+<section class="report-two">
+  <article class="panel report-panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">THE TEAM</span><h2>Staff work</h2></div><span class="dashboard-count">{{ staff|length }} people</span></header>
+    <div class="report-table-wrap"><table class="report-table">
+      <thead><tr><th>Staff</th><th>Services done</th><th>Steps skipped</th><th>Feedback</th></tr></thead>
+      <tbody>{% for p in staff %}<tr><td><b>{{ p.name }}</b></td><td>{{ p.done }}</td><td>{% if p.skipped %}<span class="report-flag">{{ p.skipped }}</span>{% else %}0{% endif %}</td><td>{% if p.rating %}{{ p.rating|floatformat:1 }}/5{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="4">No finished services in this period.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </article>
+  <article class="panel report-panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">WHAT CUSTOMERS SAY</span><h2>Latest Google reviews</h2></div><a class="dashboard-count" href="{% url 'google_review_inbox' %}{% if see_all %}?branch={{ selected.pk }}{% endif %}">See all</a></header>
+    <ul class="report-reviews">
+      {% for item in recent_reviews %}<li>
+        <div><span class="report-stars s{{ item.review.star_rating }}">{{ item.review.star_rating }}★</span><b>{{ item.review.reviewer_display_name|default:"Google user" }}</b><small>{{ item.review.google_created_at|date:"j M" }}</small>{% if item.open %}<span class="report-status warn">Open</span>{% else %}<span class="report-status ok">Closed</span>{% endif %}</div>
+        <p>{{ item.review.review_text|default:"No written comment."|truncatechars:140 }}</p>
+      </li>{% empty %}<li class="muted">No Google reviews yet.</li>{% endfor %}
+    </ul>
+  </article>
+</section>
+{% endif %}
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ from .models import (
 )
 from .sop_flow_views import service_flow_digest
 from .sop_versions import FlowProblem, all_flows, apply_flow, current_flow, record_changed_versions
-from .workflow import build_visit_tasks
+from .workflow import build_visit_tasks, unfinished_verification_tasks
 
 
 class SOPEditorTests(TestCase):
@@ -151,3 +151,68 @@ class SOPEditorTests(TestCase):
             expected = 403 if role == "EMPLOYEE" else 200
             self.assertEqual(self.client.get(reverse("sop_history", args=[self.service.pk])).status_code, expected)
         self.assertEqual(self.codes(), ["WASH", "CUT", "FINISH"])
+
+
+class SOPSkipTests(SOPEditorTests):
+    """Per-service "can skip" on a step, e.g. hair wash in a men's haircut."""
+
+    def visit_tasks(self, service):
+        branch, _ = Branch.objects.get_or_create(code="SKIP", defaults={"name": "Skip branch"})
+        visit = Visit.objects.create(branch=branch, customer=Customer.objects.create(name="Skip"), created_by=self.admin)
+        VisitService.objects.create(visit=visit, service=service, employee=self.admin, assigned_by=self.admin)
+        build_visit_tasks(visit)
+        return visit.services.get().tasks
+
+    def test_allow_skip_for_one_service_only(self):
+        other = Service.objects.create(code="COLOUR", name="Colour")
+        ServiceDetail.objects.create(external_id="C-WASH", service=other, sub_service=SubService.objects.get(code="WASH"))
+        self.edit("skip", 0, allow="on")
+        self.assertTrue(ServiceDetail.objects.get(external_id="D-WASH").can_skip)
+        self.assertFalse(ServiceDetail.objects.get(external_id="C-WASH").can_skip)
+        wash = self.visit_tasks(self.service).get(sub_service_name="Hair wash")
+        self.assertTrue(wash.can_skip)
+        self.assertTrue(wash.skip_reason_required)
+        self.assertFalse(self.visit_tasks(other).get(sub_service_name="Hair wash").can_skip)
+        self.assertFalse(self.visit_tasks(self.service).get(sub_service_name="Haircut").can_skip)
+        latest = SOPVersion.objects.filter(service=self.service).order_by("-number").first()
+        self.assertEqual(latest.note, "Hair wash can now be skipped")
+        self.assertContains(self.client.get(reverse("sop_history", args=[self.service.pk])), "Hair wash can now be skipped")
+        self.assertContains(self.client.get(self.catalogue), "Can skip")
+
+    def test_skippable_wash_works_first_or_last_and_survives_moves(self):
+        self.edit("skip", 0, allow="on")
+        self.edit("down", 0)
+        self.edit("down", 1)
+        self.assertEqual(self.codes(), ["CUT", "FINISH", "WASH"])
+        self.assertTrue(current_flow(self.service)[-1]["can_skip"])
+        tasks = self.visit_tasks(self.service)
+        self.assertTrue(tasks.order_by("-sequence").first().can_skip)
+
+    def test_stylist_can_skip_with_reason_and_submit(self):
+        self.edit("skip", 0, allow="on")
+        tasks = self.visit_tasks(self.service)
+        wash = tasks.get(sub_service_name="Hair wash")
+        wash.status, wash.skip_reason = "SKIPPED", "Customer washed at home"
+        wash.save()
+        self.assertNotIn(wash, unfinished_verification_tasks(tasks.all()))
+
+    def test_allow_skip_in_every_service(self):
+        other = Service.objects.create(code="COLOUR", name="Colour")
+        ServiceDetail.objects.create(external_id="C-WASH", service=other, sub_service=SubService.objects.get(code="WASH"))
+        Service.objects.create(code="NOWASH", name="No wash")
+        self.edit("skip_everywhere", 0, allow="on")
+        self.assertTrue(all(ServiceDetail.objects.filter(sub_service__code="WASH").values_list("can_skip", flat=True)))
+        self.assertEqual(SOPVersion.objects.filter(note__contains="all services", source="EDITOR").count(), 2)
+        self.edit("skip_everywhere", 0, allow="off")
+        self.assertFalse(any(ServiceDetail.objects.filter(sub_service__code="WASH").values_list("can_skip", flat=True)))
+
+    def test_restore_brings_back_skip_setting(self):
+        self.edit("skip", 0, allow="on")
+        self.edit("skip", 0, allow="off")
+        allowed = SOPVersion.objects.get(service=self.service, number=2)
+        self.client.post(reverse("sop_restore", args=[allowed.pk]))
+        self.assertTrue(current_flow(self.service)[0]["can_skip"])
+
+    def test_add_step_as_skippable(self):
+        self.edit("add", sub_service=SubService.objects.get(code="MASK").pk, mandatory="on", can_skip="on")
+        self.assertTrue(current_flow(self.service)[-1]["can_skip"])

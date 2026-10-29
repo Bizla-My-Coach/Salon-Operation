@@ -475,8 +475,8 @@ def service_catalog(request):
         selected=form.cleaned_data['service']
         mapped=list(selected.service_details.filter(active=True,sub_service__active=True).select_related('sub_service').order_by('sequence','id'))
         ordered=[]
-        ordered.extend((detail.sub_service,detail.mandatory) for detail in mapped if detail.sub_service.code not in [CONSULTATION_CODE,SANITISATION_CODE])
-        for sub_service,mandatory in ordered:
+        ordered.extend((detail.sub_service,detail.mandatory,detail.can_skip) for detail in mapped if detail.sub_service.code not in [CONSULTATION_CODE,SANITISATION_CODE])
+        for sub_service,mandatory,can_skip in ordered:
             task_rows=[]
             for task in sub_service.tasks.filter(active=True).order_by('sequence','id'):
                 inventory=list(task.inventory_requirements.filter(active=True,service=selected).select_related('inventory'))
@@ -485,7 +485,7 @@ def service_catalog(request):
                 totals['equipment']+=sum(item.equipment_usage_minutes for item in equipment)
                 totals['utility']+=sum(item.utility_minutes for item in equipment)
                 task_rows.append({'task':task,'inventory':inventory,'equipment':equipment})
-            sections.append({'sub_service':sub_service,'mandatory':mandatory,'tasks':task_rows})
+            sections.append({'sub_service':sub_service,'mandatory':mandatory,'can_skip':can_skip,'tasks':task_rows})
     can_edit=request.user.is_superuser or getattr(getattr(request.user,'profile',None),'role','')=='ADMIN'
     editor={}
     if selected and can_edit:

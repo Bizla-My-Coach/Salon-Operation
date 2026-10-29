@@ -237,6 +237,9 @@ class ServiceDetail(TimeStamped):
     sequence = models.PositiveIntegerField(default=10)
     required_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     mandatory = models.BooleanField(default=True)
+    # Lets staff skip this step (with a reason) in this service only, even when
+    # the shared operational task itself is not skippable.
+    can_skip = models.BooleanField(default=False)
     mapping_status = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
@@ -765,7 +768,7 @@ class GoogleReviewLocation(TimeStamped):
 
 
 class GoogleReview(TimeStamped):
-    STAFF_FOLLOWUP = [('NEW', 'Not started'), ('IN_PROGRESS', 'In progress'),
+    STAFF_FOLLOWUP = [('NEW', 'Not discussed'), ('IN_PROGRESS', 'In progress'),
         ('WAITING', 'Awaiting follow-up'), ('RESOLVED', 'Resolved'),
         ('CLOSED_UNRESOLVED', 'Unresolved'), ('NOT_ACTIONABLE', 'Not actionable')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

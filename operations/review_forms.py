@@ -13,10 +13,26 @@ class VersionForm(BootstrapMixin, forms.Form):
 
 class GoogleReviewUpdateForm(BootstrapMixin, forms.Form):
     version = forms.CharField(widget=forms.HiddenInput)
-    customer_followup = forms.ChoiceField(choices=ReviewIssue.CUSTOMER_FOLLOWUP, label='Customer follow-up status')
-    staff_followup = forms.ChoiceField(choices=GoogleReview.STAFF_FOLLOWUP, label='Staff follow-up status')
-    justification = forms.CharField(max_length=3000, label='Justification',
+    customer_followup = forms.ChoiceField(choices=ReviewIssue.CUSTOMER_FOLLOWUP, required=False,
+        initial='NOT_CONTACTED', label='Customer follow-up status')
+    staff_followup = forms.ChoiceField(choices=GoogleReview.STAFF_FOLLOWUP, required=False,
+        initial='NEW', label='Staff follow-up status')
+    justification = forms.CharField(max_length=3000, required=False, label='Justification',
         widget=forms.Textarea(attrs={'rows': 4}))
+
+    def __init__(self, *args, review, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['justification'].required = review.star_rating in (1, 2)
+        self.fields['justification'].help_text = (
+            'Required for 1–2 star reviews.' if self.fields['justification'].required
+            else 'Optional for 3–5 star reviews.'
+        )
+
+    def clean_customer_followup(self):
+        return self.cleaned_data['customer_followup'] or 'NOT_CONTACTED'
+
+    def clean_staff_followup(self):
+        return self.cleaned_data['staff_followup'] or 'NEW'
 
 
 class ReviewDateRangeForm(BootstrapMixin, forms.Form):

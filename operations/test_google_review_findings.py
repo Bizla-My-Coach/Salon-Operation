@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from . import test_google_reviews as base
-from .models import GoogleReview, GoogleReviewAction
+from .models import GoogleReview
 
 
 class ReviewLayoutParser(HTMLParser):
@@ -123,7 +123,7 @@ class GoogleReviewFindingsTests(TestCase):
         self.assertContains(response, 'Customer reported waiting 40 minutes.', count=1)
 
     def test_findings_remain_on_invalid_and_stale_submissions(self):
-        response = self.update(justification='')
+        response = self.update(justification='x' * 3001)
         self.assertEqual(response.status_code, 400)
         self.assertContains(response, 'Customer reported waiting 40 minutes.', status_code=400)
         token = self.review.edit_token
@@ -132,16 +132,20 @@ class GoogleReviewFindingsTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertContains(response, 'Customer reported waiting 40 minutes.', status_code=409)
 
-    def test_explicit_close_requires_terminal_staff_status_and_preserves_unresolved_outcome(self):
-        response = self.update(intent='close')
-        self.assertEqual(response.status_code, 400)
-        self.assertContains(response, 'Choose Resolved, Unresolved or Not actionable', status_code=400)
-        self.assertFalse(GoogleReviewAction.objects.exists())
-        self.assertEqual(self.update(intent='close', staff_followup='CLOSED_UNRESOLVED').status_code, 302)
+    def test_explicit_close_accepts_default_statuses_without_justification_for_five_stars(self):
+        self.assertEqual(self.update(intent='close', customer_followup='', staff_followup='', justification='').status_code, 302)
         self.review.refresh_from_db()
         self.assertTrue(self.review.is_closed)
-        self.assertEqual(self.review.case.closure_outcome, 'UNRESOLVED')
+        self.assertEqual(self.review.staff_followup, 'NEW')
+        self.assertEqual(self.review.case.closure_outcome, '')
+        self.assertEqual(self.review.justification, '')
         self.assertNotContains(self.detail(), '>Close review</button>')
+        self.assertContains(self.detail(), '>Reopen review</button>')
+
+    def test_explicit_close_preserves_unresolved_outcome(self):
+        self.assertEqual(self.update(intent='close', staff_followup='CLOSED_UNRESOLVED').status_code, 302)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.case.closure_outcome, 'UNRESOLVED')
 
     def test_optional_missing_or_malformed_findings_are_backward_compatible(self):
         for analysis in ({}, {'issues': None, 'appreciations': {}},
