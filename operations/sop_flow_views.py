@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import roles_required
-from .models import Service, SOPVersion, SubService
+from .models import Service, ServiceDetail, SOPVersion, SubService
 from .sop_versions import (
     OPENING_CODES, FlowProblem, apply_flow, compare, current_flow, flow_digest, record_version, restore_version,
 )
@@ -39,9 +39,9 @@ def sop_edit(request, service_id):
         if request.POST.get("digest") != service_flow_digest(service, before):
             messages.error(request, "This service's steps changed since you opened the page. Check the list and try again.")
             return _back(service)
-        steps = [{"code": step["code"], "mandatory": step["mandatory"]} for step in before]
+        steps = [{"code": step["code"], "mandatory": step["mandatory"], "can_skip": step["can_skip"]} for step in before]
         index = _position(request, steps)
-        if action in ("up", "down", "remove") and index is None:
+        if action in ("up", "down", "remove", "skip", "skip_everywhere") and index is None:
             messages.error(request, "Choose a step to change.")
             return _back(service)
         if action == "up" and index > 0:
@@ -53,6 +53,17 @@ def sop_edit(request, service_id):
         elif action == "remove":
             steps.pop(index)
             note, target = f"Removed {before[index]['name']}", max(index - 1, 0)
+        elif action == "skip":
+            allow = request.POST.get("allow") == "on"
+            steps[index]["can_skip"] = allow
+            verb = "can now be skipped" if allow else "can no longer be skipped"
+            note, target = f"{before[index]['name']} {verb}", index
+        elif action == "skip_everywhere":
+            allow = request.POST.get("allow") == "on"
+            count = _skip_everywhere(before[index]["code"], allow, request.user)
+            verb = "skippable" if allow else "not skippable"
+            messages.success(request, f"{before[index]['name']} is now {verb} in {count} service(s). Each change was saved as a new version.")
+            return _back(service, f"#step-{index + 1}")
         elif action == "add":
             raw = request.POST.get("sub_service", "")
             sub = SubService.objects.filter(pk=int(raw), active=True).exclude(
@@ -60,7 +71,8 @@ def sop_edit(request, service_id):
             if not sub:
                 messages.error(request, "Choose a sub-service to add.")
                 return _back(service, "#add-step")
-            steps.append({"code": sub.code, "mandatory": request.POST.get("mandatory") == "on"})
+            steps.append({"code": sub.code, "mandatory": request.POST.get("mandatory") == "on",
+                          "can_skip": request.POST.get("can_skip") == "on"})
             note, target = f"Added {sub.name}", len(steps) - 1
         else:
             return _back(service)
@@ -74,6 +86,23 @@ def sop_edit(request, service_id):
     if version:
         messages.success(request, f"{note}. Saved as version {version.number}. New visits use this order.")
     return _back(service, f"#step-{target + 1}")
+
+
+def _skip_everywhere(code, allow, user):
+    """Set "can skip" on this sub-service in every service that uses it."""
+    service_ids = (
+        ServiceDetail.objects.filter(sub_service__code=code, active=True, sub_service__active=True)
+        .exclude(can_skip=allow).values_list("service_id", flat=True).distinct()
+    )
+    services = list(Service.objects.select_for_update().filter(pk__in=list(service_ids)).order_by("pk"))
+    verb = "can now be skipped" if allow else "can no longer be skipped"
+    for service in services:
+        before = current_flow(service)
+        name = next((step["name"] for step in before if step["code"] == code), code)
+        service.service_details.filter(sub_service__code=code, active=True).update(can_skip=allow)
+        record_version(service, current_flow(service), "EDITOR", user=user,
+                       note=f"{name} {verb} (all services)", before=before)
+    return len(services)
 
 
 @roles_required("ADMIN", "GENERAL_MANAGER", "MANAGER")
