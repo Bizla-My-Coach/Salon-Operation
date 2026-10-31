@@ -983,7 +983,13 @@ def _pending_opening_task(visit):
 def execute_service(request,pk):
     vs=get_object_or_404(employee_services(request.user),pk=pk)
     current=vs.tasks.exclude(status__in=['COMPLETED','SKIPPED']).first()
-    opening_tasks = vs.tasks.filter(task_type__in=OPENING_TASK_TYPES)
+    # Opening checks are built once on the visit's first service, which may
+    # belong to a colleague; every stylist on the visit must see and confirm them.
+    opening_tasks = (
+        VisitTask.objects.filter(visit_service__visit=vs.visit, task_type__in=OPENING_TASK_TYPES)
+        .exclude(status='CANCELLED')
+        .order_by('visit_service__order_number', 'sequence', 'id')
+    )
     opening_current = _pending_opening_task(vs.visit)
     service_tasks = vs.tasks.exclude(task_type__in=OPENING_TASK_TYPES).prefetch_related('timing_segments')
     return render(request,'operations/execute.html',{
@@ -1002,7 +1008,17 @@ def task_action(request,pk,action):
     # Serialize transitions from different tabs or phones to keep each task's
     # timing segments consistent while multiple tasks and services run together.
     User.objects.select_for_update().get(pk=request.user.pk)
-    task=get_object_or_404(VisitTask.objects.select_for_update(),pk=pk,visit_service__in=employee_services(request.user)); vs=task.visit_service
+    own_services=employee_services(request.user)
+    task=get_object_or_404(
+        VisitTask.objects.select_for_update(),
+        Q(visit_service__in=own_services) | Q(task_type__in=OPENING_TASK_TYPES, visit_service__visit_id__in=own_services.values('visit_id')),
+        pk=pk,
+    )
+    vs=task.visit_service
+    if not own_services.filter(pk=vs.pk).exists():
+        # A visit opening check on a colleague's first service: confirm it from,
+        # and return to, this stylist's own service on the same visit.
+        vs=own_services.filter(visit=vs.visit).order_by('order_number','id').first()
     now=timezone.now(); note=request.POST.get('note','').strip()
     reason_choice=request.POST.get('skip_reason_choice','').strip()
     reason_other=request.POST.get('skip_reason_other','').strip()
