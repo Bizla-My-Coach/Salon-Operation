@@ -186,6 +186,40 @@ class CombinedServiceWorkflowTests(TestCase):
         self.assertNotContains(response, task.instructions)
         self.assertNotContains(response, task.get_phase_display())
 
+    def test_stylist_on_later_service_sees_and_confirms_opening_checks_on_colleagues_service(self):
+        visit, first, second = self.create_visit()
+        colleague = User.objects.create_user("colleague", password="test")
+        colleague.profile.role = "EMPLOYEE"
+        colleague.profile.branch = self.branch
+        colleague.profile.save()
+        second.employee = colleague
+        second.save(update_fields=["employee"])
+        sanitisation = first.tasks.get(task_type="HYGIENE")
+        consultation = first.tasks.get(task_type="CONSULT")
+        self.client.force_login(colleague)
+
+        page = self.client.get(reverse("execute_service", args=[second.pk]))
+        self.assertContains(page, "Visit opening checks")
+        self.assertContains(page, reverse("task_action", args=[sanitisation.pk, "confirm"]))
+
+        self.client.post(reverse("task_action", args=[sanitisation.pk, "confirm"]))
+        self.client.post(reverse("task_action", args=[consultation.pk, "confirm"]))
+        sanitisation.refresh_from_db()
+        consultation.refresh_from_db()
+        self.assertEqual((sanitisation.status, consultation.status), ("COMPLETED", "COMPLETED"))
+        self.assertEqual(consultation.performed_by, colleague)
+
+        task = second.tasks.get(task_type="SERVICE")
+        self.client.post(reverse("task_action", args=[task.pk, "start"]))
+        task.refresh_from_db()
+        self.assertEqual(task.status, "IN_PROGRESS")
+
+        # A stylist with no service on the visit still cannot touch its checks.
+        visit2, other_first, _ = self.create_visit()
+        other_hygiene = other_first.tasks.get(task_type="HYGIENE")
+        VisitService.objects.filter(visit=visit2).update(employee=self.employee)
+        self.assertEqual(self.client.post(reverse("task_action", args=[other_hygiene.pk, "confirm"])).status_code, 404)
+
     def test_opening_checks_use_ordered_one_click_confirmation_without_timing(self):
         visit, first, _ = self.create_visit()
         sanitisation, consultation, procedure = list(first.tasks.order_by("sequence"))
