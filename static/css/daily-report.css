@@ -1,0 +1,75 @@
+/* Daily report: Excel upload per business day, on the branch-report palette. */
+.daily-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.daily-picker .form-control{width:auto;min-height:40px}
+.daily-picker .button.small{min-width:40px;text-align:center;font-size:18px;line-height:1;text-decoration:none}
+.daily-picker .is-disabled{opacity:.35;pointer-events:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.daily-strip{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.daily-strip a{display:grid;justify-items:center;gap:2px;padding:9px 2px;border-radius:10px;border:1px solid var(--line);background:var(--card);text-decoration:none;min-width:0}
+.daily-strip small{font-size:11px;color:var(--muted)}
+.daily-strip b{font-size:17px}
+.daily-strip i{font-style:normal;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.daily-strip a.done i{color:var(--dash-green)}
+.daily-strip a.missing i{color:#a87628}
+.daily-strip a.missing{border-style:dashed}
+.daily-strip a[aria-current=page]{background:var(--dash-green);border-color:var(--dash-green);color:#fff}
+.daily-strip a[aria-current=page] small,.daily-strip a[aria-current=page] i{color:#d6e8de}
+.daily-hint{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;margin:0 0 20px}
+.daily-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:20px;align-items:start;margin-bottom:20px}
+.daily-layout .report-panel{margin-bottom:0}
+.daily-upload form{display:grid;gap:14px;margin:8px 0 16px}
+.daily-drop{display:grid;justify-items:center;gap:6px;text-align:center;padding:24px 16px;border:2px dashed var(--line);border-radius:14px;background:var(--dash-soft);cursor:pointer}
+.daily-drop .nav-icon{width:30px;height:30px;color:var(--dash-green)}
+.daily-drop span{font-size:13px;color:var(--muted)}
+.daily-drop input{max-width:100%;font-size:13px;margin-top:6px}
+.daily-replace{display:flex;gap:9px;align-items:flex-start;font-size:14px;background:#fcf2df;color:#7a4f1f;padding:10px 12px;border-radius:9px}
+.daily-replace input{accent-color:var(--brand);margin-top:3px}
+.daily-upload .dashboard-panel-foot a{color:var(--brand);font-weight:700}
+.daily-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:10px}
+.daily-kpis .dashboard-kpi>strong{font-size:36px}
+.daily-meta{font-size:13px;color:var(--muted);margin:0}
+.daily-empty{padding:40px 24px;text-align:center}
+.daily-report .num{text-align:right;font-variant-numeric:tabular-nums}
+.daily-phone{display:block;font-size:12px}
+.report-bar-row small{font-weight:500}
+html[data-theme=dark] .daily-replace{background:#413828;color:#e3bf84}
+@media(max-width:1100px){.daily-layout{grid-template-columns:1fr}}
+@media(max-width:760px){.daily-strip{grid-template-columns:repeat(7,minmax(0,1fr))}.daily-kpis{grid-template-columns:1fr}.daily-picker{width:100%}.daily-picker input[type=date]{flex:1}}
+.daily-report .report-table td:first-child{display:table-cell}
+.daily-summary{display:grid;gap:14px;min-width:0}
+.daily-summary .report-two{margin:6px 0 0;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:760px){.daily-summary .report-two{grid-template-columns:1fr}}
+.daily-strip em{display:none;font-style:normal;font-size:9px;font-weight:700}
+.daily-strip a.done em{color:var(--dash-green)}.daily-strip a.missing em{color:#a87628}
+.daily-strip a[aria-current=page] em{color:#d6e8de}
+@media(max-width:760px){.daily-strip i{display:none}.daily-strip em{display:block}}
+.daily-side{display:grid;gap:20px;min-width:0}
+.daily-uploads ul{list-style:none;margin:0;padding:0;display:grid}
+.daily-uploads li a{display:grid;gap:3px;padding:11px 0;border-bottom:1px solid var(--line);text-decoration:none;font-size:14px}
+.daily-uploads li:last-child a{border-bottom:0}
+.daily-uploads small{color:var(--muted);font-size:12px}
+.daily-mini{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}
+.daily-mini i{font-style:normal;font-size:11px;font-weight:700;border-radius:5px;padding:2px 6px}
+.daily-mini .ok,.daily-match.matched{background:var(--dash-soft);color:var(--dash-green)}
+.daily-mini .warn,.daily-match.not_in_app,.daily-match.amount_diff{background:#fcf2df;color:#98632a}
+.daily-mini .bad,.daily-match.format{background:#f8e3e1;color:#a2382f}
+.daily-match{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:4px 8px;white-space:nowrap}
+.daily-filters{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+.daily-filters a{font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:20px;padding:6px 12px}
+.daily-filters a b{color:var(--ink);margin-left:3px}
+.daily-filters a[aria-current=page]{background:var(--dash-green);border-color:var(--dash-green);color:#fff}
+.daily-filters a[aria-current=page] b{color:#fff}
+.daily-sub{display:block;font-size:12px}
+.daily-item{display:block;font-size:13px;line-height:1.5}
+.daily-item.warn{color:#98632a;font-weight:700}
+.daily-report .report-table{min-width:860px}
+.daily-report .report-table td{vertical-align:top}
+.daily-app-only .report-attention li{font-size:14px}
+.daily-settings-form{display:grid;gap:16px;margin:8px 0 16px}
+.daily-field{display:grid;gap:6px}
+.daily-field label{font-size:13px;font-weight:700}
+.daily-field small{font-size:12px}
+.field-error{margin:0;color:var(--danger);font-size:13px}
+html[data-theme=dark] .daily-mini .warn,html[data-theme=dark] .daily-match.not_in_app,html[data-theme=dark] .daily-match.amount_diff{background:#413828;color:#e3bf84}
+html[data-theme=dark] .daily-mini .bad,html[data-theme=dark] .daily-match.format{background:#4a2b28;color:#f0aaa0}
+.daily-bill{white-space:nowrap}

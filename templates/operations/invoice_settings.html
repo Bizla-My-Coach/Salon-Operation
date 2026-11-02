@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Invoice settings · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}"><link rel="stylesheet" href="{% static 'css/reports.css' %}"><link rel="stylesheet" href="{% static 'css/daily-report.css' %}">{% endblock %}
+{% block content %}
+<div class="salon-dashboard branch-report daily-report">
+<header class="dashboard-heading">
+  <div>
+    <span class="dashboard-overline">ADMINISTRATION · SETTINGS</span>
+    <h1>Invoice settings</h1>
+    <p>One format for bill numbers, used when managers enter bills and when sales Excel files are matched.</p>
+  </div>
+</header>
+<section class="daily-layout">
+  <article class="panel report-panel">
+    <header class="dashboard-panel-head"><div><span class="dashboard-overline">INVOICE NUMBER FORMAT</span><h2>How bill numbers look</h2></div></header>
+    <form method="post" class="daily-settings-form">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="daily-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{% for e in field.errors %}<p class="field-error">{{ e }}</p>{% endfor %}</div>
+      {% endfor %}
+      <button class="button primary block" type="submit">Save settings</button>
+    </form>
+    <footer class="dashboard-panel-foot"><span class="dashboard-dot"></span><span>{% if settings.updated_by %}Last changed {{ settings.updated_at|date:"j M Y, g:i a" }} by {{ settings.updated_by.get_full_name|default:settings.updated_by.username }}.{% else %}Using the default format.{% endif %}</span></footer>
+  </article>
+  <div class="daily-summary">
+    <article class="panel report-panel">
+      <header class="dashboard-panel-head"><div><span class="dashboard-overline">EXAMPLE</span><h2>{{ example }}</h2></div></header>
+      <ul class="report-attention">
+        <li>Managers type only <b>977</b> when closing a bill. It is saved as <b>{{ example }}</b>.</li>
+        <li>In an uploaded Excel, <b>{{ example }}</b>, <b>{{ settings.invoice_prefix|lower }}977</b> and <b>977</b> all match that bill.</li>
+        <li>A bill number with a different format (for example last year's) is flagged as <b>Wrong format</b> so you can check it.</li>
+        <li>If the Excel amount before discount and tax is within <b>₹{{ settings.amount_tolerance|floatformat:"0g" }}</b> of the app amount, the bill is <b>Matched</b>. Otherwise it shows <b>Amount differs</b>.</li>
+        <li>When the financial year changes, update the format here (for example INV/27-28/). Bills already saved keep their numbers.</li>
+      </ul>
+    </article>
+    <section class="dashboard-kpis daily-kpis" aria-label="All uploaded bills">
+      <article class="dashboard-kpi"><div><span>Matched</span></div><strong>{{ stats.MATCHED|default:0 }}</strong><small>across all uploads</small></article>
+      <article class="dashboard-kpi"><div><span>Not in app / amount differs</span></div><strong>{{ stats.NOT_IN_APP|default:0 }}<span class="kpi-of"> / {{ stats.AMOUNT_DIFF|default:0 }}</span></strong><small>to check in the daily report</small></article>
+      <article class="dashboard-kpi"><div><span>Wrong format</span></div><strong>{{ stats.FORMAT|default:0 }}</strong><small>bill numbers that do not fit</small></article>
+    </section>
+  </div>
+</section>
+</div>
+{% endblock %}

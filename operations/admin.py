@@ -11,6 +11,9 @@ from .models import (
     FeedbackQuestion,
     InventoryItem,
     Invoice,
+    InvoiceSettings,
+    SalesInvoice,
+    SalesReportUpload,
     OperationalTask,
     Profile,
     Service,
@@ -269,3 +272,38 @@ class GoogleReviewEventAdmin(ReceivedGoogleDataAdmin):
 
 admin.site.register(GoogleReplyPublication, ReceivedGoogleDataAdmin)
 admin.site.register(GoogleReviewAction, ReceivedGoogleDataAdmin)
+
+
+@admin.register(InvoiceSettings)
+class InvoiceSettingsAdmin(admin.ModelAdmin):
+    list_display = ("invoice_prefix", "amount_tolerance", "updated_by", "updated_at")
+    readonly_fields = ("updated_by", "updated_at")
+
+    def has_add_permission(self, request):
+        return not InvoiceSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SalesReportUpload)
+class SalesReportUploadAdmin(admin.ModelAdmin):
+    list_display = ("file_name", "branch", "first_date", "last_date", "invoice_count", "matched_count",
+                    "not_in_app_count", "amount_diff_count", "format_count", "uploaded_by", "uploaded_at")
+    list_filter = ("branch", "kind")
+    readonly_fields = [f.name for f in SalesReportUpload._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SalesInvoice)
+class SalesInvoiceAdmin(admin.ModelAdmin):
+    list_display = ("invoice_number", "branch", "sale_date", "customer_name", "gross_total", "match_status", "app_amount")
+    list_filter = ("branch", "match_status", "sale_date")
+    search_fields = ("invoice_number", "customer_name", "phone")
+    list_select_related = ("branch",)
+    readonly_fields = [f.name for f in SalesInvoice._meta.fields]
+
+    def has_add_permission(self, request):
+        return False

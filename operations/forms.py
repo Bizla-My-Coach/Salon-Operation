@@ -7,7 +7,7 @@ from django.db.models import Q
 from datetime import timedelta
 from django.utils import timezone
 
-from .models import Branch, Chair, Invoice, Profile, Service, Visit, VisitService
+from .models import Branch, Chair, Invoice, InvoiceSettings, Profile, Service, Visit, VisitService
 from .roster import working_employees
 
 
@@ -117,13 +117,19 @@ class CompleteInvoiceForm(VisitCreateForm):
         self.branch = branch
         self.invoice = invoice
         super().__init__(*args, **kwargs)
+        self.prefix_text = InvoiceSettings.current().invoice_prefix
+        field = self.fields['invoice_number']
+        field.max_length = 50 - len(self.prefix_text)
+        field.help_text = f'Enter only the final digits, for example 977. Saved as {self.prefix_text}977.'
         value = self.initial.get('invoice_number', '')
-        if value.startswith(Invoice.NUMBER_PREFIX):
-            self.initial['invoice_number'] = value[len(Invoice.NUMBER_PREFIX):]
+        if value.startswith(self.prefix_text):
+            self.initial['invoice_number'] = value[len(self.prefix_text):]
 
     def clean_invoice_number(self):
         digits = self.cleaned_data['invoice_number'].lstrip('0') or '0'
-        value = Invoice.NUMBER_PREFIX + digits
+        if len(digits) > 50 - len(self.prefix_text):
+            raise forms.ValidationError('This invoice number is too long.')
+        value = self.prefix_text + digits
         invoices = Invoice.objects.filter(branch=self.branch, invoice_number=value)
         if self.invoice and self.invoice.pk:
             invoices = invoices.exclude(pk=self.invoice.pk)
