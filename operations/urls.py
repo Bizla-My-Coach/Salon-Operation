@@ -8,12 +8,16 @@ from . import review_views
 from . import google_review_api
 from . import google_review_views
 from . import report_views
+from . import daily_report_views
 urlpatterns=[
 path('api/integrations/google-reviews/results', google_review_api.results, name='google_review_results'),
 path('api/integrations/google-reviews/results/', google_review_api.results),
 path('api/v1/google-reviews/ingest/', google_review_api.reviews, name='google_review_ingest'),
 path('api/v1/google-reviews/publications/', google_review_api.publications, name='google_review_publications'),
 path('reports/', report_views.branch_reports, name='branch_reports'),
+path('reports/daily/', daily_report_views.daily_report, name='daily_report'),
+path('reports/daily/template.xlsx', daily_report_views.daily_report_template, name='daily_report_template'),
+path('admin-panel/invoice-settings/', daily_report_views.invoice_settings, name='invoice_settings'),
 path('reviews/google/', google_review_views.inbox, name='google_review_inbox'),
 path('reviews/google/analytics/', google_review_views.analytics, name='google_review_analytics'),
 path('reviews/google/assignments/', google_review_views.assignment_queue, name='google_review_assignments'),
