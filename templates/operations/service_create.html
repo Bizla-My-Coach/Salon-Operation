@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Add service · Hairship{% endblock %}
+{% block content %}
+<header class="page-head split"><div><span class="eyebrow">Service catalogue</span><h1>Add service</h1><p>Copy an existing service under a new name, or build a new one from scratch.</p></div><a href="{% url 'service_catalog' %}" class="button outline">← Back to catalogue</a></header>
+<section class="panel narrow service-create">
+  <form method="post" class="form-grid" data-service-create>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <fieldset class="start-choice"><legend>{{ form.start.label }}</legend>
+      {% for choice in form.start %}<label class="start-option">{{ choice.tag }}<span><b>{{ choice.choice_label }}</b><small>{% if choice.data.value == 'copy' %}Same steps, task order, skips and inventory, under a new name. Change anything afterwards.{% else %}An empty service. Add its steps one by one in the catalogue.{% endif %}</small></span></label>{% endfor %}
+    </fieldset>
+    <p data-copy-only>{{ form.source.label_tag }}{{ form.source }}<span class="helptext">{{ form.source.help_text }}</span><span class="helptext" data-step-count></span>{{ form.source.errors }}</p>
+    <div class="two-column">
+      <p>{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</p>
+      <p>{{ form.code.label_tag }}{{ form.code }}<span class="helptext">{{ form.code.help_text }}</span>{{ form.code.errors }}</p>
+      <p>{{ form.category.label_tag }}{{ form.category }}{{ form.category.errors }}</p>
+      <p>{{ form.customer_type.label_tag }}{{ form.customer_type }}{{ form.customer_type.errors }}</p>
+      <p>{{ form.service_type.label_tag }}{{ form.service_type }}{{ form.service_type.errors }}</p>
+      <p>{{ form.standard_duration_minutes.label_tag }}{{ form.standard_duration_minutes }}{{ form.standard_duration_minutes.errors }}</p>
+      <p>{{ form.base_price.label_tag }}{{ form.base_price }}{{ form.base_price.errors }}</p>
+    </div>
+    <p class="muted" data-copy-only>Empty details are taken from the service you copy.</p>
+    <button class="button primary large" type="submit" data-submit-label>Create service</button>
+  </form>
+</section>
+{{ sources|json_script:"service-sources" }}
+<script src="{% static 'js/service-create.js' %}" defer></script>
+{% endblock %}
