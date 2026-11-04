@@ -67,9 +67,9 @@ class SidebarIconTests(TestCase):
 
     def test_all_existing_role_sidebars_use_consistent_decorative_svg_icons(self):
         for role, page, icons in [
-            ('ADMIN', 'admin_dashboard', ['home', 'branch', 'visits', 'reports', 'catalogue', 'user-add', 'staff', 'calendar', 'upload']),
-            ('GENERAL_MANAGER', 'general_manager_dashboard', ['home', 'reports', 'branch', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue']),
-            ('MANAGER', 'manager_dashboard', ['home', 'reports', 'branch', 'new', 'catalogue', 'staff']),
+            ('ADMIN', 'admin_dashboard', ['home', 'branch', 'sheet', 'visits', 'reports', 'catalogue', 'user-add', 'staff', 'calendar', 'upload', 'invoice']),
+            ('GENERAL_MANAGER', 'general_manager_dashboard', ['home', 'reports', 'branch', 'sheet', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue']),
+            ('MANAGER', 'manager_dashboard', ['home', 'reports', 'branch', 'sheet', 'new', 'catalogue', 'staff']),
         ]:
             with self.subTest(role=role):
                 self.check_sidebar(self.person(role), page, icons)
@@ -79,12 +79,12 @@ class SidebarIconTests(TestCase):
         BranchDuty.objects.create(user=user, date=timezone.localdate(), status='WORK',
                                   branch=self.branch, updated_by=user)
         self.check_sidebar(user, 'general_manager_dashboard',
-                           ['home', 'reports', 'branch', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue', 'new', 'staff'])
+                           ['home', 'reports', 'branch', 'sheet', 'user-add', 'calendar', 'staff', 'upload', 'visits', 'reports', 'catalogue', 'new', 'staff'])
 
     def test_superuser_records_icon_and_staff_minimal_navigation_are_preserved(self):
         admin = User.objects.create_superuser('icons_superuser', '', 'test')
         response = self.check_sidebar(admin, 'admin_dashboard',
-                                      ['home', 'branch', 'visits', 'reports', 'catalogue', 'user-add', 'staff', 'calendar', 'upload', 'settings'])
+                                      ['home', 'branch', 'sheet', 'visits', 'reports', 'catalogue', 'user-add', 'staff', 'calendar', 'upload', 'invoice', 'settings'])
         self.assertContains(response, 'href="/admin/"')
         employee = self.person('EMPLOYEE')
         self.client.force_login(employee)

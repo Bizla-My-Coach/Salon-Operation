@@ -1,19 +1,23 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
-from . import sop_flow_views, workbook_views
+from . import sop_flow_views, service_create, workbook_views
 from . import staff_import_views
 from . import import_views
 from . import review_views
 from . import google_review_api
 from . import google_review_views
 from . import report_views
+from . import daily_report_views
 urlpatterns=[
 path('api/integrations/google-reviews/results', google_review_api.results, name='google_review_results'),
 path('api/integrations/google-reviews/results/', google_review_api.results),
 path('api/v1/google-reviews/ingest/', google_review_api.reviews, name='google_review_ingest'),
 path('api/v1/google-reviews/publications/', google_review_api.publications, name='google_review_publications'),
 path('reports/', report_views.branch_reports, name='branch_reports'),
+path('reports/daily/', daily_report_views.daily_report, name='daily_report'),
+path('reports/daily/template.xlsx', daily_report_views.daily_report_template, name='daily_report_template'),
+path('admin-panel/invoice-settings/', daily_report_views.invoice_settings, name='invoice_settings'),
 path('reviews/google/', google_review_views.inbox, name='google_review_inbox'),
 path('reviews/google/analytics/', google_review_views.analytics, name='google_review_analytics'),
 path('reviews/google/assignments/', google_review_views.assignment_queue, name='google_review_assignments'),
@@ -32,6 +36,7 @@ path('imports/branches/', import_views.branch_csv_import, name='branch_csv_impor
 path('imports/branches/template/', import_views.branch_csv_template, name='branch_csv_template'),
 path('admin-panel/import/workbook/', workbook_views.workbook_import, name='workbook_import'),
 path('admin-panel/import/workbook/<uuid:import_id>/snapshot/', workbook_views.workbook_snapshot, name='workbook_snapshot'),
+path('admin-panel/services/add/', service_create.service_create, name='service_create'),
 path('admin-panel/services/<int:service_id>/sop-edit/', sop_flow_views.sop_edit, name='sop_edit'),
 path('services/<int:service_id>/sop-history/', sop_flow_views.sop_history, name='sop_history'),
 path('admin-panel/sop-versions/<int:version_id>/restore/', sop_flow_views.sop_restore, name='sop_restore'),

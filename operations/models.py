@@ -918,3 +918,111 @@ class GoogleReviewAction(models.Model):
     note = models.TextField(blank=True, max_length=4000)
     review_version = models.DateTimeField()
     created_at = models.DateTimeField(default=timezone.now)
+
+
+
+class InvoiceSettings(models.Model):
+    """Admin-set invoice number format used to enter bills and match billing-software exports."""
+    invoice_prefix = models.CharField(
+        max_length=30, default=Invoice.NUMBER_PREFIX,
+        help_text='Everything before the running number, for example INV/26-27/. A bill is saved as prefix + number.')
+    amount_tolerance = models.DecimalField(
+        max_digits=8, decimal_places=2, default=1, validators=[MinValueValidator(0)],
+        help_text='Amounts closer than this (in rupees) count as matching.')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = verbose_name_plural = 'Invoice settings'
+
+    @classmethod
+    def current(cls):
+        return cls.objects.get_or_create(pk=1)[0]
+
+    def canonical(self, raw):
+        """Return (number in the set format, fits_format) for a bill number from any source."""
+        value = ' '.join(str(raw or '').split()).upper()
+        prefix = self.invoice_prefix.upper()
+        digits = value[len(prefix):] if prefix and value.startswith(prefix) else value
+        if digits.isdigit():
+            return self.invoice_prefix + (digits.lstrip('0') or '0'), True
+        return value, False
+
+    def __str__(self):
+        return f'Invoice format {self.invoice_prefix}…'
+
+
+class SalesReportUpload(models.Model):
+    """One billing-software Excel file uploaded for a branch (one day or a whole month)."""
+    KINDS = [('INVOICE', 'One row per bill'), ('ITEM', 'One row per service')]
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='sales_uploads')
+    file_name = models.CharField(max_length=255)
+    kind = models.CharField(max_length=10, choices=KINDS)
+    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_uploads')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    first_date = models.DateField()
+    last_date = models.DateField()
+    invoice_count = models.PositiveIntegerField(default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    payment_columns = models.JSONField(default=list, blank=True)
+    matched_count = models.PositiveIntegerField(default=0)
+    not_in_app_count = models.PositiveIntegerField(default=0)
+    amount_diff_count = models.PositiveIntegerField(default=0)
+    format_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f'{self.branch.code} {self.file_name}'
+
+
+class SalesInvoice(models.Model):
+    MATCH = [('MATCHED', 'Matched'), ('AMOUNT_DIFF', 'Amount differs'),
+             ('NOT_IN_APP', 'Not in app'), ('FORMAT', 'Wrong number format')]
+    upload = models.ForeignKey(SalesReportUpload, on_delete=models.CASCADE, related_name='invoices')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='sales_invoices')
+    sale_date = models.DateField()
+    sold_at = models.DateTimeField(null=True, blank=True)
+    raw_number = models.CharField(max_length=60)
+    invoice_number = models.CharField(max_length=60)
+    customer_name = models.CharField(max_length=150, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    sale_type = models.CharField(max_length=30, blank=True)
+    staff = models.CharField(max_length=255, blank=True)
+    sub_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gross_total = models.DecimalField(max_digits=12, decimal_places=2)
+    pending = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # Only the payment columns the file had, e.g. {"UPI": "1300.00", "Wallet": "50.00"}.
+    payments = models.JSONField(default=dict, blank=True)
+    match_status = models.CharField(max_length=12, choices=MATCH, default='NOT_IN_APP')
+    app_invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_rows')
+    app_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        ordering = ['sale_date', 'sold_at', 'pk']
+        indexes = [models.Index(fields=['branch', 'sale_date'])]
+        constraints = [models.UniqueConstraint(fields=['branch', 'invoice_number'], name='one_sales_row_per_branch_invoice')]
+
+    def __str__(self):
+        return f'{self.branch.code} {self.invoice_number}'
+
+
+class SalesInvoiceLine(models.Model):
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE, related_name='lines')
+    row_number = models.PositiveIntegerField()
+    item_type = models.CharField(max_length=40, blank=True)
+    item_name = models.CharField(max_length=200, blank=True)
+    quantity = models.DecimalField(max_digits=8, decimal_places=2, default=1)
+    staff = models.CharField(max_length=120, blank=True)
+    sub_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    gross_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    duration_minutes = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['row_number']
