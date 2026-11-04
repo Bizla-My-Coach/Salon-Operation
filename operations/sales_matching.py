@@ -1,4 +1,5 @@
 """Save an uploaded sales file and match each bill with the invoices entered in Hairship."""
+from collections import defaultdict
 from decimal import Decimal
 
 from django.db import transaction
@@ -15,16 +16,20 @@ def match_invoices(rows, settings=None):
         return rows
     settings = settings or InvoiceSettings.current()
     numbers = {row.invoice_number for row in rows}
-    app = {}
-    for invoice in Invoice.objects.filter(branch_id=rows[0].branch_id, status='COMPLETED'):
-        number, fits = settings.canonical(invoice.invoice_number)
+    app = defaultdict(list)
+    # Visits sharing one bill are entered as 977, 977/2, ...; they all count towards bill 977.
+    for invoice in Invoice.objects.filter(branch_id=rows[0].branch_id, status='COMPLETED').order_by('invoice_number', 'pk'):
+        number, fits = settings.shared_bill(invoice.invoice_number)
         if fits and number in numbers:
-            app[number] = invoice
+            app[number].append(invoice)
     for row in rows:
         _, fits = settings.canonical(row.raw_number)
-        invoice = app.get(row.invoice_number) if fits else None
+        visits = app.get(row.invoice_number, []) if fits else []
+        invoice = next((i for i in visits if '/' not in i.invoice_number[len(settings.invoice_prefix):]),
+                       visits[0] if visits else None)
         row.app_invoice = invoice
-        row.app_amount = invoice.amount if invoice else None
+        row.app_visits = len(visits)
+        row.app_amount = sum((i.amount for i in visits), Decimal('0')) if visits else None
         if not fits:
             row.match_status = 'FORMAT'
         elif invoice is None:
@@ -32,7 +37,7 @@ def match_invoices(rows, settings=None):
         else:
             # The app stores the price-list total, so compare with the amount before discount and tax.
             excel = row.sub_total if row.sub_total is not None else row.gross_total
-            row.match_status = 'MATCHED' if abs(excel - invoice.amount) <= settings.amount_tolerance else 'AMOUNT_DIFF'
+            row.match_status = 'MATCHED' if abs(excel - row.app_amount) <= settings.amount_tolerance else 'AMOUNT_DIFF'
     SalesInvoice.objects.bulk_update(rows, ['match_status', 'app_invoice', 'app_amount'])
     return rows
 

@@ -178,7 +178,7 @@ def daily_report(request):
     numbers = {invoice.invoice_number for invoice in invoices}
     app_only = [i for i in Invoice.objects.filter(branch=branch, status='COMPLETED', created_at__date=day)
                 .select_related('visit__customer').order_by('invoice_number')
-                if settings.canonical(i.invoice_number)[0] not in numbers]
+                if settings.shared_bill(i.invoice_number)[0] not in numbers]
     total = sum((i.gross_total for i in invoices), Decimal('0'))
     first = day - timedelta(days=HISTORY_DAYS - 1)
     saved = dict(SalesInvoice.objects.filter(branch=branch, sale_date__range=(first, day))
