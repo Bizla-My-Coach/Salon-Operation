@@ -194,3 +194,57 @@ class InvoiceSettingsTests(TestCase):
         form = CompleteInvoiceForm({'customer_name': 'A', 'mobile': '9000000000', 'invoice_number': '0977'}, branch=branch)
         form.is_valid()
         self.assertEqual(form.cleaned_data.get('invoice_number'), 'INV/27-28/977')
+
+
+class SharedInvoiceTests(TestCase):
+    """Two visits paid on one bill: the second visit is entered as 977/2."""
+
+    def setUp(self):
+        self.north = Branch.objects.create(code='N', name='North')
+        self.manager = User.objects.create_user('manager', password='pw')
+        self.manager.profile.role, self.manager.profile.branch = 'MANAGER', self.north
+        self.manager.profile.save()
+        self.customer = Customer.objects.create(name='Shared Customer')
+
+    def visit(self, number=None, amount=500):
+        visit = Visit.objects.create(branch=self.north, customer=self.customer, status='CLOSED', created_by=self.manager)
+        if number:
+            Invoice.objects.create(visit=visit, invoice_number=number, amount=amount, entered_by=self.manager)
+        return visit
+
+    def form(self, number, invoice=None):
+        form = CompleteInvoiceForm({'customer_name': 'A', 'mobile': '', 'invoice_number': number},
+                                   branch=self.north, invoice=invoice)
+        form.is_valid()
+        return form
+
+    def test_second_visit_can_share_a_bill_with_slash_number(self):
+        self.visit('INV/26-27/977')
+        self.assertIn('977/2', self.form('977').errors['invoice_number'][0])
+        self.assertEqual(self.form('977/2').cleaned_data['invoice_number'], 'INV/26-27/977/2')
+        self.assertEqual(self.form('0977/02').cleaned_data['invoice_number'], 'INV/26-27/977/2')
+        self.visit('INV/26-27/977/2')
+        self.assertIn('977/3', self.form('977/2').errors['invoice_number'][0])
+        self.assertEqual(self.form('977/3').cleaned_data['invoice_number'], 'INV/26-27/977/3')
+
+    def test_slash_number_needs_the_first_visit_and_a_part_of_two_or_more(self):
+        self.assertIn('Enter 978 on the first visit', self.form('978/2').errors['invoice_number'][0])
+        self.visit('INV/26-27/978')
+        self.assertIn('/2 or higher', self.form('978/1').errors['invoice_number'][0])
+        self.assertIn('invoice_number', self.form('978/2/3').errors)
+        self.assertIn('invoice_number', self.form('978-2').errors)
+
+    def test_matching_adds_up_every_visit_on_the_shared_bill(self):
+        self.visit('INV/26-27/11', amount=500)
+        self.visit('INV/26-27/11/2', amount=300)
+        Invoice.objects.update(created_at=timezone.make_aware(timezone.datetime(2026, 4, 10, 12)))
+        self.client.force_login(self.manager)
+        rows = [[1, 'INV/26-27/11', 'Shared Customer', '', 'Female', '10/04/2026 05:00 PM', 'SALE',
+                 0, 800, 800, 0, 800, 40, 0, 840]]
+        self.client.post(reverse('daily_report'), {'date': '2026-04-10', 'report_file': workbook(BILL_HEADERS, rows)})
+        row = SalesInvoice.objects.get()
+        self.assertEqual((row.match_status, row.app_amount, row.app_invoice.invoice_number),
+                         ('MATCHED', 800, 'INV/26-27/11'))
+        page = self.client.get(reverse('daily_report'), {'date': '2026-04-10'})
+        self.assertEqual(page.context['app_only'], [])
+        self.assertContains(page, '2 visits on this bill')

@@ -105,12 +105,14 @@ class VisitCreateForm(BootstrapMixin, forms.Form):
 
 
 class CompleteInvoiceForm(VisitCreateForm):
+    SHARED_HELP = ('Enter only the final digits, for example 977. Saved as {prefix}977. '
+                   'If this visit is on the same bill as another visit, add /2, for example 977/2.')
     invoice_number = forms.RegexField(
-        regex=r'\A[0-9]+\Z', max_length=50 - len(Invoice.NUMBER_PREFIX),
+        regex=r'\A[0-9]+(/[0-9]+)?\Z', max_length=50 - len(Invoice.NUMBER_PREFIX),
         label='Invoice number',
-        help_text=f'Enter only the final digits, for example 977. Saved as {Invoice.NUMBER_PREFIX}977.',
-        error_messages={'invalid': 'Enter only the digits after the final slash, for example 977.'},
-        widget=forms.TextInput(attrs={'inputmode': 'numeric', 'pattern': '[0-9]+', 'placeholder': '977'}),
+        help_text=SHARED_HELP.format(prefix=Invoice.NUMBER_PREFIX),
+        error_messages={'invalid': 'Enter only the digits after the final slash, for example 977, or 977/2 for a shared bill.'},
+        widget=forms.TextInput(attrs={'pattern': '[0-9]+(/[0-9]+)?', 'placeholder': '977', 'autocomplete': 'off'}),
     )
 
     def __init__(self, *args, branch, invoice=None, **kwargs):
@@ -120,21 +122,34 @@ class CompleteInvoiceForm(VisitCreateForm):
         self.prefix_text = InvoiceSettings.current().invoice_prefix
         field = self.fields['invoice_number']
         field.max_length = 50 - len(self.prefix_text)
-        field.help_text = f'Enter only the final digits, for example 977. Saved as {self.prefix_text}977.'
+        field.help_text = self.SHARED_HELP.format(prefix=self.prefix_text)
         value = self.initial.get('invoice_number', '')
         if value.startswith(self.prefix_text):
             self.initial['invoice_number'] = value[len(self.prefix_text):]
 
     def clean_invoice_number(self):
-        digits = self.cleaned_data['invoice_number'].lstrip('0') or '0'
-        if len(digits) > 50 - len(self.prefix_text):
-            raise forms.ValidationError('This invoice number is too long.')
-        value = self.prefix_text + digits
-        invoices = Invoice.objects.filter(branch=self.branch, invoice_number=value)
+        digits, _, part = self.cleaned_data['invoice_number'].partition('/')
+        digits = digits.lstrip('0') or '0'
+        bill = self.prefix_text + digits
+        value = bill
+        others = Invoice.objects.filter(branch=self.branch)
         if self.invoice and self.invoice.pk:
-            invoices = invoices.exclude(pk=self.invoice.pk)
-        if invoices.exists():
-            raise forms.ValidationError("This invoice number is already in use in this branch.")
+            others = others.exclude(pk=self.invoice.pk)
+        if part:
+            part = part.lstrip('0') or '0'
+            if int(part) < 2:
+                raise forms.ValidationError(f'Use /2 or higher for a shared bill, for example {digits}/2.')
+            if not others.filter(invoice_number=bill).exists():
+                raise forms.ValidationError(
+                    f'No visit has invoice {digits} yet. Enter {digits} on the first visit, then {digits}/{part} here.')
+            value = f'{bill}/{part}'
+        if len(value) > 50:
+            raise forms.ValidationError('This invoice number is too long.')
+        if others.filter(invoice_number=value).exists():
+            if part:
+                raise forms.ValidationError(f'{digits}/{part} is already used by another visit. Try the next number, for example {digits}/{int(part) + 1}.')
+            raise forms.ValidationError(
+                f'This invoice number is already in use in this branch. If this visit is on the same bill, enter {digits}/2.')
         return value
 
 

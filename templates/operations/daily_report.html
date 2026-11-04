@@ -102,7 +102,7 @@
       {% if has_lines %}<td>{% for l in i.lines.all %}<span class="daily-item">{{ l.item_name }}{% if l.staff %} <small class="muted">· {{ l.staff }}</small>{% endif %}</span>{% empty %}{{ i.staff|default:"—" }}{% endfor %}</td>{% endif %}
       {% if has_payments %}<td>{% for label, paid in i.payments.items %}<span class="daily-item">{{ label }} ₹{{ paid|floatformat:"0g" }}</span>{% empty %}—{% endfor %}{% if i.pending %}<span class="daily-item warn">Pending ₹{{ i.pending|floatformat:"0g" }}</span>{% endif %}</td>{% endif %}
       <td class="num"><b>₹{{ i.gross_total|floatformat:"0g" }}</b>{% if i.sub_total is not None %}<small class="muted daily-sub">before discount ₹{{ i.sub_total|floatformat:"0g" }}</small>{% endif %}</td>
-      <td class="num">{% if i.app_amount is not None %}₹{{ i.app_amount|floatformat:"0g" }}{% else %}—{% endif %}</td>
+      <td class="num">{% if i.app_amount is not None %}₹{{ i.app_amount|floatformat:"0g" }}{% if i.app_visits > 1 %}<small class="muted daily-sub">{{ i.app_visits }} visits on this bill</small>{% endif %}{% else %}—{% endif %}</td>
       <td><span class="daily-match {{ i.match_status|lower }}">{{ i.get_match_status_display }}</span></td>
     </tr>{% empty %}<tr><td colspan="{{ columns }}">No bills with this result.</td></tr>{% endfor %}</tbody>
     {% if not show %}<tfoot><tr><td colspan="{{ columns|add:'-3' }}"><b>Total</b></td><td class="num">₹{{ total|floatformat:"0g" }}</td><td colspan="2"></td></tr></tfoot>{% endif %}
