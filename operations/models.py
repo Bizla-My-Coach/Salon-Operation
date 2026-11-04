@@ -948,6 +948,19 @@ class InvoiceSettings(models.Model):
             return self.invoice_prefix + (digits.lstrip('0') or '0'), True
         return value, False
 
+    def shared_bill(self, raw):
+        """Return (bill number, fits_format) with a shared-visit suffix such as /2 dropped.
+
+        Two visits paid on one bill are entered as 977 and 977/2; both belong to bill 977.
+        """
+        value = ' '.join(str(raw or '').split()).upper()
+        prefix = self.invoice_prefix.upper()
+        rest = value[len(prefix):] if prefix and value.startswith(prefix) else value
+        head, slash, part = rest.partition('/')
+        if slash and head.isdigit() and part.isdigit():
+            return self.canonical(head)
+        return self.canonical(raw)
+
     def __str__(self):
         return f'Invoice format {self.invoice_prefix}…'
 
