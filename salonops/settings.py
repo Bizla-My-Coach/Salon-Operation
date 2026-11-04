@@ -86,3 +86,8 @@ STATIC_URL='static/'; STATIC_ROOT=BASE_DIR/'staticfiles'; STATICFILES_DIRS=[BASE
 STORAGES={'default':{'BACKEND':'django.core.files.storage.FileSystemStorage'},'staticfiles':{'BACKEND':'whitenoise.storage.CompressedManifestStaticFilesStorage'}}
 DEFAULT_AUTO_FIELD='django.db.models.BigAutoField'
 LOGIN_URL='login'; LOGIN_REDIRECT_URL='dashboard'; LOGOUT_REDIRECT_URL='login'
+CSRF_FAILURE_VIEW='operations.csrf_views.csrf_failure'
+# Print CSRF failure reasons to the container log (docker compose logs web).
+LOGGING={'version':1,'disable_existing_loggers':False,
+    'handlers':{'console':{'class':'logging.StreamHandler'}},
+    'loggers':{'salonops.csrf':{'handlers':['console'],'level':'WARNING','propagate':False}}}
