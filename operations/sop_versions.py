@@ -239,9 +239,10 @@ def compare(before, after):
     after_codes = [step["code"] for step in after]
     names = {step["code"]: step.get("name") or step["code"] for step in before + after}
     changes = []
-    for code in after_codes:
+    for index, code in enumerate(after_codes):
         if code not in before_codes:
-            changes.append(("added", f"Added {names[code]}"))
+            place = f" after {names[after_codes[index - 1]]}" if index else (" at the start" if before_codes else "")
+            changes.append(("added", f"Added {names[code]}{place}"))
     for code in before_codes:
         if code not in after_codes:
             changes.append(("removed", f"Removed {names[code]}"))

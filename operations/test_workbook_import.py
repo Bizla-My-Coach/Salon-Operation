@@ -105,7 +105,7 @@ class WorkbookImportTests(TestCase):
         response = self.client.get(self.url, {"stage": str(stage.pk)})
         self.assertContains(response, "Confirm import")
         self.assertIn("no-store", response["Cache-Control"])
-        self.assertContains(response, "total records after import")
+        self.assertContains(response, "Totals after import")
 
     def test_import_and_snapshot_download(self):
         existing = Service.objects.create(code="EXISTING", name="Keep this record", base_price=20)

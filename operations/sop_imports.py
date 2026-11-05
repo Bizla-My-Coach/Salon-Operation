@@ -18,16 +18,29 @@ from django.utils import timezone
 from openpyxl import load_workbook
 
 from .models import (
-    Equipment, InventoryItem, OperationalTask, Service, ServiceDetail,
+    Equipment, InventoryItem, OperationalTask, Service, ServiceDetail, ServiceTaskSetting,
     SOPWorkbookImport, SubService, TaskEquipment, TaskInventory,
 )
-from .sop_versions import all_flows, record_changed_versions
+from .sop_exports import TASK_ORDER_SHEET, catalogue_reference, read_reference
+from .sop_versions import all_flows, compare, record_changed_versions
 
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_EXPANDED = 64 * 1024 * 1024
 MAX_ROWS = 10000
 MASTER_MODELS = (Service, SubService, InventoryItem, Equipment, OperationalTask,
-                 ServiceDetail, TaskInventory, TaskEquipment)
+                 ServiceDetail, TaskInventory, TaskEquipment, ServiceTaskSetting)
+TABLE_LABELS = {
+    Service: "Services", SubService: "Sub-services", InventoryItem: "Inventory items", Equipment: "Equipment",
+    OperationalTask: "Tasks", ServiceDetail: "Service steps", TaskInventory: "Task inventory",
+    TaskEquipment: "Task equipment", ServiceTaskSetting: "Per-service task order and skips",
+}
+SERVICE_FIELDS = {
+    "name": "Name", "category": "Category", "customer_type": "Customer type", "service_type": "Service type",
+    "standard_duration_minutes": "Standard minutes", "base_price": "Base price",
+}
+MAX_PREVIEW_SERVICES = 300
+# Optional sheet: when present it is the full list of per-service task settings.
+TASK_ORDER_SCHEMA = "service_code task_id position can_skip"
 # Required by import_sop_workbook. Extra columns are allowed; missing ones are not.
 SCHEMA = {
     "Service Master": "service_code service_name service_category customer_type service_type standard_duration_minutes current_version notes",
@@ -40,10 +53,10 @@ SCHEMA = {
     "Task Equipment": "task_equipment_id task_id equipment_code quantity_required equipment_usage_minutes utility_type utility_minutes notes",
 }
 INTEGER_COLUMNS = {"standard_duration_minutes", "task_sequence", "sequence", "active_labour_minutes",
-                   "passive_time_minutes", "equipment_usage_minutes", "utility_minutes"}
+                   "passive_time_minutes", "equipment_usage_minutes", "utility_minutes", "position"}
 DECIMAL_COLUMNS = {"standard_output_quantity", "purchase_pack_quantity", "rated_power_kw",
                    "water_litres_per_minute", "required_quantity", "standard_quantity",
-                   "waste_percent", "effective_quantity", "quantity_required"}
+                   "waste_percent", "effective_quantity", "quantity_required", "base_price"}
 
 
 class ImportProblem(Exception):
@@ -69,7 +82,10 @@ def validate_workbook(payload):
         if missing:
             raise ImportProblem("Missing sheets: " + ", ".join(sorted(missing)))
         total = 0
-        for name, schema in SCHEMA.items():
+        sheets = dict(SCHEMA)
+        if TASK_ORDER_SHEET in book.sheetnames:
+            sheets[TASK_ORDER_SHEET] = TASK_ORDER_SCHEMA
+        for name, schema in sheets.items():
             sheet = book[name]
             # Untrusted dimensions must not hide data or force billions of rows.
             sheet.reset_dimensions()
@@ -82,7 +98,8 @@ def validate_workbook(payload):
             absent = set(schema.split()).difference(headers)
             if absent:
                 raise ImportProblem(f"{name}: missing columns: {', '.join(sorted(absent))}")
-            key = headers.index(schema.split()[0])
+            # Task settings are identified by service and task together.
+            keys = [headers.index(column) for column in schema.split()[:2 if name == TASK_ORDER_SHEET else 1]]
             identifiers = set()
             for number, row in enumerate(iterator, 2):
                 total += 1
@@ -90,8 +107,9 @@ def validate_workbook(payload):
                     raise ImportProblem("Workbook exceeds 10,000 rows. Ask an administrator to use the CLI.")
                 if not any(value not in (None, "") for value in row):
                     continue
-                identifier = str(row[key]).strip() if key < len(row) and row[key] is not None else ""
-                if not identifier or identifier in identifiers:
+                parts = [str(row[key]).strip() if key < len(row) and row[key] is not None else "" for key in keys]
+                identifier = "|".join(parts)
+                if not all(parts) or identifier in identifiers:
                     raise ImportProblem(f"{name}, row {number}: missing or duplicate identifier.")
                 identifiers.add(identifier)
                 for column, value in zip(headers, row):
@@ -107,6 +125,7 @@ def validate_workbook(payload):
                             raise ImportProblem(f"{name}, row {number}: {column} must be a valid non-negative number.")
             if name in {"Service Master", "Sub-Service Master", "Task Master", "Service Detail"} and not identifiers:
                 raise ImportProblem(f"{name}: at least one data row is required.")
+        return read_reference(book)
     finally:
         book.close()
 
@@ -115,6 +134,61 @@ def expire_stages():
     SOPWorkbookImport.objects.filter(status="PENDING", expires_at__lte=timezone.now()).update(
         status="EXPIRED", workbook=b"",
     )
+
+
+def _master_rows():
+    """{model: {pk: field values}} without timestamps, which every import touches."""
+    rows = {}
+    for model in MASTER_MODELS:
+        fields = [field.attname for field in model._meta.concrete_fields
+                  if field.attname not in ("id", "created_at", "updated_at")]
+        rows[model] = {item["id"]: {name: item[name] for name in fields}
+                       for item in model.objects.values("id", *fields)}
+    return rows
+
+
+def _plain(value):
+    return "blank" if value in (None, "") else str(value)
+
+
+def _preview(flows_before, rows_before):
+    """Describe what the import would change; called inside a rolled-back transaction."""
+    rows_after = _master_rows()
+    tables = []
+    for model in MASTER_MODELS:
+        before, after = rows_before[model], rows_after[model]
+        new = len(set(after) - set(before))
+        removed = len(set(before) - set(after))
+        changed = sum(1 for pk, values in after.items() if pk in before and before[pk] != values)
+        if new or changed or removed:
+            tables.append({"name": TABLE_LABELS[model], "new": new, "changed": changed, "removed": removed})
+    flows_after = all_flows()
+    services_before, services_after = rows_before[Service], rows_after[Service]
+    services = []
+    for pk, values in sorted(services_after.items(), key=lambda item: (item[1]["category"], item[1]["name"])):
+        old = services_before.get(pk)
+        changes = []
+        if old is None:
+            steps = flows_after.get(pk, [])
+            changes.append(("added", "New service with " + (
+                " → ".join(step["name"] for step in steps) if steps else "no steps yet")))
+        else:
+            for field, label in SERVICE_FIELDS.items():
+                if old[field] != values[field]:
+                    changes.append(("changed", f"{label}: {_plain(old[field])} → {_plain(values[field])}"))
+            if old["active"] != values["active"]:
+                changes.append(("removed" if not values["active"] else "added",
+                                "Service switched off" if not values["active"] else "Service switched on again"))
+            changes += compare(flows_before.get(pk, []), flows_after.get(pk, []))
+        if changes:
+            services.append({"code": values["code"], "name": values["name"], "category": values["category"],
+                             "changes": [{"kind": kind, "text": text} for kind, text in changes]})
+    return {"tables": tables, "services": services[:MAX_PREVIEW_SERVICES],
+            "more_services": max(0, len(services) - MAX_PREVIEW_SERVICES)}
+
+
+class _DryRun(Exception):
+    pass
 
 
 def master_snapshot():
@@ -152,15 +226,30 @@ def run_import(payload, dry_run):
         except (ObjectDoesNotExist, ValueError, TypeError, KeyError, DatabaseError) as exc:
             # Do not echo cell values, SQL, paths or workbook contents into pages/logs.
             raise ImportProblem("Import validation failed. Check identifiers, references, column values and field lengths.") from exc
-    return output.getvalue().strip()
+    # Keep only the record totals after the status words.
+    return output.getvalue().strip().split("— ", 1)[-1]
 
 
 @transaction.atomic
 def stage_workbook(user, filename, payload):
-    validate_workbook(payload)
+    reference = validate_workbook(payload)
     lock_masters()
     before = master_snapshot()
-    summary = run_import(payload, dry_run=True)
+    if reference and reference != catalogue_reference(before):
+        raise ImportProblem(
+            "The catalogue changed after this workbook was downloaded, so uploading it could undo those changes. "
+            "Download a fresh workbook, make your change again and upload that."
+        )
+    flows_before, rows_before = all_flows(), _master_rows()
+    try:
+        # Run the real import, read what it changed, then roll it all back.
+        with transaction.atomic():
+            summary = run_import(payload, dry_run=False)
+            preview = _preview(flows_before, rows_before)
+            raise _DryRun
+    except _DryRun:
+        pass
+    preview["downloaded_here"] = bool(reference)
     # One pending workbook per administrator; no unattended repeated imports.
     SOPWorkbookImport.objects.filter(created_by=user, status="PENDING").update(
         status="CANCELLED", workbook=b"",
@@ -168,7 +257,7 @@ def stage_workbook(user, filename, payload):
     return SOPWorkbookImport.objects.create(
         created_by=user, filename=Path(filename.replace("\\", "/")).name[:160],
         sha256=hashlib.sha256(payload).hexdigest(), workbook=payload,
-        master_digest=hashlib.sha256(before).hexdigest(), summary=summary,
+        master_digest=hashlib.sha256(before).hexdigest(), summary=summary, preview=preview,
         expires_at=timezone.now() + timedelta(hours=1),
     )
 

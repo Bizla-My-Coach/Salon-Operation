@@ -11,6 +11,7 @@ from operations.models import (
     OperationalTask,
     Service,
     ServiceDetail,
+    ServiceTaskSetting,
     SubService,
     TaskEquipment,
     TaskInventory,
@@ -59,9 +60,19 @@ def boolean(value):
     return text(value).lower() in {"active", "true", "yes", "1", "y"}
 
 
+def optional(record, column, convert, defaults, field=None):
+    """Only update a field when its column is in the sheet, so older workbooks keep current values."""
+    if column in record:
+        defaults[field or column] = convert(record[column])
+
+
+TASK_ORDER_SHEET = "Service Task Order"
+
+
 def active(record):
     value = record.get("active", record.get("status", True))
-    return boolean(value)
+    # A blank cell (e.g. a row added in Excel) stays active; only FALSE/inactive switches a row off.
+    return True if value in (None, "") else boolean(value)
 
 
 class Command(BaseCommand):
@@ -94,19 +105,18 @@ class Command(BaseCommand):
 
         counts = {}
         for row in rows(book["Service Master"]):
-            Service.objects.update_or_create(
-                code=text(row["service_code"]),
-                defaults={
-                    "name": text(row["service_name"]),
-                    "category": text(row["service_category"]),
-                    "customer_type": text(row["customer_type"]),
-                    "service_type": text(row["service_type"]),
-                    "standard_duration_minutes": integer(row["standard_duration_minutes"], 30),
-                    "current_version": text(row["current_version"]),
-                    "notes": text(row["notes"]),
-                    "active": active(row),
-                },
-            )
+            defaults = {
+                "name": text(row["service_name"]),
+                "category": text(row["service_category"]),
+                "customer_type": text(row["customer_type"]),
+                "service_type": text(row["service_type"]),
+                "standard_duration_minutes": integer(row["standard_duration_minutes"], 30),
+                "current_version": text(row["current_version"]),
+                "notes": text(row["notes"]),
+                "active": active(row),
+            }
+            optional(row, "base_price", decimal, defaults)
+            Service.objects.update_or_create(code=text(row["service_code"]), defaults=defaults)
         counts["services"] = Service.objects.count()
 
         for row in rows(book["Sub-Service Master"]):
@@ -181,19 +191,18 @@ class Command(BaseCommand):
         counts["tasks"] = OperationalTask.objects.count()
 
         for row in rows(book["Service Detail"]):
-            ServiceDetail.objects.update_or_create(
-                external_id=text(row["service_detail_id"]),
-                defaults={
-                    "service": Service.objects.get(code=text(row["service_code"])),
-                    "sub_service": SubService.objects.get(code=text(row["sub_service_code"])),
-                    "sequence": integer(row["sequence"], 10),
-                    "required_quantity": decimal(row["required_quantity"], Decimal("1")),
-                    "mandatory": boolean(row["mandatory"]),
-                    "mapping_status": text(row["mapping_status"]),
-                    "notes": text(row["notes"]),
-                    "active": active(row),
-                },
-            )
+            defaults = {
+                "service": Service.objects.get(code=text(row["service_code"])),
+                "sub_service": SubService.objects.get(code=text(row["sub_service_code"])),
+                "sequence": integer(row["sequence"], 10),
+                "required_quantity": decimal(row["required_quantity"], Decimal("1")),
+                "mandatory": boolean(row["mandatory"]),
+                "mapping_status": text(row["mapping_status"]),
+                "notes": text(row["notes"]),
+                "active": active(row),
+            }
+            optional(row, "can_skip", boolean, defaults)
+            ServiceDetail.objects.update_or_create(external_id=text(row["service_detail_id"]), defaults=defaults)
         counts["service mappings"] = ServiceDetail.objects.count()
 
         for row in rows(book["Task Inventory"]):
@@ -230,6 +239,9 @@ class Command(BaseCommand):
             )
         counts["equipment mappings"] = TaskEquipment.objects.count()
 
+        if TASK_ORDER_SHEET in book.sheetnames:
+            counts["service task settings"] = self.import_task_order(book[TASK_ORDER_SHEET])
+
         if options["validate_workflow"]:
             for code in ("SUB025", "SUB001"):
                 if not SubService.objects.filter(code=code, active=True, tasks__active=True).exists():
@@ -240,3 +252,28 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Dry run successful; no changes saved — {summary}"))
         else:
             self.stdout.write(self.style.SUCCESS(f"Workbook imported successfully — {summary}"))
+
+    def import_task_order(self, sheet):
+        """The optional sheet lists every per-service task order or skip setting.
+
+        When the sheet is present it is the full list: a setting missing from it
+        is removed, so that service follows the shared task order again.
+        """
+        services = {item.code: item.pk for item in Service.objects.only("pk", "code")}
+        tasks = {item.external_id: item.pk for item in OperationalTask.objects.only("pk", "external_id")}
+        kept = set()
+        for row in rows(sheet):
+            service_code, task_id = text(row["service_code"]), text(row["task_id"])
+            if service_code not in services:
+                raise CommandError(f"{TASK_ORDER_SHEET}: unknown service code {service_code}.")
+            if task_id not in tasks:
+                raise CommandError(f"{TASK_ORDER_SHEET}: unknown task id {task_id}.")
+            position = row.get("position")
+            setting, _ = ServiceTaskSetting.objects.update_or_create(
+                service_id=services[service_code], task_id=tasks[task_id],
+                defaults={"position": None if position in (None, "") else integer(position),
+                          "can_skip": boolean(row.get("can_skip", False))},
+            )
+            kept.add(setting.pk)
+        ServiceTaskSetting.objects.exclude(pk__in=kept).delete()
+        return ServiceTaskSetting.objects.count()
