@@ -11,7 +11,8 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from .decorators import roles_required
 from .models import SOPWorkbookImport
-from .sop_imports import MAX_UPLOAD, ImportProblem, apply_workbook, expire_stages, stage_workbook
+from .sop_exports import build_export
+from .sop_imports import MAX_UPLOAD, ImportProblem, apply_workbook, expire_stages, master_snapshot, stage_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -106,4 +107,17 @@ def workbook_snapshot(request, import_id):
     entry = get_object_or_404(SOPWorkbookImport, pk=import_id, created_by=request.user, status="APPLIED")
     response = HttpResponse(bytes(entry.master_snapshot), content_type="application/gzip")
     response["Content-Disposition"] = f'attachment; filename="sop-master-before-{entry.pk}.json.gz"'
+    return response
+
+
+@roles_required("ADMIN")
+@never_cache
+@require_GET
+def workbook_export(request):
+    """The live SOP master data as a workbook that can be edited and uploaded again."""
+    filename, payload = build_export(master_snapshot())
+    response = HttpResponse(
+        payload, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response

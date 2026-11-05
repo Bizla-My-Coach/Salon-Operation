@@ -17,8 +17,8 @@
     </section>
     <section class="panel import-card" id="sop">
       {% include 'includes/nav_icon.html' with icon='catalogue' only %}<span class="eyebrow">3 · Service setup</span><h2>Excel SOP workbook</h2>
-      <p>Update services, sub-services, tasks, inventory, equipment and SOP mappings from an approved workbook.</p><p class="muted">Master-data changes apply to future task snapshots, not work already performed.</p>
-      {% if can_import_master %}<a class="button primary" href="{% url 'workbook_import' %}">Import SOP workbook</a>{% else %}<p class="import-access-note">Administrator access required</p>{% endif %}
+      <p>Download the current SOP as Excel, make bulk changes (new services, extra steps), then upload it back with a preview.</p><p class="muted">Master-data changes apply to future task snapshots, not work already performed.</p>
+      {% if can_import_master %}<a class="button primary" href="{% url 'workbook_import' %}">Download or upload SOP workbook</a>{% else %}<p class="import-access-note">Administrator access required</p>{% endif %}
     </section>
   </div>
 </div>
