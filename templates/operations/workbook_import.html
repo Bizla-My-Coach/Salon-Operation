@@ -3,13 +3,20 @@
 {% block content %}
 <div class="workbook-page">
 <header data-live-region="heading" class="page-head split">
-  <div><span class="eyebrow">Administration · SOP setup</span><h1>Import SOP workbook</h1><p>Upload, validate and confirm. No server login is needed.</p></div>
+  <div><span class="eyebrow">Administration · SOP setup</span><h1>SOP workbook</h1><p>Download the current SOP, change it in Excel, then upload it back. No server login is needed.</p></div>
   <a class="button outline" href="{% url 'import_data' %}">Back to import data</a>
 </header>
 <div class="notice info">This updates global services, sub-services, tasks, inventory, equipment and their mappings. It does not create staff, branches, customers or visits. Existing visit task snapshots are preserved. Rows absent from the workbook are not deleted.</div>
-<section class="panel narrow">
-  <h2 class="section-title">1. Upload and validate</h2>
-  <p>Choose your approved .xlsx workbook (maximum 10 MB and 10,000 rows). Validation saves no master-data changes.</p>
+<section class="panel narrow workbook-download">
+  <h2 class="section-title">1. Download the current SOP</h2>
+  <p>Get every service, step, task, inventory and equipment row as it is right now, including changes made in the service catalogue. Use it for bulk changes, such as adding a step to every facial or adding many services at once.</p>
+  <p class="muted">The <strong>Read me</strong> sheet explains how to add, move and switch off rows. Grey columns are only for reading and filtering.</p>
+  <a class="button primary" href="{% url 'workbook_export' %}">Download SOP workbook</a>
+</section>
+<section class="panel narrow" style="margin-top:16px">
+  <h2 class="section-title">2. Upload and validate</h2>
+  <p>Choose your edited .xlsx workbook (maximum 10 MB and 10,000 rows). Validation shows what will change and saves nothing yet.</p>
+  <p class="muted">If the catalogue changed after you downloaded the workbook, the upload stops so it cannot undo someone else's change. Download a fresh copy and redo your change.</p>
   <p class="muted">Need branches, chairs or staff? <a href="{% url 'import_data' %}">Open Import data</a>.</p>
   <form method="post" enctype="multipart/form-data" class="form-grid">
     {% csrf_token %}<input type="hidden" name="action" value="validate">
@@ -19,10 +26,28 @@
 </section>
 {% if stage %}
 <section class="panel narrow" style="margin-top:16px">
-  <h2 class="section-title">2. Review and confirm</h2>
+  <h2 class="section-title">3. Review and confirm</h2>
   <p><strong>{{ stage.filename }}</strong> · {{ stage.get_status_display }}</p>
-  <p class="muted">Preview expires {{ stage.expires_at|date:'d M Y, H:i' }}. Counts below are the total records after import, not the number of new rows.</p>
-  <p class="workbook-summary">{{ stage.summary }}</p>
+  {% with preview=stage.preview %}
+  {% if stage.status == 'PENDING' and preview and not preview.downloaded_here %}<div class="notice">This workbook was not downloaded from this page, so it cannot be checked for catalogue changes made since. Rows it contains replace the current values.</div>{% endif %}
+  {% if preview.services %}
+  <h3 class="workbook-preview-title">{{ preview.services|length }}{% if preview.more_services %}+{% endif %} service{{ preview.services|length|pluralize }} will change</h3>
+  <ul class="workbook-preview">{% for service in preview.services %}<li>
+    <strong>{{ service.name }}</strong> <span class="muted">{{ service.code }}{% if service.category %} · {{ service.category }}{% endif %}</span>
+    <ul>{% for change in service.changes %}<li class="change-{{ change.kind }}">{{ change.text }}</li>{% endfor %}</ul>
+  </li>{% endfor %}</ul>
+  {% if preview.more_services %}<p class="muted">…and {{ preview.more_services }} more service{{ preview.more_services|pluralize }}.</p>{% endif %}
+  <p class="muted">Each changed service gets a new version in its SOP history, so any one service can be restored on its own.</p>
+  {% elif preview %}<p><strong>No service steps, names or prices change.</strong></p>{% endif %}
+  {% if preview.tables %}
+  <h3 class="workbook-preview-title">Rows that change</h3>
+  <div class="report-table-wrap"><table class="report-table workbook-table-changes">
+    <thead><tr><th>Sheet</th><th>New</th><th>Changed</th><th>Removed</th></tr></thead>
+    <tbody>{% for table in preview.tables %}<tr><td>{{ table.name }}</td><td>{{ table.new }}</td><td>{{ table.changed }}</td><td>{{ table.removed }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% elif preview %}<p class="muted">Nothing in the workbook differs from the current master data.</p>{% endif %}
+  {% endwith %}
+  <p class="muted">Preview expires {{ stage.expires_at|date:'d M Y, H:i' }}. Totals after import: {{ stage.summary }}</p>
   {% if stage.status == 'PENDING' %}
   <p>A pre-import master-data snapshot is saved with the import and can be downloaded below. This is not a full database or off-server backup.</p>
   <form method="post" class="form-grid">

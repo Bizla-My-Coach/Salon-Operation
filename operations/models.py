@@ -74,6 +74,9 @@ class SOPWorkbookImport(models.Model):
     ])
     applied_at = models.DateTimeField(null=True, blank=True)
     master_snapshot = models.BinaryField(default=bytes, editable=False)
+    # What the upload will change, worked out during validation: changed
+    # services in plain language and new/changed/removed rows per sheet.
+    preview = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
