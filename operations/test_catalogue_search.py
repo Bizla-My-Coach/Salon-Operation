@@ -26,12 +26,13 @@ class CatalogueSearchTests(TestCase):
         html = page.content.decode()
         self.assertLess(html.index("Aroma Magic Silver Facial · Facial · SER005"), html.index("Gold Facial · Facial · SER009"))
         self.assertLess(html.index("Gold Facial · Facial · SER009"), html.index("zebra wash · Hair · SER001"))
-        self.assertContains(page, 'data-filters="id_service"')
+        self.assertContains(page, 'class="service-combobox catalogue-combobox"')
+        self.assertContains(page, 'role="combobox"')
         self.assertContains(page, "3 services, A to Z")
-        self.assertContains(page, "js/select-filter.")
+        self.assertContains(page, "js/catalogue-combobox.")
 
-    def test_add_step_dropdown_is_a_to_z_and_searchable(self):
+    def test_add_step_dropdown_is_a_to_z_without_its_own_search(self):
         page = self.client.get(f"{reverse('service_catalog')}?service={self.gold.pk}")
         self.assertEqual([s.name for s in page.context["editor"]["sub_services"]], ["Cleanse", "Massage cream", "toner"])
-        self.assertContains(page, 'data-filters="add-sub-service"')
-        self.assertContains(page, "3 sub-services, A to Z")
+        self.assertNotContains(page, "Search sub-services")
+        self.assertContains(page, 'role="combobox"', count=1)
