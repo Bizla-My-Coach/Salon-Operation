@@ -9,6 +9,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import connection, IntegrityError, transaction
 from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Q, Sum
+from django.db.models.functions import Lower
 from django.shortcuts import render,redirect,get_object_or_404
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
@@ -491,7 +492,7 @@ def service_catalog(request):
     editor={}
     if selected and can_edit:
         editor={'digest':service_flow_digest(selected),
-                'sub_services':SubService.objects.filter(active=True).exclude(code__in=[CONSULTATION_CODE,SANITISATION_CODE]).order_by('name')}
+                'sub_services':SubService.objects.filter(active=True).exclude(code__in=[CONSULTATION_CODE,SANITISATION_CODE]).order_by(Lower('name'),'code')}
     return render(request,'operations/service_catalog.html',{'form':form,'selected':selected,'sections':sections,'totals':totals,'can_edit':can_edit,'editor':editor})
 
 @sensitive_post_parameters()
