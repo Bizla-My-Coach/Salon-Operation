@@ -4,6 +4,7 @@ from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.db.models import Q
+from django.db.models.functions import Lower
 from datetime import timedelta
 from django.utils import timezone
 
@@ -254,8 +255,16 @@ class CancelAndReassignForm(BootstrapMixin, forms.Form):
         self.fields["chair"].queryset = Chair.objects.filter(branch=branch, active=True)
 
 
+class ServiceChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        # Name first so the A to Z list reads naturally; category and code help the search box.
+        return " · ".join(part for part in (obj.name, obj.category, obj.code) if part)
+
+
 class ServiceLookupForm(BootstrapMixin, forms.Form):
-    service = forms.ModelChoiceField(queryset=Service.objects.filter(active=True), empty_label="Select a service")
+    service = ServiceChoiceField(
+        queryset=Service.objects.filter(active=True).order_by(Lower("name"), "code"), empty_label="Select a service",
+    )
 
 
 class TaskActionForm(BootstrapMixin, forms.Form):
