@@ -41,7 +41,7 @@
       <div class="task-actions">
         {% if task.supports_waiting %}
         {% if task.status == 'PENDING' %}<form method="post" action="{% url 'task_action' task.id 'start' %}">{% csrf_token %}<button class="task-button start" {% if service_actions_locked %}disabled{% endif %}>Start</button></form>
-        {% elif task.status == 'WAITING' %}<form method="post" action="{% url 'task_action' task.id 'resume' %}">{% csrf_token %}<button class="task-button start">Resume</button></form><span class="muted">Processing / setting. Resume when you return; then complete after removal and finishing.</span>
+        {% elif task.status == 'WAITING' %}<p class="muted task-actions-note">Resume when complete.</p><form method="post" action="{% url 'task_action' task.id 'resume' %}">{% csrf_token %}<button class="task-button start">Resume</button></form>
         {% elif task.status == 'IN_PROGRESS' %}<form method="post" action="{% url 'task_action' task.id 'wait' %}">{% csrf_token %}<button class="task-button start">Start Waiting</button></form><form method="post" action="{% url 'task_action' task.id 'complete' %}">{% csrf_token %}<button class="task-button complete">Complete</button></form>
         {% endif %}
         {% else %}
