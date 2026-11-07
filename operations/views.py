@@ -11,6 +11,7 @@ from django.db import connection, IntegrityError, transaction
 from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Q, Sum
 from django.db.models.functions import Lower
 from django.shortcuts import render,redirect,get_object_or_404
+from django.urls import reverse
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -1002,6 +1003,13 @@ def execute_service(request,pk):
         'service_actions_locked':opening_current is not None,
     })
 
+def _back_to_task(vs, task):
+    """Reload the service page scrolled to the step card the stylist just pressed.
+
+    Error redirects deliberately stay at the top so the message is seen.
+    """
+    return redirect(f"{reverse('execute_service', args=[vs.pk])}#task-{task.pk}")
+
 @roles_required('EMPLOYEE')
 @require_POST
 @transaction.atomic
@@ -1040,7 +1048,7 @@ def task_action(request,pk,action):
         task.save(update_fields=[
             'status', 'started_at', 'completed_at', 'note', 'performed_by', 'updated_at'
         ])
-        return redirect('execute_service', pk=vs.pk)
+        return _back_to_task(vs, task)
     if task.task_type in OPENING_TASK_TYPES:
         messages.error(request, 'Use Confirm for visit opening checks; they are not timed.')
         return redirect('execute_service', pk=vs.pk)
@@ -1084,7 +1092,7 @@ def task_action(request,pk,action):
         messages.error(request, 'Unknown task action.')
         return redirect('execute_service', pk=vs.pk)
     task.note=note; task.performed_by=request.user; task.save(); vs.save()
-    return redirect('execute_service',pk=vs.pk)
+    return _back_to_task(vs, task)
 
 @roles_required('EMPLOYEE')
 @require_POST
