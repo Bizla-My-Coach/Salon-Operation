@@ -9,8 +9,8 @@
 <div class="workflow-create-grid">
   <section class="panel workflow-panel">
     <header class="workflow-section-head"><h2>Customer details</h2><p>Only the customer name is required.</p></header>
-    <form method="post" class="form-grid workflow-form">
-      {% csrf_token %}{{ form.non_field_errors }}
+    <form method="post" class="form-grid workflow-form" data-single-submit>
+      {% csrf_token %}<input type="hidden" name="submit_token" value="{{ submit_token }}">{{ form.non_field_errors }}
       <div class="workflow-fields">
         {% include 'includes/workflow_field.html' with field=form.customer_name %}
         {% include 'includes/workflow_field.html' with field=form.mobile %}

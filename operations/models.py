@@ -406,6 +406,12 @@ class Visit(TimeStamped):
     status = models.CharField(max_length=30, choices=STATUS, default="WAITING")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="visits_created")
     closed_at = models.DateTimeField(null=True, blank=True)
+    # One-time tokens from the create and assignment forms.  A repeated press
+    # of the same form (slow network, double tap) carries the same token, so
+    # the server can recognise it and avoid creating a second visit or a
+    # second copy of the newly added services.
+    create_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
+    assignment_token = models.UUIDField(null=True, blank=True, editable=False)
 
     def __str__(self):
         return f"Visit #{self.id} - {self.customer.name} ({self.branch.name})"
