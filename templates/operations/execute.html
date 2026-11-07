@@ -16,7 +16,7 @@
     <header><div><span class="eyebrow">Once per visit</span><h2>Visit opening checks</h2><p>Confirm sanitisation, then consultation.</p></div></header>
     <div class="opening-check-list">
       {% for task in opening_tasks %}
-      <article class="opening-check {% if task.status == 'COMPLETED' %}confirmed{% endif %}">
+      <article id="task-{{ task.id }}" class="opening-check {% if task.status == 'COMPLETED' %}confirmed{% endif %}">
         <div><strong>{{ task.title }}</strong><span>{% if task.status == 'COMPLETED' %}Confirmed{% elif task.status == 'SKIPPED' %}Previously skipped{% else %}Waiting for confirmation{% endif %}</span></div>
         {% if task.status == 'COMPLETED' %}<span class="opening-check-mark">✓</span>
         {% elif task.status == 'SKIPPED' %}<span class="status skipped">Skipped</span>
@@ -32,7 +32,7 @@
 
   <div class="full-task-list">
     {% for task in service_tasks %}
-    <article class="task-item {% if task.status == 'COMPLETED' or task.status == 'SKIPPED' %}task-finished{% elif task.status == 'IN_PROGRESS' %}task-active{% endif %}">
+    <article id="task-{{ task.id }}" class="task-item {% if task.status == 'COMPLETED' or task.status == 'SKIPPED' %}task-finished{% elif task.status == 'IN_PROGRESS' %}task-active{% endif %}">
       <header><div><h2><span class="task-number">{{ forloop.counter }}</span>{{ task.title }}</h2></div><span class="status {{ task.status|lower }}">{{ task.get_status_display }}</span></header>
       {% if task.staff_instructions %}<p class="muted">{{ task.staff_instructions }}</p>{% endif %}
       {% if task.status == 'COMPLETED' or task.status == 'SKIPPED' %}
