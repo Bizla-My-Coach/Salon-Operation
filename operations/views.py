@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import logout, update_session_auth_hash
@@ -9,7 +10,9 @@ from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import connection, IntegrityError, transaction
 from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Q, Sum
+from django.db.models.functions import Lower
 from django.shortcuts import render,redirect,get_object_or_404
+from django.urls import reverse
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -491,7 +494,7 @@ def service_catalog(request):
     editor={}
     if selected and can_edit:
         editor={'digest':service_flow_digest(selected),
-                'sub_services':SubService.objects.filter(active=True).exclude(code__in=[CONSULTATION_CODE,SANITISATION_CODE]).order_by('name')}
+                'sub_services':SubService.objects.filter(active=True).exclude(code__in=[CONSULTATION_CODE,SANITISATION_CODE]).order_by(Lower('name'),'code')}
     return render(request,'operations/service_catalog.html',{'form':form,'selected':selected,'sections':sections,'totals':totals,'can_edit':can_edit,'editor':editor})
 
 @sensitive_post_parameters()
@@ -638,22 +641,56 @@ def manager_dashboard(request):
         ) and any(item.status == 'EMPLOYEE_DONE' for item in active_services)
     return render(request, 'operations/manager_dashboard.html', {'dashboard_branch': branch, 'visits': visits})
 
+def _form_token(value):
+    """Return the posted one-time form token as a UUID, or None if absent/invalid."""
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _customer_for_visit(name, mobile):
+    """Find or create the customer for a new visit without renaming anyone.
+
+    Several people often share one mobile number (family members, or a salon
+    phone used for walk-ins).  An existing customer is reused only when both
+    the mobile and the name match; otherwise a new customer is created, so
+    saving a new visit never changes the name shown on another visit's card.
+    """
+    if mobile:
+        customer = (Customer.objects.filter(mobile=mobile, name__iexact=name.strip())
+                    .order_by('id').first())
+        if customer:
+            return customer
+    return Customer.objects.create(name=name, mobile=mobile)
+
+
 @roles_required('MANAGER')
 def new_visit(request):
     branch=user_branch(request.user); form=VisitCreateForm(request.POST or None)
+    token = _form_token(request.POST.get('submit_token')) if request.method == 'POST' else None
     if request.method=='POST' and form.is_valid():
-        with transaction.atomic():
-            mobile=form.cleaned_data['mobile']; customer=Customer.objects.filter(mobile=mobile).first() if mobile else None
-            if customer:
-                if customer.name != form.cleaned_data['customer_name']:
-                    customer.name = form.cleaned_data['customer_name']
-                    customer.save(update_fields=['name', 'updated_at'])
-            else:
-                customer=Customer.objects.create(name=form.cleaned_data['customer_name'],mobile=mobile)
-            visit=Visit.objects.create(branch=branch,customer=customer,status='WAITING',created_by=request.user)
+        if token:
+            already = Visit.objects.filter(create_token=token, branch=branch).first()
+            if already:
+                # Repeated press of the same form: show the visit it already created.
+                return redirect('edit_visit_services', visit_id=already.pk)
+        try:
+            with transaction.atomic():
+                customer = _customer_for_visit(form.cleaned_data['customer_name'], form.cleaned_data['mobile'])
+                visit=Visit.objects.create(branch=branch,customer=customer,status='WAITING',
+                                           created_by=request.user,create_token=token)
+        except IntegrityError:
+            # Two presses arrived together; the other one created the visit.
+            already = Visit.objects.filter(create_token=token, branch=branch).first() if token else None
+            if not already:
+                raise
+            return redirect('edit_visit_services', visit_id=already.pk)
         messages.success(request,'Customer details saved. Now add and assign the services.')
         return redirect('edit_visit_services', visit_id=visit.pk)
-    return render(request,'operations/visit_form.html',{'form':form,'title':'Create service visit'})
+    return render(request,'operations/visit_form.html',{
+        'form':form,'title':'Create service visit','submit_token': token or uuid.uuid4(),
+    })
 
 @roles_required('MANAGER')
 @transaction.atomic
@@ -668,6 +705,13 @@ def edit_visit_services(request, visit_id):
     visit = get_object_or_404(Visit, pk=visit_id, branch=branch)
     if visit.status in ['VERIFIED', 'INVOICED', 'CLOSED', 'CANCELLED']:
         messages.error(request, "Assignments cannot be changed after visit verification.")
+        return redirect("manager_dashboard")
+    token = _form_token(request.POST.get('assignment_token')) if request.method == 'POST' else None
+    if token and visit.assignment_token == token:
+        # The visit row lock above makes a repeated press wait for the first
+        # one, which has already saved this exact form.  Saving it again would
+        # add the new service rows a second time.
+        messages.info(request, "These service assignments were already saved.")
         return redirect("manager_dashboard")
 
     formset_class = (
@@ -713,7 +757,8 @@ def edit_visit_services(request, visit_id):
                 for item in active.filter(pk__in=changed_service_ids):
                     rebuild_service_tasks(item)
             visit.status = 'ASSIGNED' if not active.exclude(status='ASSIGNED').exists() else visit.status
-            visit.save(update_fields=['status'])
+            visit.assignment_token = token
+            visit.save(update_fields=['status', 'assignment_token'])
         messages.success(request, "Upcoming service order and assignments updated.")
         return redirect("manager_dashboard")
 
@@ -724,6 +769,7 @@ def edit_visit_services(request, visit_id):
             "formset": formset,
             "title": f"Assign services for {visit.customer.name}",
             "visit": visit,
+            "assignment_token": token or uuid.uuid4(),
         },
     )
 
@@ -890,9 +936,16 @@ def add_invoice(request,visit_id):
                     messages.error(request, 'Verify every service before creating the invoice.')
                     return redirect('manager_dashboard')
                 customer = locked.customer
-                customer.name = form.cleaned_data['customer_name']
-                customer.mobile = form.cleaned_data['mobile']
-                customer.save(update_fields=['name', 'mobile', 'updated_at'])
+                name, mobile = form.cleaned_data['customer_name'], form.cleaned_data['mobile']
+                if (customer.name, customer.mobile) != (name, mobile):
+                    if customer.visits.exclude(pk=locked.pk).exists():
+                        # The customer record is shared with other visits; edit
+                        # only this visit's details, never the other cards.
+                        locked.customer = _customer_for_visit(name, mobile)
+                        locked.save(update_fields=['customer'])
+                    else:
+                        customer.name, customer.mobile = name, mobile
+                        customer.save(update_fields=['name', 'mobile', 'updated_at'])
                 total=sum((item.service.base_price for item in locked.services.exclude(status='CANCELLED').select_related('service')),start=0)
                 inv = locked_existing or Invoice(visit=locked, entered_by=request.user)
                 inv.invoice_number = form.cleaned_data['invoice_number']
@@ -1001,6 +1054,13 @@ def execute_service(request,pk):
         'service_actions_locked':opening_current is not None,
     })
 
+def _back_to_task(vs, task):
+    """Reload the service page scrolled to the step card the stylist just pressed.
+
+    Error redirects deliberately stay at the top so the message is seen.
+    """
+    return redirect(f"{reverse('execute_service', args=[vs.pk])}#task-{task.pk}")
+
 @roles_required('EMPLOYEE')
 @require_POST
 @transaction.atomic
@@ -1039,7 +1099,7 @@ def task_action(request,pk,action):
         task.save(update_fields=[
             'status', 'started_at', 'completed_at', 'note', 'performed_by', 'updated_at'
         ])
-        return redirect('execute_service', pk=vs.pk)
+        return _back_to_task(vs, task)
     if task.task_type in OPENING_TASK_TYPES:
         messages.error(request, 'Use Confirm for visit opening checks; they are not timed.')
         return redirect('execute_service', pk=vs.pk)
@@ -1083,7 +1143,7 @@ def task_action(request,pk,action):
         messages.error(request, 'Unknown task action.')
         return redirect('execute_service', pk=vs.pk)
     task.note=note; task.performed_by=request.user; task.save(); vs.save()
-    return redirect('execute_service',pk=vs.pk)
+    return _back_to_task(vs, task)
 
 @roles_required('EMPLOYEE')
 @require_POST

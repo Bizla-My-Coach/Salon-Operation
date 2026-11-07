@@ -7,8 +7,8 @@
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
 <section data-live-region="customer" class="workflow-customer-summary" aria-label="Customer visit"><div><strong>{{ visit.customer.name }}</strong><span>Visit #{{ visit.pk }}{% if visit.customer.mobile %} · {{ visit.customer.mobile }}{% endif %}</span></div><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></section>
-<form method="post" class="visit-builder" id="assignment-form">
-  {% csrf_token %}{{ formset.management_form }}{{ formset.non_form_errors }}
+<form method="post" class="visit-builder" id="assignment-form" data-single-submit>
+  {% csrf_token %}<input type="hidden" name="assignment_token" value="{{ assignment_token }}">{{ formset.management_form }}{{ formset.non_form_errors }}
   <section class="panel assignment-list">
     <header class="workflow-section-head"><h2>Service plan</h2><p>Lower order numbers appear first. Started or completed work stays locked. Use Add another service to extend this visit.</p></header>
     <div id="assignment-rows">

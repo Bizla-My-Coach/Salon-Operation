@@ -21,6 +21,7 @@
   {% block extra_css %}{% endblock %}
   <script src="{% static 'js/accounts.js' %}" defer></script>
   <script src="{% static 'js/pwa.js' %}" defer></script>
+  <script src="{% static 'js/single-submit.js' %}" defer></script>
   <script src="{% static 'js/review-notifications.js' %}" defer></script>
   {% if live_enabled %}<script src="{% static 'js/live-dashboard.js' %}" defer></script>{% endif %}
   {% if request.resolver_match.url_name == 'execute_service' %}<script src="{% static 'js/service-controls.js' %}" defer></script>{% endif %}
