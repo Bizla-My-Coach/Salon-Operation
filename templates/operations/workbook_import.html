@@ -12,6 +12,7 @@
   <p>Get every service, step, task, inventory and equipment row as it is right now, including changes made in the service catalogue. Use it for bulk changes, such as adding a step to every facial or adding many services at once.</p>
   <p class="muted">The <strong>Read me</strong> sheet explains how to add, move and switch off rows. Grey columns are only for reading and filtering.</p>
   <a class="button primary" href="{% url 'workbook_export' %}">Download SOP workbook</a>
+  <p class="muted" style="margin-top:12px">Don't change service codes in the workbook: a new code creates a new service. To renumber codes, use <a href="{% url 'service_code_rename' %}">Rename service codes</a>.</p>
 </section>
 <section class="panel narrow" style="margin-top:16px">
   <h2 class="section-title">2. Upload and validate</h2>

@@ -128,7 +128,8 @@ README = [
     "1. Change rows in the sheets, save as .xlsx, then upload it on Import SOP workbook.",
     "2. Columns marked (info) are only there to help you read and filter. They are ignored on upload.",
     "3. Do not change the ID columns of existing rows (service_code, task_id, service_detail_id ...). "
-    "The upload matches rows by these IDs.",
+    "The upload matches rows by these IDs. A changed service_code creates a new service; "
+    "use Rename service codes in the app to change codes.",
     "4. To add a row, give it a new unique ID, e.g. NEW-001. Steps run in Service Detail 'sequence' order "
     "(10, 20, 30 ...). Use 15 to place a step between 10 and 20.",
     "5. To remove a step or service, set its 'active' cell to FALSE. Deleting a row does not remove it. "
