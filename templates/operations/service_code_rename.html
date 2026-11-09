@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Rename service codes · Hairship{% endblock %}
+{% block content %}
+<div class="workbook-page">
+<header class="page-head split">
+  <div><span class="eyebrow">Administration · Service setup</span><h1>Rename service codes</h1><p>Change many service codes at once. Each service keeps its steps, history, visits and reports.</p></div>
+  <a class="button outline" href="{% url 'workbook_import' %}">Back to SOP workbook</a>
+</header>
+<div class="notice info">Use this page, not the SOP workbook, to change codes. A changed code in the workbook creates a new service instead of renaming the old one.</div>
+<section class="panel narrow">
+  <h2 class="section-title">1. Get the code sheet</h2>
+  <p>Download all {{ service_count }} current codes. Change the <strong>new_code</strong> column and leave rows you don't want changed as they are. Grey columns are only for reading.</p>
+  <a class="button primary" href="{% url 'service_code_sheet' %}">Download service codes</a>
+</section>
+<section class="panel narrow" style="margin-top:16px">
+  <h2 class="section-title">2. Upload and check</h2>
+  <p>Any .xlsx or .csv whose first row has <strong>old_code</strong> and <strong>new_code</strong> works. Checking saves nothing.</p>
+  <form method="post" enctype="multipart/form-data" class="form-grid">
+    {% csrf_token %}{{ form.as_p }}
+    <button class="button primary" type="submit">Check renames</button>
+  </form>
+</section>
+{% if preview %}
+<section class="panel narrow" style="margin-top:16px">
+  <h2 class="section-title">3. Review and confirm</h2>
+  <p><strong>{{ preview.filename }}</strong> · {{ preview.rows|length }} code{{ preview.rows|length|pluralize }} will change{% if preview.unchanged %} · {{ preview.unchanged }} unchanged{% endif %}</p>
+  {% if preview.problems %}
+  <div class="notice error"><strong>Fix these rows and upload again. Nothing can be renamed until they are fixed.</strong>
+    <ul>{% for problem in preview.problems|slice:":50" %}<li>{{ problem }}</li>{% endfor %}</ul>
+    {% if preview.problems|length > 50 %}<p>…and {{ preview.problems|length|add:"-50" }} more.</p>{% endif %}
+  </div>
+  {% endif %}
+  {% if preview.rows %}
+  <div class="report-table-wrap code-rename-table"><table class="report-table">
+    <thead><tr><th>Service</th><th>Old code</th><th>New code</th></tr></thead>
+    <tbody>{% for row in preview.rows %}<tr><td>{{ row.name }}<small>{{ row.category|default:"Uncategorised" }}{% if not row.active %} · switched off{% endif %}</small></td><td>{{ row.old }}</td><td><strong>{{ row.new }}</strong></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if not preview.problems %}
+  <p class="muted">All renames apply together, or none do. Old SOP workbooks and code sheets stop matching afterwards, so download fresh copies.</p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="confirm"><input type="hidden" name="plan" value="{{ preview.plan }}">
+    <button class="button primary" type="submit">Rename {{ preview.rows|length }} code{{ preview.rows|length|pluralize }}</button>
+  </form>
+  {% endif %}
+  {% elif not preview.problems %}<p>Every code in the sheet already matches. Nothing to rename.</p>{% endif %}
+</section>
+{% endif %}
+</div>
+{% endblock %}

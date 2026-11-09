@@ -98,3 +98,4 @@
 .dashboard-chart-track>div{height:100%;background:var(--brand);border-radius:5px}
 
 .workbook-preview-title{font-size:.95rem;margin:18px 0 10px}.workbook-preview{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:10px;max-height:520px;overflow:auto}.workbook-preview>li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow-wrap:anywhere}.workbook-preview ul{margin:6px 0 0;padding-left:18px;font-size:.88rem}.workbook-preview .change-added{color:var(--ok)}.workbook-preview .change-removed{color:var(--danger)}.workbook-table-changes{min-width:0}
+.code-rename-table{max-height:560px;margin-bottom:14px}.code-rename-table .report-table{min-width:0}.code-rename-table td small{display:block;color:var(--muted)}
