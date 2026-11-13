@@ -1,0 +1,45 @@
+{% extends 'public/layout.html' %}
+{% block description %}Terms that govern use of Hairship Operations, Hairship’s internal salon operations app.{% endblock %}
+{% block content %}
+<article class="public-doc">
+  <span class="public-eyebrow">Legal</span>
+  <h1>Terms of Service</h1>
+  <p class="public-updated">Last updated {{ last_updated }}</p>
+
+  <p>These Terms of Service govern use of Hairship Operations (the “App”), operated by Hairship (“Hairship”, “we”, “us”) at operation.hairship.in. By signing in to or using the App you agree to these terms.</p>
+
+  <h2>1. Who may use the App</h2>
+  <p>The App is an internal tool for Hairship employees and people Hairship authorises. Accounts are created by Hairship; you must not share your sign-in or let anyone else use your account.</p>
+
+  <h2>2. What the App provides</h2>
+  <p>The App supports salon service procedures, staff assignments, timing and branch reports, daily sales checks, and the handling of customer reviews from Hairship’s Google Business Profile listings, including review retrieval, manager follow-up and automated replies on Hairship’s behalf.</p>
+
+  <h2>3. Acceptable use</h2>
+  <ul>
+    <li>Use the App only for Hairship work and only within the role and branch you were given.</li>
+    <li>Record information accurately, and handle customer and review information with care and confidentiality.</li>
+    <li>Do not try to access data you are not authorised to see, interfere with the App’s security, or copy data out of the App except as your role requires.</li>
+  </ul>
+
+  <h2>4. Google services</h2>
+  <p>Review features use the Google Business Profile API and are subject to Google’s terms. Replies published through the App appear publicly on Google as Hairship’s owner responses. Hairship is responsible for the replies it publishes and may edit or remove them.</p>
+
+  <h2>5. Data and privacy</h2>
+  <p>Information in the App belongs to Hairship and is handled as described in our <a href="{% url 'public_privacy' %}">Privacy Policy</a>.</p>
+
+  <h2>6. Availability and changes</h2>
+  <p>We work to keep the App available and accurate but provide it “as is”, without guarantees of uninterrupted service. We may change, suspend or stop features, and may suspend accounts that break these terms.</p>
+
+  <h2>7. Liability</h2>
+  <p>To the extent the law allows, Hairship is not liable for indirect or consequential losses arising from use of the App.</p>
+
+  <h2>8. Governing law</h2>
+  <p>These terms are governed by the laws of India.</p>
+
+  <h2>9. Changes to these terms</h2>
+  <p>We may update these terms. The date above shows the latest version, and continued use of the App after a change means you accept it.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions about these terms: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+</article>
+{% endblock %}
