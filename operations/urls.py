@@ -9,7 +9,12 @@ from . import google_review_api
 from . import google_review_views
 from . import report_views
 from . import daily_report_views
+from . import public_views
 urlpatterns=[
+# Public pages for Google OAuth branding; both spellings answer 200 without a redirect.
+path('about', public_views.about, name='public_about'), path('about/', public_views.about),
+path('privacy', public_views.privacy, name='public_privacy'), path('privacy/', public_views.privacy),
+path('terms', public_views.terms, name='public_terms'), path('terms/', public_views.terms),
 path('api/integrations/google-reviews/results', google_review_api.results, name='google_review_results'),
 path('api/integrations/google-reviews/results/', google_review_api.results),
 path('api/v1/google-reviews/ingest/', google_review_api.reviews, name='google_review_ingest'),

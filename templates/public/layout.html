@@ -1,0 +1,32 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#123f37">
+  <meta name="description" content="{% block description %}Hairship Operations is the internal salon operations app used by Hairship branches.{% endblock %}">
+  <title>{{ page_title }} · Hairship</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+  <link rel="stylesheet" href="{% static 'css/public.css' %}">
+</head>
+<body class="public">
+  <header class="public-bar">
+    <div class="public-wrap public-bar-inner">
+      <a class="public-brand" href="{% url 'public_about' %}" aria-label="Hairship Operations home"><img src="{% static 'img/hairship-logo.png' %}" alt="" width="36" height="36"><strong>HAIR SHIP</strong><span>Operations</span></a>
+      <nav class="public-nav" aria-label="Public pages">
+        <a href="{% url 'public_about' %}"{% if request.resolver_match.url_name == 'public_about' %} aria-current="page"{% endif %}>About</a>
+        <a href="{% url 'public_privacy' %}"{% if request.resolver_match.url_name == 'public_privacy' %} aria-current="page"{% endif %}>Privacy</a>
+        <a href="{% url 'public_terms' %}"{% if request.resolver_match.url_name == 'public_terms' %} aria-current="page"{% endif %}>Terms</a>
+        <a class="public-signin" href="{% url 'login' %}">Staff sign in</a>
+      </nav>
+    </div>
+  </header>
+  <main class="public-wrap public-main">{% block content %}{% endblock %}</main>
+  <footer class="public-footer">
+    <div class="public-wrap public-footer-inner">
+      <p>© Hairship. Hairship Operations is operated by Hairship, a salon chain in Kerala, India.</p>
+      <p><a href="{% url 'public_about' %}">About</a> · <a href="{% url 'public_privacy' %}">Privacy Policy</a> · <a href="{% url 'public_terms' %}">Terms of Service</a> · <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>
+    </div>
+  </footer>
+</body>
+</html>

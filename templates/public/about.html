@@ -1,0 +1,46 @@
+{% extends 'public/layout.html' %}
+{% block content %}
+<section class="public-hero">
+  <span class="public-eyebrow">About this app</span>
+  <h1>Hairship Operations</h1>
+  <p class="public-lead">Hairship Operations is the internal operations app of Hairship, a salon chain with branches in Kerala, India. Hairship staff use it at <strong>operation.hairship.in</strong> to run salon services to a standard procedure, and to look after the feedback customers leave on Hairship’s Google Business Profile listings.</p>
+  <p class="public-note">The app is for Hairship employees only. The operations dashboard requires a staff sign-in; this page, the <a href="{% url 'public_privacy' %}">Privacy Policy</a> and the <a href="{% url 'public_terms' %}">Terms of Service</a> are public.</p>
+</section>
+
+<section class="public-section">
+  <h2>What the app does</h2>
+  <div class="public-cards">
+    <article class="public-card">
+      <h3>Salon operations</h3>
+      <p>Managers create service orders for customer visits and assign them to stylists. Stylists follow each service’s standard operating procedure step by step, and managers see timing, branch reports and daily sales checks for their branch.</p>
+    </article>
+    <article class="public-card">
+      <h3>Google review retrieval</h3>
+      <p>With the authorisation of the Hairship account that owns the listings, the app’s review service uses the Google Business Profile API to retrieve new reviews posted on Hairship’s own branch locations: the star rating, review text, reviewer display name, review time and any existing reply.</p>
+    </article>
+    <article class="public-card">
+      <h3>Manager follow-up</h3>
+      <p>Each review is matched to the Hairship branch it belongs to and analysed for the issues or praise it mentions. Reviews that raise a problem appear in that branch manager’s inbox, where the manager records the steps taken with the customer and the staff involved, and closes the review once it is handled.</p>
+    </article>
+    <article class="public-card">
+      <h3>Automated replies</h3>
+      <p>The review service prepares a short, courteous reply for each review and posts it to the review on Google as the owner’s response, on behalf of the Hairship branch. Reviews that need a person to look at them are flagged to the branch manager for follow-up.</p>
+    </article>
+  </div>
+</section>
+
+<section class="public-section">
+  <h2>How Google data is used</h2>
+  <ul class="public-list">
+    <li>Only reviews on Google Business Profile locations owned or managed by Hairship are accessed.</li>
+    <li>Review data is used only to show the review to Hairship staff, route it to the right branch for follow-up, and publish Hairship’s reply to that review.</li>
+    <li>Google data is not sold, not used for advertising, and not shared with anyone outside Hairship and the service providers that host the app.</li>
+  </ul>
+  <p>The full details are in our <a href="{% url 'public_privacy' %}">Privacy Policy</a>. Use of the app is governed by our <a href="{% url 'public_terms' %}">Terms of Service</a>.</p>
+</section>
+
+<section class="public-section public-contact">
+  <h2>Contact</h2>
+  <p>For questions about Hairship Operations, this page, or how review data is handled, email <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+</section>
+{% endblock %}
