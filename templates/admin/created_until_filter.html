@@ -1,0 +1,11 @@
+<details data-filter-title="{{ title }}" open>
+  <summary>By {{ title }}</summary>
+  {% for choice in choices %}
+  <form method="get" style="padding: 4px 15px 10px;">
+    {% for key, value in choice.other_params %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <input type="date" name="{{ spec.parameter_name }}" value="{{ choice.value }}" aria-label="Created on or before">
+    <button type="submit">Filter</button>
+    {% if choice.value %}<a href="{{ choice.clear_url }}">Clear</a>{% endif %}
+  </form>
+  {% endfor %}
+</details>
