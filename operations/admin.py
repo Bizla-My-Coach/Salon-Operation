@@ -1,4 +1,7 @@
-from django.contrib import admin
+import datetime
+
+from django.contrib import admin, messages
+from django.utils import timezone
 
 from .models import (
     Branch,
@@ -152,12 +155,79 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ("name", "mobile", "email")
 
 
+class CreatedUntilFilter(admin.SimpleListFilter):
+    """Visits created on or before a chosen date (in the salon's time zone)."""
+
+    title = "created on or before"
+    parameter_name = "created_until"
+    template = "admin/created_until_filter.html"
+
+    def lookups(self, request, model_admin):
+        return ()
+
+    def has_output(self):
+        return True
+
+    def chosen_date(self):
+        try:
+            return datetime.date.fromisoformat(self.value() or "")
+        except ValueError:
+            return None
+
+    def queryset(self, request, queryset):
+        chosen = self.chosen_date()
+        if chosen:
+            return queryset.filter(created_at__date__lte=chosen)
+        return queryset
+
+    def choices(self, changelist):
+        chosen = self.chosen_date()
+        other_params = {
+            key: value
+            for key, value in changelist.get_filters_params().items()
+            if key != self.parameter_name
+        }
+        yield {
+            "value": chosen.isoformat() if chosen else "",
+            "other_params": [(key, v) for key, values in other_params.items()
+                             for v in (values if isinstance(values, list) else [values])],
+            "clear_url": changelist.get_query_string(remove=[self.parameter_name]),
+        }
+
+
+def _visit_status_action(status, label):
+    def action(modeladmin, request, queryset):
+        to_change = list(queryset.exclude(status=status))
+        now = timezone.now()
+        for visit in to_change:
+            old_label = visit.get_status_display()
+            visit.status = status
+            update_fields = ["status", "updated_at"]
+            if status == "CLOSED" and not visit.closed_at:
+                visit.closed_at = now
+                update_fields.append("closed_at")
+            visit.save(update_fields=update_fields)
+            modeladmin.log_change(request, visit, f"Bulk status change: {old_label} to {label}.")
+        changed = len(to_change)
+        unchanged = queryset.count() - changed
+        message = f"{changed} visit(s) changed to {label}."
+        if unchanged > 0:
+            message += f" {unchanged} were already {label}."
+        modeladmin.message_user(request, message, messages.SUCCESS)
+
+    action.__name__ = f"mark_visits_{status.lower()}"
+    action.short_description = f"Change status of selected visits to {label}"
+    action.allowed_permissions = ("change",)
+    return action
+
+
 @admin.register(Visit)
 class VisitAdmin(admin.ModelAdmin):
     list_display = ("id", "customer", "branch", "token_number", "status", "created_at")
-    list_filter = ("branch", "status", "created_at")
+    list_filter = ("branch", "status", CreatedUntilFilter, "created_at")
     search_fields = ("=id", "customer__name", "customer__mobile", "token_number")
     list_select_related = ("customer", "branch")
+    actions = [_visit_status_action(code, label) for code, label in Visit.STATUS]
 
 
 @admin.register(VisitService)
