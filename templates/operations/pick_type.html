@@ -3,7 +3,7 @@
 {% block title %}{{ category.label }} type · Hairship{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
 {% block content %}
-<div class="service-back-nav"><a class="button outline" href="{% url 'employee_dashboard' %}">← My customers</a><span class="muted">{{ category.label }}</span></div>
+<div class="service-back-nav"><a class="button outline" href="{% url 'employee_dashboard' %}">← My customers</a>{% if can_change_category %}<a class="muted" href="?change=category">Not {{ category.label|lower }}? Change</a>{% endif %}</div>
 <header class="page-head">
   <span class="eyebrow">{{ category.label }} · Visit #{{ assignment.visit_id }}</span>
   <h1>{{ customer.name }}</h1>
@@ -32,6 +32,6 @@
       {% endfor %}
     </div>
   </fieldset>
-  <div class="sv-save-bar"><button type="submit" class="button primary large block">Save</button></div>
+  <div class="sv-save-bar"><button type="submit" class="button primary large block">Save</button><button type="submit" name="another" value="1" class="button outline block sv-another">Save and add another type</button></div>
 </form>
 {% endblock %}

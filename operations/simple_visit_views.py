@@ -1,9 +1,11 @@
-"""Simple visit flow: manager assigns staff per category, staff tap a type card."""
-from django import forms
+"""Simple visit flow: name and phone, assign staff, staff tap type cards.
+
+No invoice, review or verification: the visit closes by itself once every
+assigned staff member has saved their card.
+"""
 from django.contrib import messages
-from django.contrib.auth.models import User
-from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db import transaction
+from django.db.models import Count
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -16,7 +18,8 @@ from .decorators import roles_required
 from .models import Branch, Customer, Visit, VisitAssignment
 from .roster import working_branch, working_employees
 
-OPEN_VISIT = ['WAITING', 'ASSIGNED', 'IN_PROGRESS', 'EMPLOYEE_DONE']
+OPEN_VISIT = ['WAITING', 'ASSIGNED', 'IN_PROGRESS']
+ANY_IMAGE = 'img/types/any.svg'
 
 
 def _require_simple_flow():
@@ -28,91 +31,87 @@ def staff_label(user):
     return user.get_full_name() or user.username
 
 
-class StaffChoiceField(forms.ModelChoiceField):
-    def label_from_instance(self, obj):
-        return staff_label(obj)
+def card_image(card):
+    if card.selected_type:
+        return type_image(card.category, card.selected_type)
+    if card.category:
+        return CATEGORIES[card.category]['options'][0][3]
+    return ANY_IMAGE
 
 
-class CategoryAssignmentForm(forms.Form):
-    """One optional staff dropdown per enabled category."""
-
-    def __init__(self, *args, branch, visit, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.existing = {item.category: item for item in visit.category_assignments.exclude(status='CANCELLED')}
-        staff = working_employees(branch).order_by('first_name', 'username')
-        self.rows = []
-        for key in enabled_categories():
-            current = self.existing.get(key)
-            queryset = User.objects.filter(Q(pk__in=staff.values('pk')) | Q(pk=getattr(current, 'employee_id', None))).distinct()
-            field = StaffChoiceField(
-                queryset=queryset.order_by('first_name', 'username'), required=False,
-                empty_label='No ' + CATEGORIES[key]['label'].lower() + ' service', label=CATEGORIES[key]['label'],
-                initial=getattr(current, 'employee_id', None),
-            )
-            field.widget.attrs['class'] = 'form-control'
-            locked = bool(current and current.status == 'DONE')
-            field.disabled = locked
-            self.fields[key] = field
-            self.rows.append({'key': key, 'label': CATEGORIES[key]['label'], 'field': None, 'current': current,
-                              'locked': locked, 'image': CATEGORIES[key]['options'][0][3]})
-
-    def clean(self):
-        data = super().clean()
-        if not any(data.get(key) for key in self.fields):
-            raise forms.ValidationError('Choose a staff member for at least one category.')
-        return data
-
-
-def _visit_status(visit):
-    active = visit.category_assignments.exclude(status='CANCELLED')
-    if active.exists() and not active.exclude(status='DONE').exists():
-        return 'EMPLOYEE_DONE'
-    if active.filter(status='DONE').exists():
-        return 'IN_PROGRESS'
-    return 'ASSIGNED' if active.exists() else 'WAITING'
+def _settle_visit(visit):
+    """Set the visit status from its cards; close it once every card is saved."""
+    cards = visit.category_assignments.exclude(status='CANCELLED')
+    now = timezone.now()
+    if cards.exists() and not cards.exclude(status='DONE').exists():
+        visit.status, visit.closed_at = 'CLOSED', now
+    elif cards.filter(status='DONE').exists():
+        visit.status, visit.closed_at = 'IN_PROGRESS', None
+    else:
+        visit.status, visit.closed_at = ('ASSIGNED' if cards.exists() else 'WAITING'), None
+    visit.save(update_fields=['status', 'closed_at', 'updated_at'])
 
 
 @roles_required('MANAGER')
 @require_http_methods(['GET', 'POST'])
 def assign_staff(request, visit_id):
+    """Tick one or more staff; the category per staff member is optional."""
     _require_simple_flow()
     branch = working_branch(request.user)
     visit = get_object_or_404(Visit.objects.select_related('customer'), pk=visit_id, branch=branch)
     if visit.status not in OPEN_VISIT:
-        messages.error(request, 'Staff cannot be changed after the invoice is added.')
+        messages.error(request, 'This visit is already finished.')
         return redirect('manager_dashboard')
-    form = CategoryAssignmentForm(request.POST or None, branch=branch, visit=visit)
-    if request.method == 'POST' and form.is_valid():
-        with transaction.atomic():
-            Visit.objects.select_for_update().get(pk=visit.pk)
-            now = timezone.now()
-            for key in form.fields:
-                current = form.existing.get(key)
-                if current and current.status == 'DONE':
-                    continue
-                employee = form.cleaned_data.get(key)
-                if not employee:
-                    if current:
-                        current.delete()
-                    continue
-                if current:
-                    if current.employee_id != employee.pk:
-                        current.employee, current.assigned_by, current.assigned_at = employee, request.user, now
-                        current.save(update_fields=['employee', 'assigned_by', 'assigned_at', 'updated_at'])
-                else:
-                    VisitAssignment.objects.update_or_create(
-                        visit=visit, category=key,
-                        defaults={'employee': employee, 'assigned_by': request.user, 'assigned_at': now,
-                                  'status': 'ASSIGNED', 'selected_type': '', 'completed_at': None},
-                    )
-            visit.status = _visit_status(visit)
-            visit.save(update_fields=['status', 'updated_at'])
-        messages.success(request, f'Staff assigned for {visit.customer.name}.')
-        return redirect('manager_dashboard')
-    for row in form.rows:
-        row['field'] = form[row['key']]
-        row['previous'] = type_label(row['key'], getattr(visit.customer, CATEGORIES[row['key']]['customer_field']))
-    return render(request, 'operations/simple_assign.html', {'form': form, 'visit': visit})
+    categories = enabled_categories()
+    current = {}
+    for card in visit.category_assignments.exclude(status='CANCELLED').select_related('employee').order_by('id'):
+        current.setdefault(card.employee_id, card)
+    staff = list(working_employees(branch).order_by('first_name', 'username'))
+    staff_ids = {person.pk for person in staff}
+    staff += [card.employee for card in current.values() if card.employee_id not in staff_ids]
+    error = ''
+    if request.method == 'POST':
+        chosen = {}
+        for person in staff:
+            if request.POST.get(f'staff_{person.pk}'):
+                category = request.POST.get(f'category_{person.pk}', '').upper()
+                chosen[person.pk] = (person, category if category in categories else '')
+        locked = {pk for pk, card in current.items() if card.status == 'DONE'}
+        if not chosen and not locked:
+            error = 'Tick at least one staff member.'
+        else:
+            with transaction.atomic():
+                visit = Visit.objects.select_for_update().get(pk=visit.pk)
+                for pk, card in current.items():
+                    if card.status == 'ASSIGNED' and pk not in chosen:
+                        card.delete()
+                for pk, (person, category) in chosen.items():
+                    card = current.get(pk)
+                    if card and card.status == 'DONE':
+                        continue
+                    if card:
+                        if card.category != category:
+                            card.category = category
+                            card.save(update_fields=['category', 'updated_at'])
+                    else:
+                        VisitAssignment.objects.create(visit=visit, category=category, employee=person,
+                                                       assigned_by=request.user)
+                _settle_visit(visit)
+            messages.success(request, f'{visit.customer.name} sent to {len(chosen) or len(locked)} staff.')
+            return redirect('manager_dashboard')
+    rows = []
+    for person in staff:
+        card = current.get(person.pk)
+        rows.append({
+            'person': person, 'name': staff_label(person), 'card': card,
+            'checked': bool(card) if request.method == 'GET' else bool(request.POST.get(f'staff_{person.pk}')),
+            'category': (card.category if card else '') if request.method == 'GET' else request.POST.get(f'category_{person.pk}', ''),
+            'locked': bool(card and card.status == 'DONE'),
+        })
+    return render(request, 'operations/simple_assign.html', {
+        'visit': visit, 'rows': rows, 'error': error,
+        'categories': [{'key': key, 'label': CATEGORIES[key]['label']} for key in categories],
+    })
 
 
 def _my_assignments(user):
@@ -125,13 +124,19 @@ def _my_assignments(user):
 
 
 def employee_cards(user):
-    """Cards for the staff home screen: waiting first, then today's recorded ones."""
-    cards = list(_my_assignments(user).order_by('visit__created_at', 'id'))
+    """Cards waiting for this staff member, then the ones they saved today."""
+    branch = working_branch(user)
+    waiting = list(_my_assignments(user).filter(status='ASSIGNED').order_by('visit__created_at', 'id'))
+    saved = list(VisitAssignment.objects.filter(
+        employee=user, visit__branch=branch, status='DONE', completed_at__date=timezone.localdate(),
+    ).select_related('visit__customer').order_by('-completed_at')[:20]) if branch else []
+    cards = waiting + saved
     for card in cards:
-        card.image = type_image(card.category, card.selected_type) if card.selected_type else CATEGORIES[card.category]['options'][0][3]
-        previous = getattr(card.visit.customer, CATEGORIES[card.category]['customer_field'])
+        card.can_change = card.visit.status in OPEN_VISIT
+        card.image = card_image(card)
+        previous = getattr(card.visit.customer, CATEGORIES[card.category]['customer_field']) if card.category else ''
         card.previous_label = type_label(card.category, previous)
-    return [c for c in cards if c.status == 'ASSIGNED'], [c for c in cards if c.status == 'DONE']
+    return waiting, saved
 
 
 @roles_required('EMPLOYEE')
@@ -139,8 +144,10 @@ def employee_cards(user):
 def pick_type(request, pk):
     _require_simple_flow()
     assignment = get_object_or_404(_my_assignments(request.user), pk=pk)
-    category = CATEGORIES[assignment.category]
     customer = assignment.visit.customer
+    if not assignment.category or request.GET.get('change') == 'category' and assignment.status == 'ASSIGNED':
+        return _pick_category(request, assignment, customer)
+    category = CATEGORIES[assignment.category]
     previous = getattr(customer, category['customer_field'])
     saved_concerns = assignment.concerns if assignment.status == 'DONE' else (customer.concerns or {}).get(assignment.category, [])
     if request.method == 'POST':
@@ -162,8 +169,14 @@ def pick_type(request, pk):
                 fields.append(category['customer_field'])
             customer.concerns = {**(customer.concerns or {}), assignment.category: concerns}
             customer.save(update_fields=fields)
-            visit.status = _visit_status(visit)
-            visit.save(update_fields=['status', 'updated_at'])
+            another = None
+            if request.POST.get('another'):
+                # Keep the visit open for one more card, e.g. skin after hair.
+                another = VisitAssignment.objects.create(visit=visit, employee=request.user, assigned_by=request.user)
+            _settle_visit(visit)
+        if another:
+            messages.success(request, f"{category['label']} saved. Now pick the next type for {customer.name}.")
+            return redirect('pick_type', pk=another.pk)
         messages.success(request, f"{customer.name}: {category['label'].lower()} type saved as {type_label(assignment.category, choice)}.")
         return redirect('employee_dashboard')
     chosen = assignment.selected_type or previous
@@ -175,6 +188,29 @@ def pick_type(request, pk):
         'concerns': concerns, 'unsure_selected': chosen == UNKNOWN,
         'previous_label': type_label(assignment.category, previous),
         'visit_count': customer.visits.count(),
+        'can_change_category': assignment.status == 'ASSIGNED',
+    })
+
+
+def _pick_category(request, assignment, customer):
+    """The manager left the category open: staff tap Hair, Skin or Body first."""
+    categories = enabled_categories()
+    if request.method == 'POST':
+        category = request.POST.get('category', '').upper()
+        if category not in categories:
+            messages.error(request, 'Tap Hair, Skin or Body.')
+            return redirect('pick_type', pk=assignment.pk)
+        assignment.category = category
+        assignment.save(update_fields=['category', 'updated_at'])
+        return redirect('pick_type', pk=assignment.pk)
+    choices = []
+    for key in categories:
+        previous = getattr(customer, CATEGORIES[key]['customer_field'])
+        choices.append({'key': key, 'label': CATEGORIES[key]['label'],
+                        'image': CATEGORIES[key]['options'][0][3], 'previous': type_label(key, previous)})
+    return render(request, 'operations/pick_category.html', {
+        'assignment': assignment, 'customer': customer, 'choices': choices,
+        'visit_count': customer.visits.count(),
     })
 
 
@@ -183,38 +219,26 @@ def unassigned_visits(user):
     branch = working_branch(user)
     if branch is None:
         return []
-    visits = (Visit.objects.filter(branch=branch, status='WAITING').select_related('customer')
-              .exclude(category_assignments__status__in=['ASSIGNED', 'DONE']).exclude(services__isnull=False)
-              .distinct().order_by('created_at', 'id'))
-    categories = [{'key': key, 'label': CATEGORIES[key]['label']} for key in enabled_categories()]
-    return [{'visit': visit, 'categories': categories} for visit in visits]
+    return list(Visit.objects.filter(branch=branch, status='WAITING').select_related('customer')
+                .exclude(category_assignments__status__in=['ASSIGNED', 'DONE']).exclude(services__isnull=False)
+                .distinct().order_by('created_at', 'id'))
 
 
 @roles_required('EMPLOYEE')
 @require_POST
-def take_customer(request, visit_id, category):
+def take_customer(request, visit_id):
     """Self-assign before the service starts when the manager has not assigned anyone."""
     _require_simple_flow()
-    category = category.upper()
-    if category not in enabled_categories():
-        raise Http404
     branch = working_branch(request.user)
-    try:
-        with transaction.atomic():
-            visit = get_object_or_404(Visit.objects.select_for_update(), pk=visit_id, branch=branch)
-            taken = visit.category_assignments.exclude(status='CANCELLED').exists() or visit.services.exists()
-            if visit.status != 'WAITING' or taken:
-                messages.info(request, 'Someone has already been assigned to this customer.')
-                return redirect('employee_dashboard')
-            assignment = VisitAssignment.objects.create(
-                visit=visit, category=category, employee=request.user, assigned_by=request.user,
-            )
-            visit.status = 'ASSIGNED'
-            visit.save(update_fields=['status', 'updated_at'])
-    except IntegrityError:
-        messages.info(request, 'Someone has already been assigned to this customer.')
-        return redirect('employee_dashboard')
-    messages.success(request, f"You took {visit.customer.name} for {CATEGORIES[category]['label'].lower()}.")
+    with transaction.atomic():
+        visit = get_object_or_404(Visit.objects.select_for_update(), pk=visit_id, branch=branch)
+        taken = visit.category_assignments.exclude(status='CANCELLED').exists() or visit.services.exists()
+        if visit.status != 'WAITING' or taken:
+            messages.info(request, 'Someone has already been assigned to this customer.')
+            return redirect('employee_dashboard')
+        assignment = VisitAssignment.objects.create(visit=visit, employee=request.user, assigned_by=request.user)
+        _settle_visit(visit)
+    messages.success(request, f'You took {visit.customer.name}.')
     return redirect('pick_type', pk=assignment.pk)
 
 

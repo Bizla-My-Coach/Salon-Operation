@@ -15,20 +15,16 @@
   <article class="visit-card manager-visit-card">
     <header class="manager-visit-head">
       <div class="manager-customer">
-        <div class="manager-customer-title"><h2>{{ visit.customer.name }}</h2><span class="status {{ visit.status|lower }}">{% if visit.simple_ready %}Types recorded{% else %}{{ visit.get_status_display }}{% endif %}</span></div>
+        <div class="manager-customer-title"><h2>{{ visit.customer.name }}</h2><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></div>
         <p>{{ visit.customer.mobile|default:'No phone' }} · Arrived {{ visit.created_at|date:'H:i' }}</p>
       </div>
       <div class="manager-card-actions">
-        {% if visit.status == 'INVOICED' %}<a class="button primary" href="{% url 'collect_feedback' visit.id %}">Collect feedback</a>
-        {% else %}
-          <a class="button {% if visit.simple_assignments %}outline{% else %}primary{% endif %}" href="{% url 'assign_staff' visit.id %}">{% if visit.simple_assignments %}Change staff{% else %}Assign staff{% endif %}</a>
-          {% if visit.simple_ready %}<a class="button dark" href="{% url 'add_invoice' visit.id %}">Add invoice</a>{% endif %}
-        {% endif %}
+        <a class="button {% if visit.simple_assignments %}outline{% else %}primary{% endif %}" href="{% url 'assign_staff' visit.id %}">{% if visit.simple_assignments %}Change staff{% else %}Assign staff{% endif %}</a>
       </div>
     </header>
     <div class="sv-chips">
       {% for a in visit.simple_assignments %}
-      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{{ a.category_label }}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.employee.get_full_name|default:a.employee.username }}{% if a.self_assigned %} (self){% endif %}</small></span>
+      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{% if a.category %}{{ a.category_label }}{% else %}Any{% endif %}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.employee.get_full_name|default:a.employee.username }}{% if a.self_assigned %} (self){% endif %}</small></span>
       {% empty %}<p class="manager-no-services">No staff assigned yet.</p>
       {% endfor %}
     </div>
@@ -71,8 +67,20 @@
     {% endif %}
   </article>
   {% endif %}
-  {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">{% if simple_flow %}Add first customer{% else %}Create first visit{% endif %}</a></div>{% endfor %}
+  {% empty %}{% if not finished_today %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">{% if simple_flow %}Add first customer{% else %}Create first visit{% endif %}</a></div>{% endif %}{% endfor %}
 </div>
+{% if finished_today %}
+<section class="sv-section" aria-label="Finished today">
+  <h2>Finished today · {{ finished_today|length }}</h2>
+  <div class="sv-finished">
+    {% for visit in finished_today %}
+    <div class="sv-finished-row"><strong>{{ visit.customer.name }}</strong><span class="muted">{{ visit.closed_at|date:'H:i' }}</span>
+      <div class="sv-chips">{% for a in visit.category_assignments.all %}<span class="sv-chip done"><b>{{ a.category_label }}</b>{{ a.type_label }}<small>· {{ a.employee.get_full_name|default:a.employee.username }}</small></span>{% endfor %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% else %}
 <header class="page-head"><h1>Live operations</h1></header>
 <div class="panel"><p>No working branch is assigned to you today.</p><a class="button primary" href="{% url 'branch_roster' %}">Set today's branch</a></div>

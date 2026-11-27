@@ -426,14 +426,6 @@ class Visit(TimeStamped):
     @property
     def is_invoice_ready(self):
         active_services = self.services.exclude(status="CANCELLED")
-        if not active_services.exists():
-            # Simple visit flow: ready once every assigned category is recorded.
-            assignments = self.category_assignments.exclude(status="CANCELLED")
-            return (
-                assignments.exists()
-                and not assignments.exclude(status="DONE").exists()
-                and not Invoice.objects.filter(visit=self, status="COMPLETED").exists()
-            )
         return (
             active_services.exists()
             and not active_services.exclude(status="VERIFIED").exists()
@@ -442,14 +434,17 @@ class Visit(TimeStamped):
 
 
 class VisitAssignment(TimeStamped):
-    """Simple visit flow: one staff member per category (Hair, Skin, Body).
+    """Simple visit flow: one staff card on a visit.
 
-    The staff member taps a picture card to record the customer's type, which
-    replaces SOP step execution. SOP data and VisitService rows are untouched.
+    The manager may set the category (Hair, Skin, Body) or leave it for the
+    staff member. The staff member taps a picture card to record the customer's
+    type and concerns; the visit closes when every card is saved. This replaces
+    SOP step execution, verification and invoicing, whose data is untouched.
     """
     STATUS = [("ASSIGNED", "Assigned"), ("DONE", "Type recorded"), ("CANCELLED", "Cancelled")]
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="category_assignments")
-    category = models.CharField(max_length=10)
+    # Blank until the staff member chooses Hair, Skin or Body on the card.
+    category = models.CharField(max_length=10, blank=True)
     employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments")
     assigned_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments_made")
     status = models.CharField(max_length=12, choices=STATUS, default="ASSIGNED")
@@ -460,13 +455,12 @@ class VisitAssignment(TimeStamped):
 
     class Meta:
         ordering = ["visit_id", "id"]
-        constraints = [models.UniqueConstraint(fields=["visit", "category"], name="one_assignment_per_visit_category")]
         indexes = [models.Index(fields=["employee", "status"])]
 
     @property
     def category_label(self):
         from .customer_types import CATEGORIES
-        return CATEGORIES.get(self.category, {}).get("label", self.category.title())
+        return CATEGORIES.get(self.category, {}).get("label", self.category.title()) if self.category else "Any"
 
     @property
     def type_label(self):

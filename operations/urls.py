@@ -13,7 +13,7 @@ from . import public_views
 from . import simple_visit_views
 urlpatterns=[
 path('manager/visit/<int:visit_id>/assign-staff/', simple_visit_views.assign_staff, name='assign_staff'),
-path('employee/visit/<int:visit_id>/take/<str:category>/', simple_visit_views.take_customer, name='take_customer'),
+path('employee/visit/<int:visit_id>/take/', simple_visit_views.take_customer, name='take_customer'),
 path('employee/customer/<int:pk>/', simple_visit_views.pick_type, name='pick_type'),
 path('reports/customer-types/', simple_visit_views.customer_types, name='customer_types'),
 # Public pages for Google OAuth branding; both spellings answer 200 without a redirect.

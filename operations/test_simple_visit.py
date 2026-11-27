@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Branch, Customer, FeedbackQuestion, Invoice, Visit, VisitAssignment
+from .models import Branch, Customer, Invoice, Visit, VisitAssignment
 
 
 def make_user(username, role, branch):
@@ -38,20 +38,22 @@ class SimpleVisitFlowTests(TestCase):
         self.assertFalse(Visit.objects.exists())
         self.assertContains(response, 'Next: assign staff')
 
-    def test_manager_assigns_by_category_and_staff_record_type_and_concerns(self):
+    def test_manager_assigns_several_staff_and_visit_closes_when_all_saved(self):
         visit = self.create_customer()
         page = self.client.get(reverse('assign_staff', args=[visit.pk]))
-        self.assertContains(page, 'Hair')
-        self.assertContains(page, 'Skin')
-        self.assertContains(page, 'Body')
-        self.assertNotContains(page, 'outsider')
-        response = self.client.post(reverse('assign_staff', args=[visit.pk]),
-                                    {'HAIR': self.anu.pk, 'SKIN': self.bina.pk, 'BODY': ''})
+        self.assertContains(page, 'Anu')
+        self.assertContains(page, 'Staff chooses')
+        self.assertNotContains(page, 'Outsider')
+        response = self.client.post(reverse('assign_staff', args=[visit.pk]), {
+            f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': 'HAIR',
+            f'staff_{self.bina.pk}': '1', f'category_{self.bina.pk}': '',
+        })
         self.assertRedirects(response, reverse('manager_dashboard'))
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'ASSIGNED')
-        self.assertEqual(set(visit.category_assignments.values_list('category', flat=True)), {'HAIR', 'SKIN'})
-        hair = visit.category_assignments.get(category='HAIR')
+        hair = visit.category_assignments.get(employee=self.anu)
+        open_card = visit.category_assignments.get(employee=self.bina)
+        self.assertEqual((hair.category, open_card.category), ('HAIR', ''))
 
         self.client.force_login(self.anu)
         home = self.client.get(reverse('employee_dashboard'))
@@ -69,28 +71,56 @@ class SimpleVisitFlowTests(TestCase):
         self.assertEqual(customer.concerns, {'HAIR': ['DANDRUFF', 'HAIR_FALL']})
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'IN_PROGRESS')
-        self.assertFalse(visit.is_invoice_ready)
 
-        # Another stylist cannot open Anu's card.
+        # Bina's card has no category: she taps Skin first, then the type.
         self.client.force_login(self.bina)
         self.assertEqual(self.client.get(reverse('pick_type', args=[hair.pk])).status_code, 404)
-        skin = visit.category_assignments.get(category='SKIN')
-        self.client.post(reverse('pick_type', args=[skin.pk]), {'type': 'OILY'})
+        chooser = self.client.get(reverse('pick_type', args=[open_card.pk]))
+        self.assertContains(chooser, 'What are you doing for this customer?')
+        self.client.post(reverse('pick_type', args=[open_card.pk]), {'category': 'SKIN'})
+        self.assertContains(self.client.get(reverse('pick_type', args=[open_card.pk])), 'skin-oily.svg')
+        self.client.post(reverse('pick_type', args=[open_card.pk]), {'type': 'OILY'})
         visit.refresh_from_db()
-        self.assertEqual(visit.status, 'EMPLOYEE_DONE')
-        self.assertTrue(visit.is_invoice_ready)
+        self.assertEqual(visit.status, 'CLOSED')
+        self.assertIsNotNone(visit.closed_at)
+        self.assertFalse(Invoice.objects.filter(visit=visit).exists())
 
         self.client.force_login(self.manager)
         board = self.client.get(reverse('manager_dashboard'))
+        self.assertContains(board, 'Finished today')
         self.assertContains(board, 'Wavy')
         self.assertContains(board, 'Oily')
-        self.assertContains(board, 'Dandruff, Hair fall')
-        self.assertContains(board, reverse('add_invoice', args=[visit.pk]))
-        FeedbackQuestion.objects.create(text='How was it?', sequence=10)
-        response = self.client.post(reverse('add_invoice', args=[visit.pk]),
-                                    {'customer_name': 'Riya', 'mobile': '9876543210', 'invoice_number': '977'})
-        self.assertRedirects(response, reverse('manager_dashboard'))
-        self.assertEqual(Invoice.objects.get(visit=visit).status, 'COMPLETED')
+        self.assertNotContains(board, reverse('add_invoice', args=[visit.pk]))
+        self.assertNotContains(board, reverse('assign_staff', args=[visit.pk]))
+
+    def test_save_and_add_another_keeps_visit_open(self):
+        visit = self.create_customer()
+        self.client.post(reverse('assign_staff', args=[visit.pk]), {f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': 'HAIR'})
+        card = visit.category_assignments.get()
+        self.client.force_login(self.anu)
+        response = self.client.post(reverse('pick_type', args=[card.pk]), {'type': 'CURLY', 'another': '1'})
+        second = visit.category_assignments.exclude(pk=card.pk).get()
+        self.assertRedirects(response, reverse('pick_type', args=[second.pk]))
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, 'IN_PROGRESS')
+        self.client.post(reverse('pick_type', args=[second.pk]), {'category': 'SKIN'})
+        self.client.post(reverse('pick_type', args=[second.pk]), {'type': 'DRY'})
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, 'CLOSED')
+        customer = Customer.objects.get(pk=visit.customer_id)
+        self.assertEqual((customer.hair_type, customer.skin_type), ('CURLY', 'DRY'))
+
+    def test_manager_must_tick_someone(self):
+        visit = self.create_customer()
+        response = self.client.post(reverse('assign_staff', args=[visit.pk]), {})
+        self.assertContains(response, 'Tick at least one staff member.')
+        self.assertFalse(visit.category_assignments.exists())
+
+    def test_unticking_removes_an_unsaved_card(self):
+        visit = self.create_customer()
+        self.client.post(reverse('assign_staff', args=[visit.pk]), {f'staff_{self.anu.pk}': '1', f'staff_{self.bina.pk}': '1'})
+        self.client.post(reverse('assign_staff', args=[visit.pk]), {f'staff_{self.bina.pk}': '1', f'category_{self.bina.pk}': 'SKIN'})
+        self.assertEqual(list(visit.category_assignments.values_list('employee__username', 'category')), [('bina', 'SKIN')])
 
     def test_repeat_customer_sees_last_type_selected(self):
         customer = Customer.objects.create(name='Riya', mobile='9876543210', skin_type='DRY',
@@ -128,18 +158,18 @@ class SimpleVisitFlowTests(TestCase):
         self.client.force_login(self.anu)
         home = self.client.get(reverse('employee_dashboard'))
         self.assertContains(home, 'Waiting for staff')
-        self.assertContains(home, reverse('take_customer', args=[visit.pk, 'hair']))
-        response = self.client.post(reverse('take_customer', args=[visit.pk, 'hair']))
+        self.assertContains(home, reverse('take_customer', args=[visit.pk]))
+        response = self.client.post(reverse('take_customer', args=[visit.pk]))
         card = VisitAssignment.objects.get(visit=visit)
         self.assertRedirects(response, reverse('pick_type', args=[card.pk]))
-        self.assertEqual((card.employee, card.assigned_by), (self.anu, self.anu))
+        self.assertEqual((card.employee, card.assigned_by, card.category), (self.anu, self.anu, ''))
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'ASSIGNED')
 
         # Once taken, nobody else can take it and it leaves the waiting list.
         self.client.force_login(self.bina)
         self.assertNotContains(self.client.get(reverse('employee_dashboard')), 'Waiting for staff')
-        self.client.post(reverse('take_customer', args=[visit.pk, 'skin']))
+        self.client.post(reverse('take_customer', args=[visit.pk]))
         self.assertEqual(VisitAssignment.objects.filter(visit=visit).count(), 1)
 
         # The manager sees who took it.
@@ -150,13 +180,17 @@ class SimpleVisitFlowTests(TestCase):
         visit = self.create_customer()
         self.client.force_login(self.outsider)
         self.assertNotContains(self.client.get(reverse('employee_dashboard')), 'Riya')
-        self.assertEqual(self.client.post(reverse('take_customer', args=[visit.pk, 'hair'])).status_code, 404)
+        self.assertEqual(self.client.post(reverse('take_customer', args=[visit.pk])).status_code, 404)
 
     @override_settings(SIMPLE_VISIT_BODY=False)
     def test_body_category_can_be_turned_off(self):
         visit = self.create_customer()
-        page = self.client.get(reverse('assign_staff', args=[visit.pk]))
-        self.assertNotContains(page, 'No body service')
+        self.assertNotContains(self.client.get(reverse('assign_staff', args=[visit.pk])), 'value="BODY"')
+        card = VisitAssignment.objects.create(visit=visit, employee=self.anu, assigned_by=self.manager)
+        self.client.force_login(self.anu)
+        page = self.client.get(reverse('pick_type', args=[card.pk]))
+        self.assertContains(page, 'value="SKIN"')
+        self.assertNotContains(page, 'value="BODY"')
 
     def test_customer_types_report_counts_types_and_concerns(self):
         visit = Visit.objects.create(branch=self.branch, customer=Customer.objects.create(name='A', hair_type='WAVY'),

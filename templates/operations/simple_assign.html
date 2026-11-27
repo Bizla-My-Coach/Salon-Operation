@@ -5,28 +5,28 @@
 {% block content %}
 <div class="workflow-page">
 <header class="page-head split">
-  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Pick staff only for the categories this customer wants.</p></div>
+  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tick one or more staff. Hair, Skin or Body is optional; staff can choose it.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
-<section class="panel workflow-panel narrow">
-  <form method="post" class="form-grid" data-single-submit>
-    {% csrf_token %}{{ form.non_field_errors }}
-    <div class="sv-assign-list">
-      {% for row in form.rows %}
-      <div class="sv-assign-row{% if row.locked %} locked{% endif %}">
-        <img src="{% static row.image %}" alt="">
-        <div>
-          <label for="{{ row.field.id_for_label }}">{{ row.label }}</label>
-          {{ row.field }}
-          {% if row.locked %}<small>Recorded: {{ row.current.type_label }} by {{ row.current.employee.get_full_name|default:row.current.employee.username }}</small>
-          {% elif row.previous %}<small>Last visit: {{ row.previous }}</small>{% endif %}
-          {{ row.field.errors }}
-        </div>
+<form method="post" data-single-submit class="sv-assign-form">
+  {% csrf_token %}
+  {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+  <div class="sv-staff-list">
+    {% for row in rows %}
+    <div class="sv-staff{% if row.locked %} locked{% endif %}">
+      <label class="sv-staff-name"><input type="checkbox" name="staff_{{ row.person.pk }}" value="1"{% if row.checked %} checked{% endif %}{% if row.locked %} disabled checked{% endif %}><span>{{ row.name }}</span></label>
+      {% if row.locked %}<small class="sv-locked-note">Saved: {{ row.card.category_label }} · {{ row.card.type_label }}</small>
+      {% else %}
+      <div class="sv-cat-pills" role="radiogroup" aria-label="Category for {{ row.name }}">
+        <label><input type="radio" name="category_{{ row.person.pk }}" value=""{% if not row.category %} checked{% endif %}><span>Staff chooses</span></label>
+        {% for c in categories %}<label><input type="radio" name="category_{{ row.person.pk }}" value="{{ c.key }}"{% if row.category == c.key %} checked{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
       </div>
-      {% endfor %}
+      {% endif %}
     </div>
-    <button type="submit" class="button primary large block">Save and send to staff</button>
-  </form>
-</section>
+    {% empty %}<div class="empty-state"><b>No staff on duty</b><span>Set today's roster first.</span></div>
+    {% endfor %}
+  </div>
+  <div class="sv-save-bar"><button type="submit" class="button primary large block">Send to staff</button></div>
+</form>
 </div>
 {% endblock %}

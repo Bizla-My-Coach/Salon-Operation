@@ -24,8 +24,8 @@ from .timing import add_timing_summary, adopt_legacy_active_segment, close_segme
 from .decorators import roles_required
 from .sop_flow_views import service_flow_digest
 from .roster import employee_services, working_branch
-from .customer_types import CATEGORIES, simple_flow_enabled, type_image
-from .simple_visit_views import employee_cards, unassigned_visits
+from .customer_types import simple_flow_enabled
+from .simple_visit_views import card_image, employee_cards, unassigned_visits
 from .staff_access import resettable_employees
 from .workflow import (
     CONSULTATION_CODE,
@@ -630,8 +630,7 @@ def manager_dashboard(request):
     for visit in visits:
         visit.simple_assignments = list(visit.category_assignments.all())
         for item in visit.simple_assignments:
-            item.image = type_image(item.category, item.selected_type) if item.selected_type else CATEGORIES[item.category]['options'][0][3]
-        visit.simple_ready = bool(visit.simple_assignments) and all(a.status == 'DONE' for a in visit.simple_assignments) and not visit.services.exists()
+            item.image = card_image(item)
         active_services = [item for item in visit.services.all() if item.status != 'CANCELLED']
         visit.active_services = active_services
         visit.active_service_count = len(active_services)
@@ -647,7 +646,14 @@ def manager_dashboard(request):
         visit.can_verify_all = bool(active_services) and all(
             item.status in ['EMPLOYEE_DONE', 'VERIFIED'] for item in active_services
         ) and any(item.status == 'EMPLOYEE_DONE' for item in active_services)
-    return render(request, 'operations/manager_dashboard.html', {'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple})
+    finished_today = (Visit.objects.filter(branch=branch, status='CLOSED', closed_at__date=timezone.localdate(),
+                                           category_assignments__isnull=False)
+                      .select_related('customer').prefetch_related(Prefetch(
+                          'category_assignments', queryset=VisitAssignment.objects.filter(status='DONE').select_related('employee')))
+                      .distinct().order_by('-closed_at')[:30]) if simple and branch else []
+    return render(request, 'operations/manager_dashboard.html', {
+        'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple, 'finished_today': finished_today,
+    })
 
 def _form_token(value):
     """Return the posted one-time form token as a UUID, or None if absent/invalid."""

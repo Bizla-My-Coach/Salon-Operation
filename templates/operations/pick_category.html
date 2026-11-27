@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Choose category · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block content %}
+<div class="service-back-nav"><a class="button outline" href="{% url 'employee_dashboard' %}">← My customers</a></div>
+<header class="page-head">
+  <span class="eyebrow">Visit #{{ assignment.visit_id }}</span>
+  <h1>{{ customer.name }}</h1>
+  <p>{% if visit_count > 1 %}Visit {{ visit_count }}{% else %}First visit{% endif %}</p>
+</header>
+<form method="post" data-single-submit>
+  {% csrf_token %}
+  <p class="sv-question">What are you doing for this customer?</p>
+  <div class="sv-type-grid sv-category-grid">
+    {% for c in choices %}
+    <button type="submit" name="category" value="{{ c.key }}" class="sv-type">
+      <img src="{% static c.image %}" alt="">
+      <b>{{ c.label }}</b><small>{% if c.previous %}Last time: {{ c.previous }}{% else %}Pick the {{ c.label|lower }} type next{% endif %}</small>
+    </button>
+    {% endfor %}
+  </div>
+</form>
+{% endblock %}
