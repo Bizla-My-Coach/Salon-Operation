@@ -115,3 +115,31 @@
 .workflow-page .sv-pick{display:flex;flex-direction:row;margin:0;font-size:.95rem;line-height:1.25}
 .workflow-page .sv-cat-pills label{display:inline-block;margin:0}
 .workflow-page .sv-pick[hidden]{display:none}
+/* One-tap tiles: name selects, category buttons select with that category. */
+.sv-pick-grid{grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+.sv-tile{position:relative;display:grid;gap:8px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)}
+.sv-tile[hidden]{display:none}
+.workflow-page .sv-tile-name{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;font-size:.95rem;line-height:1.25}
+.sv-tile-name input{position:absolute;opacity:0;pointer-events:none}
+.sv-tile-cats{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:5px}
+.workflow-page .sv-tile-cats label{display:block;margin:0;position:relative;cursor:pointer}
+.sv-tile-cats input{position:absolute;opacity:0;pointer-events:none}
+.sv-tile-cats span{display:block;text-align:center;border:1px solid var(--line);border-radius:8px;padding:6px 2px;font-size:.74rem;font-weight:700;color:var(--muted);background:var(--card);white-space:nowrap}
+.sv-tile-cats input:checked+span{background:var(--brand);border-color:var(--brand);color:#fff}
+.sv-tile:has([data-staff]:checked){border-color:var(--brand);background:#eaf4f1}
+.sv-tile:has([data-staff]:checked) .sv-avatar{background:var(--brand);color:#fff}
+.sv-tile:has([data-staff]:checked)::after{content:"✓";position:absolute;top:6px;right:9px;color:var(--brand);font-weight:900}
+.sv-tile:has(.sv-tile-name input:focus-visible){box-shadow:0 0 0 3px rgba(23,107,91,.25)}
+.sv-tile.locked{opacity:.75}
+.sv-hint{color:var(--muted);font-size:.82rem;margin:10px 2px 0}
+[data-theme="dark"] .sv-tile:has([data-staff]:checked){background:#1f3a32}
+[data-theme="dark"] .sv-tile:has([data-staff]:checked) .sv-avatar,[data-theme="dark"] .sv-tile-cats input:checked+span{color:#10231d}
+@media(max-width:650px){
+  .sv-pick-grid{grid-template-columns:1fr 1fr;gap:7px}
+  .sv-tile{padding:8px;gap:7px}
+  .sv-tile .sv-avatar{width:28px;height:28px;font-size:.85rem}
+  .workflow-page .sv-tile-name{gap:7px;font-size:.9rem}
+  .sv-tile-cats{grid-template-columns:1fr 1fr;gap:4px}
+  .sv-tile-cats label:last-child{grid-column:1/-1}
+  .sv-tile-cats span{padding:6px 2px;font-size:.72rem}
+}

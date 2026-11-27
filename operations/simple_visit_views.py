@@ -77,8 +77,9 @@ def assign_staff(request, visit_id):
     if request.method == 'POST':
         chosen = {}
         for person in staff:
-            if request.POST.get(f'staff_{person.pk}'):
-                category = request.POST.get(f'category_{person.pk}', '').upper()
+            category = request.POST.get(f'category_{person.pk}', '').upper()
+            # Tapping a category button on a tile also selects that staff member.
+            if request.POST.get(f'staff_{person.pk}') or category in categories:
                 chosen[person.pk] = (person, category if category in categories else '')
         locked = {pk for pk, card in current.items() if card.status == 'DONE'}
         if not chosen and not locked:
@@ -114,7 +115,8 @@ def assign_staff(request, visit_id):
         rows.append({
             'person': person, 'name': names[person.pk], 'card': card, 'busy': busy.get(person.pk, 0),
             'initial': names[person.pk][:1].upper(),
-            'checked': bool(card) if request.method == 'GET' else bool(request.POST.get(f'staff_{person.pk}')),
+            'checked': bool(card) if request.method == 'GET' else bool(
+                request.POST.get(f'staff_{person.pk}') or request.POST.get(f'category_{person.pk}')),
             'category': (card.category if card else '') if request.method == 'GET' else request.POST.get(f'category_{person.pk}', ''),
             'locked': bool(card and card.status == 'DONE'),
         })

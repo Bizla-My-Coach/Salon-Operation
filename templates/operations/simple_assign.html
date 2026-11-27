@@ -6,7 +6,7 @@
 {% block content %}
 <div class="workflow-page sv-assign-page">
 <header class="page-head split">
-  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tap the staff who will serve this customer.</p></div>
+  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tap a name, or tap Hair, Skin or Mani / Pedi on the name to pick both at once.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
 <form method="post" data-single-submit data-assign-form>
@@ -15,30 +15,23 @@
   {% if show_search %}<input type="search" class="form-control sv-staff-search" placeholder="Search staff" aria-label="Search staff" data-staff-search>{% endif %}
   <div class="sv-pick-grid" role="group" aria-label="Staff on duty">
     {% for row in rows %}
-    <label class="sv-pick{% if row.locked %} locked{% endif %}" data-staff-tile data-name="{{ row.name|lower }}">
-      <input type="checkbox" name="staff_{{ row.person.pk }}" value="1" data-staff="{{ row.person.pk }}"{% if row.checked or row.locked %} checked{% endif %}{% if row.locked %} disabled{% endif %}>
-      <span class="sv-avatar" aria-hidden="true">{{ row.initial }}</span>
-      <span class="sv-pick-text"><b>{{ row.name }}</b><small>{% if row.locked %}Saved{% elif row.busy %}{{ row.busy }} waiting{% else %}Free{% endif %}</small></span>
-    </label>
-    {% empty %}<div class="empty-state"><b>No staff on duty</b><span>Set today's roster first.</span></div>
-    {% endfor %}
-  </div>
-  <section class="sv-selected" aria-label="Selected staff">
-    <h2>Selected <small>Category is optional · staff can choose</small></h2>
-    <p class="sv-none" data-none>No one selected yet.</p>
-    {% for row in rows %}
-    <div class="sv-selected-row" data-row="{{ row.person.pk }}"{% if not row.checked and not row.locked %} hidden{% endif %}>
-      <b>{{ row.name }}</b>
-      {% if row.locked %}<small class="muted">Saved: {{ row.card.category_label }} · {{ row.card.type_label }}</small>
-      {% else %}
-      <div class="sv-cat-pills" role="radiogroup" aria-label="Category for {{ row.name }}">
-        <label><input type="radio" name="category_{{ row.person.pk }}" value=""{% if not row.category %} checked{% endif %}><span>Any</span></label>
-        {% for c in categories %}<label><input type="radio" name="category_{{ row.person.pk }}" value="{{ c.key }}"{% if row.category == c.key %} checked{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
+    <div class="sv-tile{% if row.locked %} locked{% endif %}" data-staff-tile data-name="{{ row.name|lower }}">
+      <label class="sv-tile-name">
+        <input type="checkbox" name="staff_{{ row.person.pk }}" value="1" data-staff="{{ row.person.pk }}"{% if row.checked or row.locked %} checked{% endif %}{% if row.locked %} disabled{% endif %}>
+        <span class="sv-avatar" aria-hidden="true">{{ row.initial }}</span>
+        <span class="sv-pick-text"><b>{{ row.name }}</b><small>{% if row.locked %}Saved · {{ row.card.category_label }}{% elif row.busy %}{{ row.busy }} waiting{% else %}Free{% endif %}</small></span>
+      </label>
+      {% if not row.locked %}
+      <div class="sv-tile-cats" role="radiogroup" aria-label="Category for {{ row.name }}">
+        <input type="radio" name="category_{{ row.person.pk }}" value="" hidden{% if not row.category %} checked{% endif %} data-any>
+        {% for c in categories %}<label title="{{ c.label }}"><input type="radio" name="category_{{ row.person.pk }}" value="{{ c.key }}"{% if row.category == c.key %} checked{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
       </div>
       {% endif %}
     </div>
+    {% empty %}<div class="empty-state"><b>No staff on duty</b><span>Set today's roster first.</span></div>
     {% endfor %}
-  </section>
+  </div>
+  <p class="sv-hint">No category tapped = staff choose Hair, Skin or Mani / Pedi themselves.</p>
   <div class="sv-save-bar"><button type="submit" class="button primary large block" data-send>Send to staff</button></div>
 </form>
 </div>

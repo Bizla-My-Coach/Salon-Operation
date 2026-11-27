@@ -42,7 +42,7 @@ class SimpleVisitFlowTests(TestCase):
         visit = self.create_customer()
         page = self.client.get(reverse('assign_staff', args=[visit.pk]))
         self.assertContains(page, 'Anu')
-        self.assertContains(page, '>Any<')
+        self.assertContains(page, 'staff choose Hair, Skin or Mani / Pedi themselves')
         self.assertNotContains(page, 'Outsider')
         response = self.client.post(reverse('assign_staff', args=[visit.pk]), {
             f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': 'HAIR',
@@ -111,6 +111,11 @@ class SimpleVisitFlowTests(TestCase):
         self.assertEqual(visit.status, 'CLOSED')
         customer = Customer.objects.get(pk=visit.customer_id)
         self.assertEqual((customer.hair_type, customer.skin_type), ('CURLY', 'DRY'))
+
+    def test_tapping_a_category_on_a_tile_selects_that_staff_member(self):
+        visit = self.create_customer()
+        self.client.post(reverse('assign_staff', args=[visit.pk]), {f'category_{self.bina.pk}': 'SKIN', f'category_{self.anu.pk}': ''})
+        self.assertEqual(list(visit.category_assignments.values_list('employee__username', 'category')), [('bina', 'SKIN')])
 
     def test_manager_must_tick_someone(self):
         visit = self.create_customer()
