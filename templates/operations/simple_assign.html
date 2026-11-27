@@ -5,7 +5,7 @@
 {% block content %}
 <div class="workflow-page">
 <header class="page-head split">
-  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tick one or more staff. Hair, Skin or Body is optional; staff can choose it.</p></div>
+  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tick one or more staff. Hair, Skin or Mani / Pedi is optional; staff can choose it.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
 <form method="post" data-single-submit class="sv-assign-form">

@@ -11,12 +11,12 @@
 </header>
 <form method="post" data-single-submit>
   {% csrf_token %}
-  <p class="sv-question">What are you doing for this customer?</p>
+  <p class="sv-question">{{ question }}</p>
   <div class="sv-type-grid sv-category-grid">
     {% for c in choices %}
     <button type="submit" name="category" value="{{ c.key }}" class="sv-type">
       <img src="{% static c.image %}" alt="">
-      <b>{{ c.label }}</b><small>{% if c.previous %}Last time: {{ c.previous }}{% else %}Pick the {{ c.label|lower }} type next{% endif %}</small>
+      <b>{{ c.label }}</b><small>{{ c.note }}</small>
     </button>
     {% endfor %}
   </div>

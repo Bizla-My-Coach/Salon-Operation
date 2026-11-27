@@ -77,7 +77,7 @@ AUTH_PASSWORD_VALIDATORS=[
 # Simple visit flow: name + phone, staff per category, picture-card type capture.
 # Set SIMPLE_VISIT_FLOW=false to bring back SOP step execution (its data is kept).
 SIMPLE_VISIT_FLOW=env_bool('SIMPLE_VISIT_FLOW', True)
-SIMPLE_VISIT_BODY=env_bool('SIMPLE_VISIT_BODY', True)
+SIMPLE_VISIT_MANI_PEDI=env_bool('SIMPLE_VISIT_MANI_PEDI', True)
 # Additional senior approval is optional; sensitivity alone does not block manager closure.
 REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_CLOSURE_SENIOR_APPROVAL', False)
 REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL=env_bool('REVIEW_SENSITIVE_FOLLOWUP_SENIOR_APPROVAL', False)

@@ -397,7 +397,8 @@ class Customer(TimeStamped):
     # history stays on each VisitAssignment.
     hair_type = models.CharField(max_length=20, blank=True)
     skin_type = models.CharField(max_length=20, blank=True)
-    body_type = models.CharField(max_length=20, blank=True)
+    hand_type = models.CharField(max_length=20, blank=True)
+    foot_type = models.CharField(max_length=20, blank=True)
     # Latest concerns per category, e.g. {"HAIR": ["DANDRUFF"], "SKIN": ["ACNE", "TAN"]}.
     concerns = models.JSONField(default=dict, blank=True)
 
@@ -436,14 +437,14 @@ class Visit(TimeStamped):
 class VisitAssignment(TimeStamped):
     """Simple visit flow: one staff card on a visit.
 
-    The manager may set the category (Hair, Skin, Body) or leave it for the
+    The manager may set the category (Hair, Skin, Mani / Pedi) or leave it for the
     staff member. The staff member taps a picture card to record the customer's
     type and concerns; the visit closes when every card is saved. This replaces
     SOP step execution, verification and invoicing, whose data is untouched.
     """
     STATUS = [("ASSIGNED", "Assigned"), ("DONE", "Type recorded"), ("CANCELLED", "Cancelled")]
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="category_assignments")
-    # Blank until the staff member chooses Hair, Skin or Body on the card.
+    # Blank until the staff member chooses Hair, Skin or Mani / Pedi on the card.
     category = models.CharField(max_length=10, blank=True)
     employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments")
     assigned_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments_made")
@@ -460,6 +461,9 @@ class VisitAssignment(TimeStamped):
     @property
     def category_label(self):
         from .customer_types import CATEGORIES
+        from .customer_types import NAILS, NAILS_LABEL
+        if self.category == NAILS:
+            return NAILS_LABEL
         return CATEGORIES.get(self.category, {}).get("label", self.category.title()) if self.category else "Any"
 
     @property

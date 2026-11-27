@@ -13,7 +13,7 @@ def make_user(username, role, branch):
     return user
 
 
-@override_settings(SIMPLE_VISIT_FLOW=True, SIMPLE_VISIT_BODY=True,
+@override_settings(SIMPLE_VISIT_FLOW=True, SIMPLE_VISIT_MANI_PEDI=True,
                    STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
 class SimpleVisitFlowTests(TestCase):
     def setUp(self):
@@ -184,15 +184,15 @@ class SimpleVisitFlowTests(TestCase):
         self.assertNotContains(self.client.get(reverse('employee_dashboard')), 'Riya')
         self.assertEqual(self.client.post(reverse('take_customer', args=[visit.pk])).status_code, 404)
 
-    @override_settings(SIMPLE_VISIT_BODY=False)
-    def test_body_category_can_be_turned_off(self):
+    @override_settings(SIMPLE_VISIT_MANI_PEDI=False)
+    def test_mani_pedi_can_be_turned_off(self):
         visit = self.create_customer()
-        self.assertNotContains(self.client.get(reverse('assign_staff', args=[visit.pk])), 'value="BODY"')
+        self.assertNotContains(self.client.get(reverse('assign_staff', args=[visit.pk])), 'value="NAILS"')
         card = VisitAssignment.objects.create(visit=visit, employee=self.anu, assigned_by=self.manager)
         self.client.force_login(self.anu)
         page = self.client.get(reverse('pick_type', args=[card.pk]))
         self.assertContains(page, 'value="SKIN"')
-        self.assertNotContains(page, 'value="BODY"')
+        self.assertNotContains(page, 'value="NAILS"')
 
     def test_customer_types_report_counts_types_and_concerns(self):
         visit = Visit.objects.create(branch=self.branch, customer=Customer.objects.create(name='A', hair_type='WAVY'),
@@ -212,3 +212,42 @@ class SimpleVisitFlowTests(TestCase):
         visit = Visit.objects.latest('id')
         self.assertRedirects(response, reverse('edit_visit_services', args=[visit.pk]))
         self.assertEqual(self.client.get(reverse('assign_staff', args=[visit.pk])).status_code, 404)
+
+    def test_mani_pedi_both_makes_a_hand_card_and_a_foot_card(self):
+        visit = self.create_customer()
+        self.client.post(reverse('assign_staff', args=[visit.pk]), {f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': 'NAILS'})
+        card = visit.category_assignments.get()
+        self.assertEqual(card.category, 'NAILS')
+        self.client.force_login(self.anu)
+        page = self.client.get(reverse('pick_type', args=[card.pk]))
+        self.assertContains(page, 'Manicure, pedicure or both?')
+        self.assertContains(page, 'value="BOTH"')
+        response = self.client.post(reverse('pick_type', args=[card.pk]), {'category': 'BOTH'})
+        self.assertRedirects(response, reverse('pick_type', args=[card.pk]))
+        card.refresh_from_db()
+        foot = visit.category_assignments.exclude(pk=card.pk).get()
+        self.assertEqual((card.category, foot.category, foot.employee), ('MANI', 'PEDI', self.anu))
+        self.assertContains(self.client.get(reverse('pick_type', args=[card.pk])), 'hand-dry.png')
+        self.client.post(reverse('pick_type', args=[card.pk]), {'type': 'DRY', 'concern': ['BRITTLE']})
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, 'IN_PROGRESS')
+        self.assertContains(self.client.get(reverse('pick_type', args=[foot.pk])), 'Nail fungus')
+        self.client.post(reverse('pick_type', args=[foot.pk]), {'type': 'CRACKED', 'concern': ['FUNGUS']})
+        visit.refresh_from_db()
+        customer = Customer.objects.get(pk=visit.customer_id)
+        self.assertEqual(visit.status, 'CLOSED')
+        self.assertEqual((customer.hand_type, customer.foot_type), ('DRY', 'CRACKED'))
+        self.assertEqual(customer.concerns, {'MANI': ['BRITTLE'], 'PEDI': ['FUNGUS']})
+
+    def test_staff_chooser_offers_mani_pedi(self):
+        visit = self.create_customer()
+        card = VisitAssignment.objects.create(visit=visit, employee=self.anu, assigned_by=self.manager)
+        self.client.force_login(self.anu)
+        page = self.client.get(reverse('pick_type', args=[card.pk]))
+        self.assertContains(page, 'Mani / Pedi')
+        self.client.post(reverse('pick_type', args=[card.pk]), {'category': 'NAILS'})
+        card.refresh_from_db()
+        self.assertEqual(card.category, 'NAILS')
+        self.client.post(reverse('pick_type', args=[card.pk]), {'category': 'PEDI'})
+        card.refresh_from_db()
+        self.assertEqual(card.category, 'PEDI')

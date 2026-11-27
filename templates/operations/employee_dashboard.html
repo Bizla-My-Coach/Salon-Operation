@@ -24,7 +24,7 @@
   <a class="sv-customer-card" href="{% url 'pick_type' card.pk %}" aria-label="Record {{ card.category_label|lower }} type for {{ card.visit.customer.name }}">
     <img src="{% static card.image %}" alt="">
     <div>
-      <span class="sv-tag">{% if card.category %}{{ card.category_label }}{% else %}Hair, skin or body{% endif %}</span>
+      <span class="sv-tag">{% if card.category %}{{ card.category_label }}{% else %}Hair, skin or mani / pedi{% endif %}</span>
       <h2>{{ card.visit.customer.name }}</h2>
       <p>Arrived {{ card.visit.created_at|date:'H:i' }}{% if card.previous_label %} · last time {{ card.previous_label }}{% endif %}</p>
     </div>

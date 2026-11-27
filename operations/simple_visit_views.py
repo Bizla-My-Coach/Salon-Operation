@@ -12,14 +12,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .customer_types import (
-    CATEGORIES, UNKNOWN, concern_codes, enabled_categories, option_codes, simple_flow_enabled, type_image, type_label,
+    CATEGORIES, NAILS, NAILS_IMAGE, NAILS_LABEL, UNKNOWN, assign_choices, concern_codes, enabled_categories,
+    option_codes, simple_flow_enabled, type_image, type_label,
 )
 from .decorators import roles_required
 from .models import Branch, Customer, Visit, VisitAssignment
 from .roster import working_branch, working_employees
 
 OPEN_VISIT = ['WAITING', 'ASSIGNED', 'IN_PROGRESS']
-ANY_IMAGE = 'img/types/any.svg'
+ANY_IMAGE = 'img/types/any.png'
 
 
 def _require_simple_flow():
@@ -34,7 +35,9 @@ def staff_label(user):
 def card_image(card):
     if card.selected_type:
         return type_image(card.category, card.selected_type)
-    if card.category:
+    if card.category == NAILS:
+        return NAILS_IMAGE
+    if card.category in CATEGORIES:
         return CATEGORIES[card.category]['options'][0][3]
     return ANY_IMAGE
 
@@ -62,7 +65,7 @@ def assign_staff(request, visit_id):
     if visit.status not in OPEN_VISIT:
         messages.error(request, 'This visit is already finished.')
         return redirect('manager_dashboard')
-    categories = enabled_categories()
+    categories = [choice['key'] for choice in assign_choices()]
     current = {}
     for card in visit.category_assignments.exclude(status='CANCELLED').select_related('employee').order_by('id'):
         current.setdefault(card.employee_id, card)
@@ -110,7 +113,7 @@ def assign_staff(request, visit_id):
         })
     return render(request, 'operations/simple_assign.html', {
         'visit': visit, 'rows': rows, 'error': error,
-        'categories': [{'key': key, 'label': CATEGORIES[key]['label']} for key in categories],
+        'categories': assign_choices(),
     })
 
 
@@ -134,7 +137,7 @@ def employee_cards(user):
     for card in cards:
         card.can_change = card.visit.status in OPEN_VISIT
         card.image = card_image(card)
-        previous = getattr(card.visit.customer, CATEGORIES[card.category]['customer_field']) if card.category else ''
+        previous = getattr(card.visit.customer, CATEGORIES[card.category]['customer_field']) if card.category in CATEGORIES else ''
         card.previous_label = type_label(card.category, previous)
     return waiting, saved
 
@@ -145,7 +148,7 @@ def pick_type(request, pk):
     _require_simple_flow()
     assignment = get_object_or_404(_my_assignments(request.user), pk=pk)
     customer = assignment.visit.customer
-    if not assignment.category or request.GET.get('change') == 'category' and assignment.status == 'ASSIGNED':
+    if assignment.category not in CATEGORIES or request.GET.get('change') == 'category' and assignment.status == 'ASSIGNED':
         return _pick_category(request, assignment, customer)
     category = CATEGORIES[assignment.category]
     previous = getattr(customer, category['customer_field'])
@@ -193,23 +196,48 @@ def pick_type(request, pk):
 
 
 def _pick_category(request, assignment, customer):
-    """The manager left the category open: staff tap Hair, Skin or Body first."""
-    categories = enabled_categories()
+    """The category is still open: staff tap Hair, Skin or Mani / Pedi first.
+
+    Mani / Pedi then asks Manicure, Pedicure or Both; Both adds a second card
+    for the same staff member so hands and feet are recorded separately.
+    """
+    nails_step = assignment.category == NAILS and request.GET.get('change') != 'category'
     if request.method == 'POST':
-        category = request.POST.get('category', '').upper()
-        if category not in categories:
-            messages.error(request, 'Tap Hair, Skin or Body.')
+        choice = request.POST.get('category', '').upper()
+        allowed = {'MANI', 'PEDI', 'BOTH'} if nails_step else {item['key'] for item in assign_choices()}
+        if choice not in allowed or choice in ('MANI', 'PEDI', 'BOTH') and 'MANI' not in enabled_categories():
+            messages.error(request, 'Tap one of the pictures.')
             return redirect('pick_type', pk=assignment.pk)
-        assignment.category = category
-        assignment.save(update_fields=['category', 'updated_at'])
+        with transaction.atomic():
+            if choice == 'BOTH':
+                VisitAssignment.objects.create(visit=assignment.visit, category='PEDI', employee=request.user,
+                                               assigned_by=assignment.assigned_by)
+                choice = 'MANI'
+            assignment.category = choice
+            assignment.save(update_fields=['category', 'updated_at'])
         return redirect('pick_type', pk=assignment.pk)
-    choices = []
-    for key in categories:
-        previous = getattr(customer, CATEGORIES[key]['customer_field'])
-        choices.append({'key': key, 'label': CATEGORIES[key]['label'],
-                        'image': CATEGORIES[key]['options'][0][3], 'previous': type_label(key, previous)})
+    if nails_step:
+        choices = [
+            {'key': 'MANI', 'label': 'Manicure', 'image': 'img/types/hand-normal.png', 'note': 'Hands'},
+            {'key': 'PEDI', 'label': 'Pedicure', 'image': 'img/types/foot-normal.png', 'note': 'Feet'},
+            {'key': 'BOTH', 'label': 'Both', 'image': NAILS_IMAGE, 'note': 'Hands, then feet'},
+        ]
+        for item in choices[:2]:
+            previous = type_label(item['key'], getattr(customer, CATEGORIES[item['key']]['customer_field']))
+            if previous:
+                item['note'] = f'Last time: {previous}'
+        question = 'Manicure, pedicure or both?'
+    else:
+        choices = []
+        for item in assign_choices():
+            note = ''
+            if item['key'] in CATEGORIES:
+                previous = type_label(item['key'], getattr(customer, CATEGORIES[item['key']]['customer_field']))
+                note = f'Last time: {previous}' if previous else ''
+            choices.append({**item, 'note': note or 'Pick the type next'})
+        question = 'What are you doing for this customer?'
     return render(request, 'operations/pick_category.html', {
-        'assignment': assignment, 'customer': customer, 'choices': choices,
+        'assignment': assignment, 'customer': customer, 'choices': choices, 'question': question,
         'visit_count': customer.visits.count(),
     })
 
@@ -275,5 +303,5 @@ def customer_types(request):
         'all_branches': Branch.objects.filter(active=True).order_by('name') if not (profile and profile.role == 'MANAGER') else [],
         'chosen': chosen,
         'customers_total': Customer.objects.filter(visits__branch__in=branches).distinct().count(),
-        'customers_typed': Customer.objects.filter(visits__branch__in=branches).exclude(hair_type='', skin_type='', body_type='').distinct().count(),
+        'customers_typed': Customer.objects.filter(visits__branch__in=branches).exclude(hair_type='', skin_type='', hand_type='', foot_type='').distinct().count(),
     })

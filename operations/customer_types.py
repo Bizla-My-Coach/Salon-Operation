@@ -2,10 +2,10 @@
 
 The simple flow replaces SOP step execution: the manager enters the customer's
 name and phone, assigns one staff member per category (Hair, Skin, optional
-Body), and the staff member taps one picture card to record the customer's type.
+Mani / Pedi), and the staff member taps one picture card to record the customer's type.
 
 Turn the whole flow off with SIMPLE_VISIT_FLOW=false; the SOP flow and all of
-its data are untouched. SIMPLE_VISIT_BODY=false hides the Body category.
+its data are untouched. SIMPLE_VISIT_MANI_PEDI=false hides Mani / Pedi.
 """
 from django.conf import settings
 
@@ -45,19 +45,34 @@ CATEGORIES = {
             ("SENSITIVE", "Sensitive", "Redness, reacts easily", "img/types/skin-sensitive.png"),
         ],
     },
-    "BODY": {
-        "label": "Body",
-        "question": "What is the hand or foot skin like?",
-        "customer_field": "body_type",
+    "MANI": {
+        "label": "Manicure",
+        "question": "What are the customer's hands like?",
+        "customer_field": "hand_type",
         "concerns": [
-            ("TAN", "Tanning"), ("CUTICLES", "Dry cuticles"), ("NAIL_DAMAGE", "Weak / damaged nails"),
-            ("FUNGAL", "Nail discolouration"), ("ODOUR", "Foot odour"),
+            ("BRITTLE", "Brittle nails"), ("CUTICLES", "Dry cuticles"), ("HANGNAILS", "Hangnails"),
+            ("DISCOLOURED", "Nail discolouration"), ("TAN", "Tanning"), ("RIDGES", "Ridged nails"),
         ],
         "options": [
-            ("NORMAL", "Normal", "Soft and even", "img/types/body-normal.svg"),
-            ("DRY", "Dry", "Dull, dry patches", "img/types/body-dry.svg"),
-            ("CRACKED", "Cracked heels", "Visible cracks", "img/types/body-cracked.svg"),
-            ("CALLOUSED", "Rough / calloused", "Hard, thick skin", "img/types/body-calloused.svg"),
+            ("NORMAL", "Normal", "Soft and even", "img/types/hand-normal.png"),
+            ("DRY", "Dry", "Dull, small dry cracks", "img/types/hand-dry.png"),
+            ("CRACKED", "Cracked", "Deep cracks", "img/types/hand-cracked.png"),
+            ("ROUGH", "Rough", "Hard, rough patches", "img/types/hand-rough.png"),
+        ],
+    },
+    "PEDI": {
+        "label": "Pedicure",
+        "question": "What are the customer's feet like?",
+        "customer_field": "foot_type",
+        "concerns": [
+            ("INGROWN", "Ingrown nail"), ("FUNGUS", "Nail fungus"), ("CORNS", "Corns"),
+            ("TAN", "Tanning"), ("ODOUR", "Foot odour"), ("BRITTLE", "Brittle nails"),
+        ],
+        "options": [
+            ("NORMAL", "Normal", "Soft and even", "img/types/foot-normal.png"),
+            ("DRY", "Dry", "Dull, small dry cracks", "img/types/foot-dry.png"),
+            ("CRACKED", "Cracked heels", "Deep heel cracks", "img/types/foot-cracked.png"),
+            ("ROUGH", "Rough / calloused", "Hard, thick patches", "img/types/foot-rough.png"),
         ],
     },
 }
@@ -71,9 +86,29 @@ def simple_flow_enabled():
 
 def enabled_categories():
     keys = ["HAIR", "SKIN"]
-    if getattr(settings, "SIMPLE_VISIT_BODY", True):
-        keys.append("BODY")
+    if mani_pedi_enabled():
+        keys += ["MANI", "PEDI"]
     return keys
+
+
+# Mani / Pedi is one choice for the manager and on the staff card; staff then
+# tap Manicure, Pedicure or Both. A card waiting for that tap holds "NAILS".
+NAILS = "NAILS"
+NAILS_LABEL = "Mani / Pedi"
+NAILS_IMAGE = "img/types/nails.png"
+
+
+def mani_pedi_enabled():
+    return getattr(settings, "SIMPLE_VISIT_MANI_PEDI", True)
+
+
+def assign_choices():
+    """Choices shown to the manager and on the staff chooser: Hair, Skin, Mani / Pedi."""
+    choices = [{"key": key, "label": CATEGORIES[key]["label"], "image": CATEGORIES[key]["options"][0][3]}
+               for key in ("HAIR", "SKIN")]
+    if mani_pedi_enabled():
+        choices.append({"key": NAILS, "label": NAILS_LABEL, "image": NAILS_IMAGE})
+    return choices
 
 
 def option_codes(category):
