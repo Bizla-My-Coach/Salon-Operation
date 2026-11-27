@@ -117,10 +117,26 @@ class SimpleVisitFlowTests(TestCase):
         self.client.post(reverse('assign_staff', args=[visit.pk]), {f'category_{self.bina.pk}': 'SKIN', f'category_{self.anu.pk}': ''})
         self.assertEqual(list(visit.category_assignments.values_list('employee__username', 'category')), [('bina', 'SKIN')])
 
+    def test_one_staff_member_can_get_several_categories(self):
+        visit = self.create_customer()
+        url = reverse('assign_staff', args=[visit.pk])
+        self.client.post(url, {f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': ['HAIR', 'NAILS']})
+        self.assertEqual(sorted(visit.category_assignments.values_list('category', flat=True)), ['HAIR', 'NAILS'])
+        nails = visit.category_assignments.get(category='NAILS')
+        nails.category = 'MANI'
+        nails.save()
+        page = self.client.get(url)
+        self.assertContains(page, f'name="category_{self.anu.pk}" value="NAILS" checked')
+        # Saving again with the same picks keeps the staff member's Manicure card.
+        self.client.post(url, {f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': ['HAIR', 'NAILS']})
+        self.assertEqual(sorted(visit.category_assignments.values_list('category', flat=True)), ['HAIR', 'MANI'])
+        self.client.post(url, {f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': ['SKIN']})
+        self.assertEqual(list(visit.category_assignments.values_list('category', flat=True)), ['SKIN'])
+
     def test_manager_must_tick_someone(self):
         visit = self.create_customer()
         response = self.client.post(reverse('assign_staff', args=[visit.pk]), {})
-        self.assertContains(response, 'Tick at least one staff member.')
+        self.assertContains(response, 'Tap at least one staff member.')
         self.assertFalse(visit.category_assignments.exists())
 
     def test_unticking_removes_an_unsaved_card(self):

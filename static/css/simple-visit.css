@@ -135,11 +135,14 @@
 [data-theme="dark"] .sv-tile:has([data-staff]:checked){background:#1f3a32}
 [data-theme="dark"] .sv-tile:has([data-staff]:checked) .sv-avatar,[data-theme="dark"] .sv-tile-cats input:checked+span{color:#10231d}
 @media(max-width:650px){
-  .sv-pick-grid{grid-template-columns:1fr 1fr;gap:7px}
-  .sv-tile{padding:8px;gap:7px}
-  .sv-tile .sv-avatar{width:28px;height:28px;font-size:.85rem}
-  .workflow-page .sv-tile-name{gap:7px;font-size:.9rem}
-  .sv-tile-cats{grid-template-columns:1fr 1fr;gap:4px}
-  .sv-tile-cats label:last-child{grid-column:1/-1}
-  .sv-tile-cats span{padding:6px 2px;font-size:.72rem}
+  /* Phone: one staff member per row, name on the left, buttons on the right. */
+  .sv-pick-grid{grid-template-columns:1fr;gap:6px}
+  .sv-tile{grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:8px 10px;gap:8px}
+  .sv-tile .sv-avatar{width:30px;height:30px;font-size:.85rem}
+  .workflow-page .sv-tile-name{gap:8px;font-size:.92rem}
+  .sv-tile-cats{grid-template-columns:auto auto auto;gap:4px}
+  .sv-tile-cats span{padding:7px 8px;font-size:.74rem}
+  .sv-tile:has([data-staff]:checked)::after{content:none}
 }
+
+.sv-tile-cats input:disabled+span{opacity:.7;cursor:default}

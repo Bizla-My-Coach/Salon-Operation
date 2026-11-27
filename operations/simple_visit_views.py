@@ -56,10 +56,15 @@ def _settle_visit(visit):
     visit.save(update_fields=['status', 'closed_at', 'updated_at'])
 
 
+def _group(category):
+    """The manager-level choice a card belongs to: HAIR, SKIN, NAILS or '' (any)."""
+    return NAILS if category in (NAILS, 'MANI', 'PEDI') else category
+
+
 @roles_required('MANAGER')
 @require_http_methods(['GET', 'POST'])
 def assign_staff(request, visit_id):
-    """Tick one or more staff; the category per staff member is optional."""
+    """Pick one or more staff; each may get several categories, or none."""
     _require_simple_flow()
     branch = working_branch(request.user)
     visit = get_object_or_404(Visit.objects.select_related('customer'), pk=visit_id, branch=branch)
@@ -67,42 +72,48 @@ def assign_staff(request, visit_id):
         messages.error(request, 'This visit is already finished.')
         return redirect('manager_dashboard')
     categories = [choice['key'] for choice in assign_choices()]
-    current = {}
+    cards = {}
     for card in visit.category_assignments.exclude(status='CANCELLED').select_related('employee').order_by('id'):
-        current.setdefault(card.employee_id, card)
+        cards.setdefault(card.employee_id, []).append(card)
     staff = list(working_employees(branch).order_by('first_name', 'username'))
     staff_ids = {person.pk for person in staff}
-    staff += [card.employee for card in current.values() if card.employee_id not in staff_ids]
+    staff += [items[0].employee for pk, items in cards.items() if pk not in staff_ids]
     error = ''
     if request.method == 'POST':
         chosen = {}
         for person in staff:
-            category = request.POST.get(f'category_{person.pk}', '').upper()
+            picked = [c for c in dict.fromkeys(request.POST.getlist(f'category_{person.pk}')) if c in categories]
             # Tapping a category button on a tile also selects that staff member.
-            if request.POST.get(f'staff_{person.pk}') or category in categories:
-                chosen[person.pk] = (person, category if category in categories else '')
-        locked = {pk for pk, card in current.items() if card.status == 'DONE'}
-        if not chosen and not locked:
-            error = 'Tick at least one staff member.'
+            if request.POST.get(f'staff_{person.pk}') or picked:
+                chosen[person.pk] = (person, picked)
+        has_done = any(card.status == 'DONE' for items in cards.values() for card in items)
+        if not chosen and not has_done:
+            error = 'Tap at least one staff member.'
         else:
             with transaction.atomic():
                 visit = Visit.objects.select_for_update().get(pk=visit.pk)
-                for pk, card in current.items():
-                    if card.status == 'ASSIGNED' and pk not in chosen:
-                        card.delete()
-                for pk, (person, category) in chosen.items():
-                    card = current.get(pk)
-                    if card and card.status == 'DONE':
-                        continue
-                    if card:
-                        if card.category != category:
-                            card.category = category
-                            card.save(update_fields=['category', 'updated_at'])
-                    else:
-                        VisitAssignment.objects.create(visit=visit, category=category, employee=person,
-                                                       assigned_by=request.user)
+                for pk, items in cards.items():
+                    if pk not in chosen:
+                        for card in items:
+                            if card.status == 'ASSIGNED':
+                                card.delete()
+                for pk, (person, picked) in chosen.items():
+                    items = cards.get(pk, [])
+                    covered = {_group(card.category) for card in items if card.status == 'DONE'}
+                    if picked:
+                        for card in items:
+                            if card.status == 'ASSIGNED' and _group(card.category) not in picked:
+                                card.delete()
+                            elif card.status == 'ASSIGNED':
+                                covered.add(_group(card.category))
+                        for category in picked:
+                            if category not in covered:
+                                VisitAssignment.objects.create(visit=visit, category=category, employee=person,
+                                                               assigned_by=request.user)
+                    elif not items:
+                        VisitAssignment.objects.create(visit=visit, employee=person, assigned_by=request.user)
                 _settle_visit(visit)
-            messages.success(request, f'{visit.customer.name} sent to {len(chosen) or len(locked)} staff.')
+            messages.success(request, f'{visit.customer.name} sent to {len(chosen)} staff.')
             return redirect('manager_dashboard')
     names = display_names(staff)
     today = timezone.localdate()
@@ -111,18 +122,23 @@ def assign_staff(request, visit_id):
     ).exclude(visit=visit).values_list('employee').annotate(n=Count('id')))
     rows = []
     for person in sorted(staff, key=lambda p: names[p.pk].lower()):
-        card = current.get(person.pk)
+        items = cards.get(person.pk, [])
+        if request.method == 'POST':
+            picked = set(request.POST.getlist(f'category_{person.pk}'))
+            checked = bool(request.POST.get(f'staff_{person.pk}') or picked)
+        else:
+            picked = {_group(card.category) for card in items if card.category}
+            checked = bool(items)
+        done = {_group(card.category) for card in items if card.status == 'DONE'}
         rows.append({
-            'person': person, 'name': names[person.pk], 'card': card, 'busy': busy.get(person.pk, 0),
-            'initial': names[person.pk][:1].upper(),
-            'checked': bool(card) if request.method == 'GET' else bool(
-                request.POST.get(f'staff_{person.pk}') or request.POST.get(f'category_{person.pk}')),
-            'category': (card.category if card else '') if request.method == 'GET' else request.POST.get(f'category_{person.pk}', ''),
-            'locked': bool(card and card.status == 'DONE'),
+            'person': person, 'name': names[person.pk], 'busy': busy.get(person.pk, 0),
+            'initial': names[person.pk][:1].upper(), 'checked': checked or bool(done),
+            'saved': ', '.join(f'{card.category_label} {card.type_label}' for card in items if card.status == 'DONE'),
+            'cats': [{**choice, 'checked': choice['key'] in picked or choice['key'] in done,
+                      'locked': choice['key'] in done} for choice in assign_choices()],
         })
     return render(request, 'operations/simple_assign.html', {
-        'visit': visit, 'rows': rows, 'error': error,
-        'categories': assign_choices(), 'show_search': len(rows) > 6,
+        'visit': visit, 'rows': rows, 'error': error, 'show_search': len(rows) > 6,
     })
 
 

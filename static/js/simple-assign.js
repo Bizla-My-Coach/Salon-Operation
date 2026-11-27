@@ -7,30 +7,18 @@
     var count = form.querySelectorAll('[data-staff]:checked').length;
     if (send) send.textContent = count ? 'Send to ' + count + ' staff' : 'Send to staff';
   }
-  form.addEventListener('click', function (event) {
-    var radio = event.target.closest('.sv-tile-cats input[type=radio]');
-    if (!radio) return;
-    var tile = radio.closest('[data-staff-tile]');
-    var box = tile.querySelector('[data-staff]');
-    // Tapping the chosen category again clears it back to "staff choose".
-    if (radio.dataset.wasChecked === '1') {
-      tile.querySelector('[data-any]').checked = true;
-    } else {
-      box.checked = true;
-    }
-    tile.querySelectorAll('.sv-tile-cats input').forEach(function (r) { r.dataset.wasChecked = r.checked ? '1' : ''; });
-    sync();
-  });
   form.addEventListener('change', function (event) {
-    if (event.target.matches('[data-staff]') && !event.target.checked) {
-      var tile = event.target.closest('[data-staff-tile]');
-      var any = tile.querySelector('[data-any]');
-      if (any) any.checked = true;
-      tile.querySelectorAll('.sv-tile-cats input').forEach(function (r) { r.dataset.wasChecked = r.checked ? '1' : ''; });
+    var input = event.target;
+    var tile = input.closest('[data-staff-tile]');
+    if (!tile) return;
+    var box = tile.querySelector('[data-staff]');
+    if (input.matches('.sv-tile-cats input') && input.checked) {
+      box.checked = true;  // a category tap also selects the person
+    } else if (input === box && !box.checked) {
+      tile.querySelectorAll('.sv-tile-cats input:not(:disabled)').forEach(function (c) { c.checked = false; });
     }
     sync();
   });
-  form.querySelectorAll('.sv-tile-cats input').forEach(function (r) { r.dataset.wasChecked = r.checked ? '1' : ''; });
   var search = form.querySelector('[data-staff-search]');
   if (search) {
     search.addEventListener('input', function () {
