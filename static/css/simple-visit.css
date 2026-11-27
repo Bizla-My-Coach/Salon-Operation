@@ -28,7 +28,7 @@
 .sv-type small{color:var(--muted);font-size:.8rem}
 .sv-type input,.sv-concern input{position:absolute;opacity:0;pointer-events:none}
 .sv-type:hover,.sv-type:focus-within{border-color:var(--brand)}
-.sv-type:has(input:checked){border-color:var(--brand);background:#eaf4f1;box-shadow:0 0 0 3px rgba(23,107,91,.18)}
+.sv-type:has(input:checked){border-color:var(--brand);background:var(--card);box-shadow:0 0 0 3px rgba(23,107,91,.18)}
 .sv-type:has(input:checked)::after{content:"✓";position:absolute;top:16px;right:16px;width:26px;height:26px;display:grid;place-items:center;background:var(--brand);color:#fff;font-weight:900;border-radius:50%}
 .sv-fieldset{border:0;margin:0 0 6px;padding:0;min-width:0}
 .sv-fieldset legend{padding:0}
