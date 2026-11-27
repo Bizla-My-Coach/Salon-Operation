@@ -78,3 +78,8 @@
 .sv-finished-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
 .sv-finished-row .sv-chips{grid-column:1/-1;margin-top:6px}
 [data-theme="dark"] .sv-cat-pills input:checked+span{color:#10231d}
+.sv-finished-row{align-items:center}
+.sv-finished-who{display:grid;gap:2px;min-width:0}
+.sv-copy{gap:6px;padding:8px 12px;font-size:.88rem;white-space:nowrap}
+.sv-copy.copied{background:#e1f2e8;color:#1b6644;border-color:#9fd1b6}
+[data-theme="dark"] .sv-copy.copied{background:#1f3a32;color:var(--ink)}

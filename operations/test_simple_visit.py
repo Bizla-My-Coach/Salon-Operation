@@ -88,6 +88,8 @@ class SimpleVisitFlowTests(TestCase):
         self.client.force_login(self.manager)
         board = self.client.get(reverse('manager_dashboard'))
         self.assertContains(board, 'Finished today')
+        self.assertContains(board, 'data-copy="9876543210"')
+        self.assertContains(board, 'js/copy-phone.js')
         self.assertContains(board, 'Wavy')
         self.assertContains(board, 'Oily')
         self.assertNotContains(board, reverse('add_invoice', args=[visit.pk]))
