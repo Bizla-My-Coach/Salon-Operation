@@ -86,8 +86,11 @@ class SimpleVisitFlowTests(TestCase):
         self.assertFalse(Invoice.objects.filter(visit=visit).exists())
 
         self.client.force_login(self.manager)
-        board = self.client.get(reverse('manager_dashboard'))
-        self.assertContains(board, 'Finished today')
+        live = self.client.get(reverse('manager_dashboard'))
+        self.assertContains(live, 'Finished today <span>1</span>')
+        self.assertNotContains(live, 'data-copy="9876543210"')
+        board = self.client.get(reverse('manager_dashboard') + '?view=finished')
+        self.assertContains(board, 'aria-current="page">Finished today')
         self.assertContains(board, 'data-copy="9876543210"')
         self.assertContains(board, 'js/copy-phone.js')
         self.assertContains(board, 'Wavy')

@@ -659,6 +659,7 @@ def manager_dashboard(request):
             item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
     return render(request, 'operations/manager_dashboard.html', {
         'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple, 'finished_today': finished_today,
+        'board_view': 'finished' if simple and request.GET.get('view') == 'finished' else 'live',
     })
 
 def _form_token(value):

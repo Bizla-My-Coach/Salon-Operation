@@ -146,3 +146,11 @@
 }
 
 .sv-tile-cats input:disabled+span{opacity:.7;cursor:default}
+
+/* Live / Finished today switch on the manager board */
+.sv-board-tabs{display:flex;gap:4px;padding:4px;margin:0 0 16px;background:#e6efeb;border-radius:14px;max-width:420px}
+.sv-board-tabs a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 12px;border-radius:10px;font-weight:700;color:#1d3a32;text-decoration:none}
+.sv-board-tabs a span{min-width:24px;padding:1px 8px;border-radius:999px;background:#fff;font-size:.85em;text-align:center}
+.sv-board-tabs a.active{background:#033a30;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.sv-board-tabs a.active span{background:rgba(255,255,255,.2);color:#fff}
+@media (max-width:640px){.sv-board-tabs{max-width:none}}
