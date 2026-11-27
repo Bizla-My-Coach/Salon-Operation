@@ -25,7 +25,7 @@
     </header>
     <div class="sv-chips">
       {% for a in visit.simple_assignments %}
-      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{% if a.category %}{{ a.category_label }}{% else %}Any{% endif %}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.employee.get_full_name|default:a.employee.username }}{% if a.self_assigned %} (self){% endif %}</small></span>
+      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{% if a.category %}{{ a.category_label }}{% else %}Any{% endif %}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.staff_name }}{% if a.self_assigned %} (self){% endif %}</small></span>
       {% empty %}<p class="manager-no-services">No staff assigned yet.</p>
       {% endfor %}
     </div>

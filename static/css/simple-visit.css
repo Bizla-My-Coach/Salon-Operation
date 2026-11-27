@@ -83,3 +83,35 @@
 .sv-copy{gap:6px;padding:8px 12px;font-size:.88rem;white-space:nowrap}
 .sv-copy.copied{background:#e1f2e8;color:#1b6644;border-color:#9fd1b6}
 [data-theme="dark"] .sv-copy.copied{background:#1f3a32;color:var(--ink)}
+.sv-staff-search{margin-bottom:12px}
+.sv-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sv-pick{position:relative;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;min-height:58px}
+.sv-pick[hidden]{display:none}
+.sv-pick input{position:absolute;opacity:0;pointer-events:none}
+.sv-avatar{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#e7efec;color:var(--brand);font-weight:800}
+.sv-pick-text{display:grid;min-width:0}
+.sv-pick-text b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sv-pick-text small{color:var(--muted);font-size:.75rem}
+.sv-pick:has(input:checked){border-color:var(--brand);background:#eaf4f1}
+.sv-pick:has(input:checked) .sv-avatar{background:var(--brand);color:#fff}
+.sv-pick:has(input:checked)::after{content:"✓";position:absolute;top:6px;right:8px;color:var(--brand);font-weight:900}
+.sv-pick:has(input:focus-visible){box-shadow:0 0 0 3px rgba(23,107,91,.25)}
+.sv-pick.locked{opacity:.75;cursor:default}
+.sv-selected{margin-top:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px 14px}
+.sv-selected h2{font-size:1rem;margin:0 0 8px}
+.sv-selected h2 small{font-weight:600;color:var(--muted);font-size:.78rem;margin-left:6px}
+.sv-none{margin:0;color:var(--muted);font-size:.9rem}
+.sv-none[hidden],.sv-selected-row[hidden]{display:none}
+.sv-selected-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:9px 0;border-top:1px solid var(--line)}
+.sv-selected-row:first-of-type{border-top:0}
+.sv-selected-row>b{min-width:110px}
+.sv-selected-row .sv-cat-pills{display:flex;flex-wrap:wrap;gap:6px;padding:0}
+.sv-selected-row .sv-cat-pills span{padding:6px 11px;font-size:.84rem}
+@media(min-width:900px){.sv-assign-page form{max-width:900px}}
+[data-theme="dark"] .sv-pick:has(input:checked){background:#1f3a32}
+[data-theme="dark"] .sv-avatar{background:#243a33}
+[data-theme="dark"] .sv-pick:has(input:checked) .sv-avatar{color:#10231d}
+/* Override the generic workflow label style on the assign screen. */
+.workflow-page .sv-pick{display:flex;flex-direction:row;margin:0;font-size:.95rem;line-height:1.25}
+.workflow-page .sv-cat-pills label{display:inline-block;margin:0}
+.workflow-page .sv-pick[hidden]{display:none}

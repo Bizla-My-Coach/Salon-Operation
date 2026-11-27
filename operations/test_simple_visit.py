@@ -42,7 +42,7 @@ class SimpleVisitFlowTests(TestCase):
         visit = self.create_customer()
         page = self.client.get(reverse('assign_staff', args=[visit.pk]))
         self.assertContains(page, 'Anu')
-        self.assertContains(page, 'Staff chooses')
+        self.assertContains(page, '>Any<')
         self.assertNotContains(page, 'Outsider')
         response = self.client.post(reverse('assign_staff', args=[visit.pk]), {
             f'staff_{self.anu.pk}': '1', f'category_{self.anu.pk}': 'HAIR',
@@ -251,3 +251,23 @@ class SimpleVisitFlowTests(TestCase):
         self.client.post(reverse('pick_type', args=[card.pk]), {'category': 'PEDI'})
         card.refresh_from_db()
         self.assertEqual(card.category, 'PEDI')
+
+
+class StaffNameTests(TestCase):
+    def test_first_name_then_last_name_then_username_number(self):
+        from .staff_names import display_names
+        make = lambda username, first, last='': User.objects.create_user(username, first_name=first, last_name=last)
+        anu = make('br002.anu', 'Anu', 'Joseph')
+        s1 = make('br002.shahin', 'Shahin', 'K')
+        s2 = make('br002.shahin.2', 'Shahin', 'P')
+        r1 = make('br002.rahul', 'Rahul')
+        r2 = make('br002.rahul.2', 'Rahul')
+        nobody = make('br002.x7', '')
+        m1 = make('br003.meera', 'Meera')
+        m2 = make('br004.meera', 'Meera')
+        names = display_names([anu, s1, s2, r1, r2, nobody, m1, m2])
+        self.assertEqual(names[anu.pk], 'Anu')
+        self.assertEqual((names[s1.pk], names[s2.pk]), ('Shahin K', 'Shahin P'))
+        self.assertEqual((names[r1.pk], names[r2.pk]), ('Rahul', 'Rahul #2'))
+        self.assertEqual((names[m1.pk], names[m2.pk]), ('br003.meera', 'br004.meera'))
+        self.assertEqual(names[nobody.pk], 'br002.x7')

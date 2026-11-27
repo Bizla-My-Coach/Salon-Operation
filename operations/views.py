@@ -26,6 +26,7 @@ from .sop_flow_views import service_flow_digest
 from .roster import employee_services, working_branch
 from .customer_types import simple_flow_enabled
 from .simple_visit_views import card_image, employee_cards, unassigned_visits
+from .staff_names import display_names
 from .staff_access import resettable_employees
 from .workflow import (
     CONSULTATION_CODE,
@@ -627,10 +628,12 @@ def manager_dashboard(request):
                               Prefetch('category_assignments',queryset=VisitAssignment.objects.select_related('employee').exclude(status='CANCELLED')))
             .order_by('created_at','id'))
     simple = simple_flow_enabled()
+    staff_names = display_names(working_employees(branch)) if simple else {}
     for visit in visits:
         visit.simple_assignments = list(visit.category_assignments.all())
         for item in visit.simple_assignments:
             item.image = card_image(item)
+            item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
         active_services = [item for item in visit.services.all() if item.status != 'CANCELLED']
         visit.active_services = active_services
         visit.active_service_count = len(active_services)

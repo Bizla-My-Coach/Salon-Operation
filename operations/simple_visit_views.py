@@ -18,6 +18,7 @@ from .customer_types import (
 from .decorators import roles_required
 from .models import Branch, Customer, Visit, VisitAssignment
 from .roster import working_branch, working_employees
+from .staff_names import display_names
 
 OPEN_VISIT = ['WAITING', 'ASSIGNED', 'IN_PROGRESS']
 ANY_IMAGE = 'img/types/any.png'
@@ -102,18 +103,24 @@ def assign_staff(request, visit_id):
                 _settle_visit(visit)
             messages.success(request, f'{visit.customer.name} sent to {len(chosen) or len(locked)} staff.')
             return redirect('manager_dashboard')
+    names = display_names(staff)
+    today = timezone.localdate()
+    busy = dict(VisitAssignment.objects.filter(
+        employee__in=staff, status='ASSIGNED', visit__branch=branch, assigned_at__date=today,
+    ).exclude(visit=visit).values_list('employee').annotate(n=Count('id')))
     rows = []
-    for person in staff:
+    for person in sorted(staff, key=lambda p: names[p.pk].lower()):
         card = current.get(person.pk)
         rows.append({
-            'person': person, 'name': staff_label(person), 'card': card,
+            'person': person, 'name': names[person.pk], 'card': card, 'busy': busy.get(person.pk, 0),
+            'initial': names[person.pk][:1].upper(),
             'checked': bool(card) if request.method == 'GET' else bool(request.POST.get(f'staff_{person.pk}')),
             'category': (card.category if card else '') if request.method == 'GET' else request.POST.get(f'category_{person.pk}', ''),
             'locked': bool(card and card.status == 'DONE'),
         })
     return render(request, 'operations/simple_assign.html', {
         'visit': visit, 'rows': rows, 'error': error,
-        'categories': assign_choices(),
+        'categories': assign_choices(), 'show_search': len(rows) > 6,
     })
 
 
