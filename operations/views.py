@@ -654,6 +654,9 @@ def manager_dashboard(request):
                       .select_related('customer').prefetch_related(Prefetch(
                           'category_assignments', queryset=VisitAssignment.objects.filter(status='DONE').select_related('employee')))
                       .distinct().order_by('-closed_at')[:30]) if simple and branch else []
+    for visit in finished_today:
+        for item in visit.category_assignments.all():
+            item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
     return render(request, 'operations/manager_dashboard.html', {
         'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple, 'finished_today': finished_today,
     })

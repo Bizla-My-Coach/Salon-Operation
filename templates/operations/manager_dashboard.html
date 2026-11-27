@@ -77,7 +77,7 @@
     {% for visit in finished_today %}
     <div class="sv-finished-row"><div class="sv-finished-who"><strong>{{ visit.customer.name }}</strong><span class="muted">{{ visit.customer.mobile|default:'No phone' }} · {{ visit.closed_at|date:'H:i' }}</span></div>
       {% if visit.customer.mobile %}<button type="button" class="button outline sv-copy" data-copy="{{ visit.customer.mobile }}" aria-label="Copy phone number of {{ visit.customer.name }}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-copy-label>Copy phone</span></button>{% endif %}
-      <div class="sv-chips">{% for a in visit.category_assignments.all %}<span class="sv-chip done"><b>{{ a.category_label }}</b>{{ a.type_label }}<small>· {{ a.employee.get_full_name|default:a.employee.username }}</small></span>{% endfor %}</div>
+      <div class="sv-chips">{% for a in visit.category_assignments.all %}<span class="sv-chip done"><b>{{ a.category_label }}</b>{{ a.type_label }}<small>· {{ a.staff_name }}</small></span>{% endfor %}</div>
     </div>
     {% endfor %}
   </div>
