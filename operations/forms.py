@@ -98,6 +98,14 @@ class VisitCreateForm(BootstrapMixin, forms.Form):
         widget=forms.TextInput(attrs={"placeholder": "Available after verification"}),
     )
 
+    def __init__(self, *args, mobile_required=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if mobile_required:
+            # The simple visit flow collects the phone for reminders and offers.
+            self.fields['mobile'].required = True
+            self.fields['mobile'].label = 'Phone number'
+            self.fields['mobile'].help_text = '10 digits. Used for repeat-visit reminders.'
+
     def clean_mobile(self):
         mobile = self.cleaned_data["mobile"].strip()
         if mobile and (not mobile.isdigit() or len(mobile) != 10):

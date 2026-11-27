@@ -38,16 +38,19 @@
         <a href="{% url 'dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
         <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
         <a href="{% url 'daily_report' %}"{% if request.resolver_match.url_name == 'daily_report' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='sheet' only %}<span>Daily report</span></a>
+        {% if simple_flow %}<a href="{% url 'customer_types' %}"{% if request.resolver_match.url_name == 'customer_types' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Customer types</span></a>{% endif %}
       {% elif user.profile.role == 'GENERAL_MANAGER' %}
         <a href="{% url 'general_manager_overview' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
         <a href="{% url 'general_manager_dashboard' %}"{% if request.resolver_match.url_name == 'general_manager_dashboard' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
         <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
         <a href="{% url 'daily_report' %}"{% if request.resolver_match.url_name == 'daily_report' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='sheet' only %}<span>Daily report</span></a>
+        {% if simple_flow %}<a href="{% url 'customer_types' %}"{% if request.resolver_match.url_name == 'customer_types' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Customer types</span></a>{% endif %}
       {% else %}
         <a href="{% url 'manager_dashboard' %}">{% include 'includes/nav_icon.html' with icon='home' only %}<span>Overview</span></a>
         <a href="{% url 'manager_summary' %}"{% if request.resolver_match.url_name == 'manager_summary' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
         <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
         <a href="{% url 'daily_report' %}"{% if request.resolver_match.url_name == 'daily_report' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='sheet' only %}<span>Daily report</span></a>
+        {% if simple_flow %}<a href="{% url 'customer_types' %}"{% if request.resolver_match.url_name == 'customer_types' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Customer types</span></a>{% endif %}
       {% endif %}
       {% if user.is_superuser or user.profile.role == 'ADMIN' %}
         <p>Administration</p>
@@ -71,14 +74,14 @@
         <a href="{% url 'service_catalog' %}">{% include 'includes/nav_icon.html' with icon='catalogue' only %}<span>Service catalogue</span></a>
         <p>Acting branch manager</p>
         {% if acting_branch %}
-          <a href="{% url 'new_visit' %}">{% include 'includes/nav_icon.html' with icon='new' only %}<span>New service order</span></a>
+          <a href="{% url 'new_visit' %}">{% include 'includes/nav_icon.html' with icon='new' only %}<span>{% if simple_flow %}New customer{% else %}New service order{% endif %}</span></a>
           <a href="{% url 'manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<span>Today's branch staff</span></a>
         {% else %}
           <span class="sidebar-note">No branch assigned today</span>
         {% endif %}
       {% else %}
         <p>Operations</p>
-        <a href="{% url 'new_visit' %}">{% include 'includes/nav_icon.html' with icon='new' only %}<span>New service order</span></a>
+        <a href="{% url 'new_visit' %}">{% include 'includes/nav_icon.html' with icon='new' only %}<span>{% if simple_flow %}New customer{% else %}New service order{% endif %}</span></a>
         <a href="{% url 'service_catalog' %}">{% include 'includes/nav_icon.html' with icon='catalogue' only %}<span>Service catalogue</span></a>
         <a href="{% url 'manager_staff' %}">{% include 'includes/nav_icon.html' with icon='staff' only %}<span>All staff</span></a>
       {% endif %}

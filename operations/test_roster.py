@@ -10,6 +10,8 @@ from .models import Branch, BranchDuty, Customer, Service, Visit, VisitService
 from .roster import working_branch, working_employees
 
 
+# These tests cover the SOP step flow; the simple visit flow has its own tests.
+@override_settings(SIMPLE_VISIT_FLOW=False)
 @override_settings(STORAGES={"staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
 class BranchRosterTests(TestCase):
     def setUp(self):

@@ -1,5 +1,6 @@
 from .roster import working_branch
 from .review_workflow import is_review_admin
+from .customer_types import simple_flow_enabled
 
 
 def acting_branch(request):
@@ -8,7 +9,7 @@ def acting_branch(request):
     context = {'review_admin': bool(user.is_authenticated and is_review_admin(user)),
         'can_manage_records': bool(user.is_authenticated and user.is_staff and (
         user.is_superuser or user.has_module_perms('operations')
-    )), 'acting_branch': None}
+    )), 'acting_branch': None, 'simple_flow': simple_flow_enabled()}
     if profile and profile.role == "GENERAL_MANAGER":
         context['acting_branch'] = working_branch(user)
     match = getattr(request, 'resolver_match', None)
@@ -24,7 +25,7 @@ def acting_branch(request):
         'google_review_assignments', 'import_data',
     }
     partial = {
-        'branch_roster', 'my_profile', 'change_password', 'new_visit', 'edit_visit_services',
+        'branch_roster', 'my_profile', 'assign_staff', 'change_password', 'new_visit', 'edit_visit_services',
         'verify_service', 'verify_visit', 'add_invoice', 'cancel_and_reassign_service',
         'create_user', 'staff_password_reset', 'staff_csv_import', 'branch_csv_import',
         'workbook_import',

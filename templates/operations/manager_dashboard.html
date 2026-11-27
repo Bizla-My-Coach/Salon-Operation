@@ -1,14 +1,39 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Overview · Hairship{% endblock %}
+{% block extra_css %}{% if simple_flow %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endif %}{% endblock %}
 {% block content %}
 <div data-live-dashboard="{{ request.resolver_match.url_name }}">
 {% if dashboard_branch %}
 <header class="page-head split manager-page-head">
   <div><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Live operations</h1></div>
-  <a href="{% url 'new_visit' %}" class="button primary">+ New service visit</a>
+  <a href="{% url 'new_visit' %}" class="button primary">{% if simple_flow %}+ New customer{% else %}+ New service visit{% endif %}</a>
 </header>
 <div class="visit-list manager-visit-list">
   {% for visit in visits %}
+  {% if simple_flow and not visit.active_service_count and not visit.cancelled_services %}
+  <article class="visit-card manager-visit-card">
+    <header class="manager-visit-head">
+      <div class="manager-customer">
+        <div class="manager-customer-title"><h2>{{ visit.customer.name }}</h2><span class="status {{ visit.status|lower }}">{% if visit.simple_ready %}Types recorded{% else %}{{ visit.get_status_display }}{% endif %}</span></div>
+        <p>{{ visit.customer.mobile|default:'No phone' }} · Arrived {{ visit.created_at|date:'H:i' }}</p>
+      </div>
+      <div class="manager-card-actions">
+        {% if visit.status == 'INVOICED' %}<a class="button primary" href="{% url 'collect_feedback' visit.id %}">Collect feedback</a>
+        {% else %}
+          <a class="button {% if visit.simple_assignments %}outline{% else %}primary{% endif %}" href="{% url 'assign_staff' visit.id %}">{% if visit.simple_assignments %}Change staff{% else %}Assign staff{% endif %}</a>
+          {% if visit.simple_ready %}<a class="button dark" href="{% url 'add_invoice' visit.id %}">Add invoice</a>{% endif %}
+        {% endif %}
+      </div>
+    </header>
+    <div class="sv-chips">
+      {% for a in visit.simple_assignments %}
+      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{{ a.category_label }}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.employee.get_full_name|default:a.employee.username }}{% if a.self_assigned %} (self){% endif %}</small></span>
+      {% empty %}<p class="manager-no-services">No staff assigned yet.</p>
+      {% endfor %}
+    </div>
+  </article>
+  {% else %}
   <article class="visit-card manager-visit-card">
     <header class="manager-visit-head">
       <div class="manager-customer">
@@ -45,7 +70,8 @@
     </details>
     {% endif %}
   </article>
-  {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">Create first visit</a></div>{% endfor %}
+  {% endif %}
+  {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">{% if simple_flow %}Add first customer{% else %}Create first visit{% endif %}</a></div>{% endfor %}
 </div>
 {% else %}
 <header class="page-head"><h1>Live operations</h1></header>

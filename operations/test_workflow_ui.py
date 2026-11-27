@@ -5,6 +5,8 @@ from .models import Branch
 from .tests import CombinedServiceWorkflowTests
 
 
+# These tests cover the SOP step flow; the simple visit flow has its own tests.
+@override_settings(SIMPLE_VISIT_FLOW=False)
 @override_settings(STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
 class WorkflowInterfaceTests(TestCase):
     setUp = CombinedServiceWorkflowTests.setUp

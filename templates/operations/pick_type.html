@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ category.label }} type · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block content %}
+<div class="service-back-nav"><a class="button outline" href="{% url 'employee_dashboard' %}">← My customers</a><span class="muted">{{ category.label }}</span></div>
+<header class="page-head">
+  <span class="eyebrow">{{ category.label }} · Visit #{{ assignment.visit_id }}</span>
+  <h1>{{ customer.name }}</h1>
+  <p>{% if visit_count > 1 %}Visit {{ visit_count }}{% if previous_label %} · last time: {{ previous_label }}{% endif %}{% else %}First visit{% endif %}</p>
+</header>
+<form method="post" data-single-submit class="sv-picker">
+  {% csrf_token %}
+  <fieldset class="sv-fieldset">
+    <legend class="sv-question">1. {{ category.question }}</legend>
+    <div class="sv-type-grid">
+      {% for option in options %}
+      <label class="sv-type">
+        <input type="radio" name="type" value="{{ option.code }}" required{% if option.selected %} checked{% endif %}>
+        <img src="{% static option.image %}" alt="">
+        <b>{{ option.label }}</b><small>{{ option.hint }}</small>
+      </label>
+      {% endfor %}
+    </div>
+    <label class="sv-unsure-option"><input type="radio" name="type" value="UNKNOWN"{% if unsure_selected %} checked{% endif %}> Not sure</label>
+  </fieldset>
+  <fieldset class="sv-fieldset">
+    <legend class="sv-question">2. Any concerns? <small>Optional · tap all that apply</small></legend>
+    <div class="sv-concerns">
+      {% for concern in concerns %}
+      <label class="sv-concern"><input type="checkbox" name="concern" value="{{ concern.code }}"{% if concern.checked %} checked{% endif %}><span>{{ concern.label }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="sv-save-bar"><button type="submit" class="button primary large block">Save</button></div>
+</form>
+{% endblock %}

@@ -1,8 +1,40 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}My work · Hairship{% endblock %}
+{% block extra_css %}{% if simple_flow %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endif %}{% endblock %}
 {% block content %}
+{% if simple_flow %}
 <header class="page-head">
-  <h1>My services</h1>
+  <h1>My customers</h1>
+  <p>Tap a customer, then tap the picture that matches.</p>
+</header>
+{% if unassigned %}
+<section class="sv-waiting" aria-label="Customers waiting for staff">
+  <h2 class="section-title" style="margin:0">Waiting for staff · take one</h2>
+  {% for row in unassigned %}
+  <article>
+    <div><h3>{{ row.visit.customer.name }}</h3><p>Arrived {{ row.visit.created_at|date:'H:i' }} · manager has not assigned anyone</p></div>
+    <div class="sv-take">{% for c in row.categories %}<form method="post" action="{% url 'take_customer' row.visit.pk c.key|lower %}" data-single-submit>{% csrf_token %}<button class="button outline" type="submit">Take {{ c.label }}</button></form>{% endfor %}</div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+<div class="sv-cards">
+  {% for card in type_cards %}
+  <a class="sv-customer-card" href="{% url 'pick_type' card.pk %}" aria-label="Record {{ card.category_label|lower }} type for {{ card.visit.customer.name }}">
+    <img src="{% static card.image %}" alt="">
+    <div>
+      <span class="sv-tag">{{ card.category_label }}</span>
+      <h2>{{ card.visit.customer.name }}</h2>
+      <p>Arrived {{ card.visit.created_at|date:'H:i' }}{% if card.previous_label %} · last time {{ card.previous_label }}{% endif %}</p>
+    </div>
+  </a>
+  {% empty %}{% if not jobs and not unassigned %}<div class="empty-state"><b>You’re all caught up</b><span>No customer is assigned right now.</span></div>{% endif %}{% endfor %}
+</div>
+{% endif %}
+{% if jobs or not simple_flow %}
+<header class="page-head"{% if simple_flow %} style="margin-top:30px"{% endif %}>
+  <h1>{% if simple_flow %}Services in progress{% else %}My services{% endif %}</h1>
 </header>
 <div class="job-grid">
   {% for j in jobs %}
@@ -18,4 +50,18 @@
   </article>
   {% empty %}<div class="empty-state"><b>You’re all caught up</b><span>No service is assigned right now.</span></div>{% endfor %}
 </div>
+{% endif %}
+{% if simple_flow and recorded_cards %}
+<section class="sv-section">
+  <h2>Recorded · tap to change</h2>
+  <div class="sv-cards">
+    {% for card in recorded_cards %}
+    <a class="sv-customer-card done" href="{% url 'pick_type' card.pk %}" aria-label="Change {{ card.category_label|lower }} type for {{ card.visit.customer.name }}">
+      <img src="{% static card.image %}" alt="">
+      <div><span class="sv-tag">{{ card.category_label }} · {{ card.type_label }}</span><h2>{{ card.visit.customer.name }}</h2><p>Saved {{ card.completed_at|date:'H:i' }}{% if card.concern_labels %} · {{ card.concern_labels|join:", " }}{% endif %}</p></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Assign staff · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block content %}
+<div class="workflow-page">
+<header class="page-head split">
+  <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Pick staff only for the categories this customer wants.</p></div>
+  <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
+</header>
+<section class="panel workflow-panel narrow">
+  <form method="post" class="form-grid" data-single-submit>
+    {% csrf_token %}{{ form.non_field_errors }}
+    <div class="sv-assign-list">
+      {% for row in form.rows %}
+      <div class="sv-assign-row{% if row.locked %} locked{% endif %}">
+        <img src="{% static row.image %}" alt="">
+        <div>
+          <label for="{{ row.field.id_for_label }}">{{ row.label }}</label>
+          {{ row.field }}
+          {% if row.locked %}<small>Recorded: {{ row.current.type_label }} by {{ row.current.employee.get_full_name|default:row.current.employee.username }}</small>
+          {% elif row.previous %}<small>Last visit: {{ row.previous }}</small>{% endif %}
+          {{ row.field.errors }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="button primary large block">Save and send to staff</button>
+  </form>
+</section>
+</div>
+{% endblock %}
