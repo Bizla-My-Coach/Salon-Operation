@@ -60,7 +60,7 @@ class SimpleVisitFlowTests(TestCase):
         self.assertContains(home, 'Riya')
         self.assertContains(home, reverse('pick_type', args=[hair.pk]))
         picker = self.client.get(reverse('pick_type', args=[hair.pk]))
-        self.assertContains(picker, 'img/types/hair-wavy.svg')
+        self.assertContains(picker, 'img/types/hair-wavy.png')
         self.assertContains(picker, 'Dandruff')
         self.client.post(reverse('pick_type', args=[hair.pk]),
                          {'type': 'WAVY', 'concern': ['DANDRUFF', 'HAIR_FALL', 'ACNE']})
@@ -78,7 +78,7 @@ class SimpleVisitFlowTests(TestCase):
         chooser = self.client.get(reverse('pick_type', args=[open_card.pk]))
         self.assertContains(chooser, 'What are you doing for this customer?')
         self.client.post(reverse('pick_type', args=[open_card.pk]), {'category': 'SKIN'})
-        self.assertContains(self.client.get(reverse('pick_type', args=[open_card.pk])), 'skin-oily.svg')
+        self.assertContains(self.client.get(reverse('pick_type', args=[open_card.pk])), 'skin-oily.png')
         self.client.post(reverse('pick_type', args=[open_card.pk]), {'type': 'OILY'})
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'CLOSED')

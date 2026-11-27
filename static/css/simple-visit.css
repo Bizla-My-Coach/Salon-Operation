@@ -39,7 +39,7 @@
 .sv-concern span{display:inline-block;border:1.5px solid var(--line);border-radius:999px;padding:10px 15px;background:var(--card);font-weight:700;font-size:.92rem}
 .sv-concern input:checked+span{border-color:var(--brand);background:var(--brand);color:#fff}
 .sv-concern input:focus-visible+span{box-shadow:0 0 0 3px rgba(23,107,91,.25)}
-.sv-save-bar{position:sticky;bottom:0;padding:14px 0 10px;background:linear-gradient(transparent,var(--bg) 30%);margin-top:10px}
+.sv-save-bar{padding:14px 0 10px;margin-top:10px}
 .sv-waiting{display:grid;gap:10px;margin-bottom:26px}
 .sv-waiting article{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border:1.5px dashed #c9b48f;background:#fffaf1;border-radius:14px;padding:12px 14px}
 .sv-waiting h3{margin:0;font-size:1.05rem}

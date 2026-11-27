@@ -22,10 +22,10 @@ CATEGORIES = {
             ("COLOURED", "Colour treated"),
         ],
         "options": [
-            ("STRAIGHT", "Straight", "Falls flat, no bend", "img/types/hair-straight.svg"),
-            ("WAVY", "Wavy", "Loose S-shaped waves", "img/types/hair-wavy.svg"),
-            ("CURLY", "Curly", "Springy, defined curls", "img/types/hair-curly.svg"),
-            ("COILY", "Coily", "Tight coils or zig-zags", "img/types/hair-coily.svg"),
+            ("STRAIGHT", "Straight", "Falls flat, no bend", "img/types/hair-straight.png"),
+            ("WAVY", "Wavy", "Loose S-shaped waves", "img/types/hair-wavy.png"),
+            ("CURLY", "Curly", "Springy, defined curls", "img/types/hair-curly.png"),
+            ("COILY", "Coily", "Tight coils or zig-zags", "img/types/hair-coily.png"),
         ],
     },
     "SKIN": {
@@ -38,11 +38,11 @@ CATEGORIES = {
             ("DARK_CIRCLES", "Dark circles"),
         ],
         "options": [
-            ("NORMAL", "Normal", "Even, not oily or dry", "img/types/skin-normal.svg"),
-            ("DRY", "Dry", "Tight, flaky or rough", "img/types/skin-dry.svg"),
-            ("OILY", "Oily", "Shiny all over", "img/types/skin-oily.svg"),
-            ("COMBINATION", "Combination", "Oily T-zone, dry cheeks", "img/types/skin-combination.svg"),
-            ("SENSITIVE", "Sensitive", "Redness, reacts easily", "img/types/skin-sensitive.svg"),
+            ("NORMAL", "Normal", "Even, not oily or dry", "img/types/skin-normal.png"),
+            ("DRY", "Dry", "Tight, flaky or rough", "img/types/skin-dry.png"),
+            ("OILY", "Oily", "Shiny all over", "img/types/skin-oily.png"),
+            ("COMBINATION", "Combination", "Oily T-zone, dry cheeks", "img/types/skin-combination.png"),
+            ("SENSITIVE", "Sensitive", "Redness, reacts easily", "img/types/skin-sensitive.png"),
         ],
     },
     "BODY": {
