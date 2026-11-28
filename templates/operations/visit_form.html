@@ -1,6 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}New service visit · Hairship{% endblock %}
 {% block content %}
+{% if simple_flow %}
+<div class="workflow-page">
+<header class="page-head split">
+  <div><span class="eyebrow">Step 1 of 2 · New customer</span><h1>{{ title }}</h1><p>Name and phone only. Assign staff next.</p></div>
+  <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
+</header>
+<section class="panel workflow-panel narrow">
+  <form method="post" class="form-grid workflow-form" data-single-submit>
+    {% csrf_token %}<input type="hidden" name="submit_token" value="{{ submit_token }}">{{ form.non_field_errors }}
+    <div class="workflow-fields">
+      {% include 'includes/workflow_field.html' with field=form.customer_name %}
+      {% include 'includes/workflow_field.html' with field=form.mobile %}
+    </div>
+    <div class="workflow-submit"><p>Next: pick the staff for Hair, Skin or Mani / Pedi.</p><button type="submit" class="button primary large">Next: assign staff</button></div>
+  </form>
+</section>
+</div>
+{% else %}
 <div class="workflow-page">
 <header data-live-region="heading" class="page-head split">
   <div><span class="eyebrow">Step 1 of 2 · New visit</span><h1>{{ title }}</h1><p>Start with the customer. Assign services and staff next.</p></div>
@@ -26,4 +44,5 @@
   </aside>
 </div>
 </div>
+{% endif %}
 {% endblock %}

@@ -2,7 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -24,6 +24,8 @@ from .models import (
 from .workflow import build_visit_tasks
 
 
+# These tests cover the SOP step flow; the simple visit flow has its own tests.
+@override_settings(SIMPLE_VISIT_FLOW=False)
 class CombinedServiceWorkflowTests(TestCase):
     def setUp(self):
         self.branch = Branch.objects.create(code="B1", name="Test Branch")

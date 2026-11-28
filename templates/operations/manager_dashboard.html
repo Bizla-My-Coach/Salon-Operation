@@ -1,14 +1,43 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Overview · Hairship{% endblock %}
+{% block extra_css %}{% if simple_flow %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endif %}{% endblock %}
+{% block extra_js %}{% if simple_flow %}<script src="{% static 'js/copy-phone.js' %}" defer></script>{% endif %}{% endblock %}
 {% block content %}
 <div data-live-dashboard="{{ request.resolver_match.url_name }}">
 {% if dashboard_branch %}
 <header class="page-head split manager-page-head">
   <div><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Live operations</h1></div>
-  <a href="{% url 'new_visit' %}" class="button primary">+ New service visit</a>
+  <a href="{% url 'new_visit' %}" class="button primary">{% if simple_flow %}+ New customer{% else %}+ New service visit{% endif %}</a>
 </header>
+{% if simple_flow %}
+<nav class="sv-board-tabs" aria-label="Board view">
+  <a href="?" class="{% if board_view != 'finished' %}active{% endif %}"{% if board_view != 'finished' %} aria-current="page"{% endif %}>Live <span>{{ visits|length }}</span></a>
+  <a href="?view=finished" class="{% if board_view == 'finished' %}active{% endif %}"{% if board_view == 'finished' %} aria-current="page"{% endif %}>Finished today <span>{{ finished_today|length }}</span></a>
+</nav>
+{% endif %}
+{% if board_view != 'finished' %}
 <div class="visit-list manager-visit-list">
   {% for visit in visits %}
+  {% if simple_flow and not visit.active_service_count and not visit.cancelled_services %}
+  <article class="visit-card manager-visit-card">
+    <header class="manager-visit-head">
+      <div class="manager-customer">
+        <div class="manager-customer-title"><h2>{{ visit.customer.name }}</h2><span class="status {{ visit.status|lower }}">{{ visit.get_status_display }}</span></div>
+        <p>{{ visit.customer.mobile|default:'No phone' }} · Arrived {{ visit.created_at|date:'H:i' }}</p>
+      </div>
+      <div class="manager-card-actions">
+        <a class="button {% if visit.simple_assignments %}outline{% else %}primary{% endif %}" href="{% url 'assign_staff' visit.id %}">{% if visit.simple_assignments %}Change staff{% else %}Assign staff{% endif %}</a>
+      </div>
+    </header>
+    <div class="sv-chips">
+      {% for a in visit.simple_assignments %}
+      <span class="sv-chip{% if a.status == 'DONE' %} done{% endif %}"><img src="{% static a.image %}" alt=""><b>{% if a.category %}{{ a.category_label }}{% else %}Any{% endif %}</b>{% if a.status == 'DONE' %}{{ a.type_label }}{% if a.concern_labels %}<small>({{ a.concern_labels|join:', ' }})</small>{% endif %}{% else %}<small>waiting</small>{% endif %}<small>· {{ a.staff_name }}{% if a.self_assigned %} (self){% endif %}</small></span>
+      {% empty %}<p class="manager-no-services">No staff assigned yet.</p>
+      {% endfor %}
+    </div>
+  </article>
+  {% else %}
   <article class="visit-card manager-visit-card">
     <header class="manager-visit-head">
       <div class="manager-customer">
@@ -45,8 +74,22 @@
     </details>
     {% endif %}
   </article>
-  {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">Create first visit</a></div>{% endfor %}
+  {% endif %}
+  {% empty %}<div class="empty-state"><b>All clear</b><span>No active visits right now.</span><a class="button primary" href="{% url 'new_visit' %}">{% if simple_flow %}Add first customer{% else %}Create first visit{% endif %}</a></div>{% endfor %}
 </div>
+{% else %}
+<section class="sv-section" aria-label="Finished today">
+  <div class="sv-finished">
+    {% for visit in finished_today %}
+    <div class="sv-finished-row"><div class="sv-finished-who"><strong>{{ visit.customer.name }}</strong><span class="muted">{{ visit.customer.mobile|default:'No phone' }} · {{ visit.closed_at|date:'H:i' }}</span></div>
+      {% if visit.customer.mobile %}<button type="button" class="button outline sv-copy" data-copy="{{ visit.customer.mobile }}" aria-label="Copy phone number of {{ visit.customer.name }}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-copy-label>Copy phone</span></button>{% endif %}
+      <div class="sv-chips">{% for a in visit.category_assignments.all %}<span class="sv-chip done"><b>{{ a.category_label }}</b>{{ a.type_label }}<small>· {{ a.staff_name }}</small></span>{% endfor %}</div>
+    </div>
+    {% empty %}<div class="empty-state"><b>Nobody finished yet today</b><span>Customers move here once every staff card is saved.</span></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% else %}
 <header class="page-head"><h1>Live operations</h1></header>
 <div class="panel"><p>No working branch is assigned to you today.</p><a class="button primary" href="{% url 'branch_roster' %}">Set today's branch</a></div>

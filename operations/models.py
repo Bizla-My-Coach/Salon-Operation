@@ -393,6 +393,14 @@ class Customer(TimeStamped):
     mobile = models.CharField(max_length=30, blank=True, db_index=True)
     email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
+    # Latest type picked on a picture card in the simple visit flow; the full
+    # history stays on each VisitAssignment.
+    hair_type = models.CharField(max_length=20, blank=True)
+    skin_type = models.CharField(max_length=20, blank=True)
+    hand_type = models.CharField(max_length=20, blank=True)
+    foot_type = models.CharField(max_length=20, blank=True)
+    # Latest concerns per category, e.g. {"HAIR": ["DANDRUFF"], "SKIN": ["ACNE", "TAN"]}.
+    concerns = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name
@@ -424,6 +432,56 @@ class Visit(TimeStamped):
             and not active_services.exclude(status="VERIFIED").exists()
             and not Invoice.objects.filter(visit=self, status="COMPLETED").exists()
         )
+
+
+class VisitAssignment(TimeStamped):
+    """Simple visit flow: one staff card on a visit.
+
+    The manager may set the category (Hair, Skin, Mani / Pedi) or leave it for the
+    staff member. The staff member taps a picture card to record the customer's
+    type and concerns; the visit closes when every card is saved. This replaces
+    SOP step execution, verification and invoicing, whose data is untouched.
+    """
+    STATUS = [("ASSIGNED", "Assigned"), ("DONE", "Type recorded"), ("CANCELLED", "Cancelled")]
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="category_assignments")
+    # Blank until the staff member chooses Hair, Skin or Mani / Pedi on the card.
+    category = models.CharField(max_length=10, blank=True)
+    employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments")
+    assigned_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments_made")
+    status = models.CharField(max_length=12, choices=STATUS, default="ASSIGNED")
+    assigned_at = models.DateTimeField(default=timezone.now)
+    selected_type = models.CharField(max_length=20, blank=True)
+    concerns = models.JSONField(default=list, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["visit_id", "id"]
+        indexes = [models.Index(fields=["employee", "status"])]
+
+    @property
+    def category_label(self):
+        from .customer_types import CATEGORIES
+        from .customer_types import NAILS, NAILS_LABEL
+        if self.category == NAILS:
+            return NAILS_LABEL
+        return CATEGORIES.get(self.category, {}).get("label", self.category.title()) if self.category else "Any"
+
+    @property
+    def type_label(self):
+        from .customer_types import type_label
+        return type_label(self.category, self.selected_type)
+
+    @property
+    def concern_labels(self):
+        from .customer_types import concern_labels
+        return concern_labels(self.category, self.concerns)
+
+    @property
+    def self_assigned(self):
+        return self.assigned_by_id == self.employee_id
+
+    def __str__(self):
+        return f"Visit #{self.visit_id} {self.category} - {self.employee}"
 
 
 class VisitService(TimeStamped):

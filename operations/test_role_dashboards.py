@@ -1,12 +1,14 @@
 from django.contrib.auth.models import User
 from django.templatetags.static import static
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from .models import Branch, BranchDuty, Customer, Service, Visit, VisitService
 
 
+# These tests cover the SOP step flow; the simple visit flow has its own tests.
+@override_settings(SIMPLE_VISIT_FLOW=False)
 class RoleDashboardTests(TestCase):
     def setUp(self):
         self.north = Branch.objects.create(code='N', name='North')

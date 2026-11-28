@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Customer types · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block content %}
+<header class="page-head split">
+  <div><span class="eyebrow">Customer data</span><h1>Customer types</h1><p>{{ customers_typed }} of {{ customers_total }} customers have a type recorded.</p></div>
+  {% if all_branches %}
+  <form method="get" class="form-grid"><select name="branch" class="form-control" onchange="this.form.submit()" aria-label="Branch">
+    <option value="">All branches</option>{% for b in all_branches %}<option value="{{ b.pk }}"{% if chosen == b.pk|stringformat:'s' %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+  </select></form>
+  {% endif %}
+</header>
+{% for section in sections %}
+<section class="sv-section">
+  <h2>{{ section.label }} · {{ section.total }} customer{{ section.total|pluralize }}</h2>
+  <div class="sv-mix">
+    {% for item in section.items %}
+    <article><img src="{% static item.image %}" alt=""><span>{{ item.label }}</span><strong>{{ item.count }}</strong><div class="sv-bar"><i style="width:{{ item.percent }}%"></i></div><small class="muted">{{ item.percent }}%</small></article>
+    {% endfor %}
+  </div>
+  <div class="sv-chips" aria-label="{{ section.label }} concerns">
+    {% for concern in section.concerns %}<span class="sv-chip" style="padding-left:12px"><b>{{ concern.count }}</b>{{ concern.label }}</span>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

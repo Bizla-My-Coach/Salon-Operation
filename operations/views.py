@@ -24,6 +24,9 @@ from .timing import add_timing_summary, adopt_legacy_active_segment, close_segme
 from .decorators import roles_required
 from .sop_flow_views import service_flow_digest
 from .roster import employee_services, working_branch
+from .customer_types import simple_flow_enabled
+from .simple_visit_views import card_image, employee_cards, unassigned_visits
+from .staff_names import display_names
 from .staff_access import resettable_employees
 from .workflow import (
     CONSULTATION_CODE,
@@ -621,9 +624,16 @@ def manager_dashboard(request):
     ).order_by('visit_id','order_number','id'))
     visits=(Visit.objects.filter(branch=branch).exclude(status__in=['CLOSED','CANCELLED'])
             .select_related('customer')
-            .prefetch_related(Prefetch('services',queryset=services),'invoice')
+            .prefetch_related(Prefetch('services',queryset=services),'invoice',
+                              Prefetch('category_assignments',queryset=VisitAssignment.objects.select_related('employee').exclude(status='CANCELLED')))
             .order_by('created_at','id'))
+    simple = simple_flow_enabled()
+    staff_names = display_names(working_employees(branch)) if simple else {}
     for visit in visits:
+        visit.simple_assignments = list(visit.category_assignments.all())
+        for item in visit.simple_assignments:
+            item.image = card_image(item)
+            item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
         active_services = [item for item in visit.services.all() if item.status != 'CANCELLED']
         visit.active_services = active_services
         visit.active_service_count = len(active_services)
@@ -639,7 +649,18 @@ def manager_dashboard(request):
         visit.can_verify_all = bool(active_services) and all(
             item.status in ['EMPLOYEE_DONE', 'VERIFIED'] for item in active_services
         ) and any(item.status == 'EMPLOYEE_DONE' for item in active_services)
-    return render(request, 'operations/manager_dashboard.html', {'dashboard_branch': branch, 'visits': visits})
+    finished_today = (Visit.objects.filter(branch=branch, status='CLOSED', closed_at__date=timezone.localdate(),
+                                           category_assignments__isnull=False)
+                      .select_related('customer').prefetch_related(Prefetch(
+                          'category_assignments', queryset=VisitAssignment.objects.filter(status='DONE').select_related('employee')))
+                      .distinct().order_by('-closed_at')[:30]) if simple and branch else []
+    for visit in finished_today:
+        for item in visit.category_assignments.all():
+            item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
+    return render(request, 'operations/manager_dashboard.html', {
+        'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple, 'finished_today': finished_today,
+        'board_view': 'finished' if simple and request.GET.get('view') == 'finished' else 'live',
+    })
 
 def _form_token(value):
     """Return the posted one-time form token as a UUID, or None if absent/invalid."""
@@ -667,14 +688,16 @@ def _customer_for_visit(name, mobile):
 
 @roles_required('MANAGER')
 def new_visit(request):
-    branch=user_branch(request.user); form=VisitCreateForm(request.POST or None)
+    branch=user_branch(request.user); simple=simple_flow_enabled()
+    form=VisitCreateForm(request.POST or None, mobile_required=simple)
+    next_view='assign_staff' if simple else 'edit_visit_services'
     token = _form_token(request.POST.get('submit_token')) if request.method == 'POST' else None
     if request.method=='POST' and form.is_valid():
         if token:
             already = Visit.objects.filter(create_token=token, branch=branch).first()
             if already:
                 # Repeated press of the same form: show the visit it already created.
-                return redirect('edit_visit_services', visit_id=already.pk)
+                return redirect(next_view, visit_id=already.pk)
         try:
             with transaction.atomic():
                 customer = _customer_for_visit(form.cleaned_data['customer_name'], form.cleaned_data['mobile'])
@@ -685,11 +708,11 @@ def new_visit(request):
             already = Visit.objects.filter(create_token=token, branch=branch).first() if token else None
             if not already:
                 raise
-            return redirect('edit_visit_services', visit_id=already.pk)
-        messages.success(request,'Customer details saved. Now add and assign the services.')
-        return redirect('edit_visit_services', visit_id=visit.pk)
+            return redirect(next_view, visit_id=already.pk)
+        messages.success(request,'Customer saved. Now assign staff.' if simple else 'Customer details saved. Now add and assign the services.')
+        return redirect(next_view, visit_id=visit.pk)
     return render(request,'operations/visit_form.html',{
-        'form':form,'title':'Create service visit','submit_token': token or uuid.uuid4(),
+        'form':form,'title':'New customer' if simple else 'Create service visit','submit_token': token or uuid.uuid4(),'simple_flow':simple,
     })
 
 @roles_required('MANAGER')
@@ -1017,7 +1040,11 @@ def employee_dashboard(request):
     jobs=(with_progress(employee_services(request.user)).select_related('visit__customer','visit__branch','service','chair')
         .prefetch_related('visit__services')
         .order_by('visit__created_at','visit_id','order_number','id'))
-    return render(request,'operations/employee_dashboard.html',{'jobs':jobs})
+    waiting, recorded = employee_cards(request.user) if simple_flow_enabled() else ([], [])
+    return render(request,'operations/employee_dashboard.html',{
+        'jobs':jobs,'simple_flow':simple_flow_enabled(),'type_cards':waiting,'recorded_cards':recorded,
+        'unassigned':unassigned_visits(request.user) if simple_flow_enabled() else [],
+    })
 
 
 def _pending_opening_task(visit):
