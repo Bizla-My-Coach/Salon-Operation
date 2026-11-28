@@ -1099,6 +1099,7 @@ class SalesReportUpload(models.Model):
     not_in_app_count = models.PositiveIntegerField(default=0)
     amount_diff_count = models.PositiveIntegerField(default=0)
     format_count = models.PositiveIntegerField(default=0)
+    no_phone_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['-uploaded_at']
@@ -1109,7 +1110,7 @@ class SalesReportUpload(models.Model):
 
 class SalesInvoice(models.Model):
     MATCH = [('MATCHED', 'Matched'), ('AMOUNT_DIFF', 'Amount differs'),
-             ('NOT_IN_APP', 'Not in app'), ('FORMAT', 'Wrong number format')]
+             ('NOT_IN_APP', 'Not in app'), ('FORMAT', 'Wrong number format'), ('NO_PHONE', 'No phone on bill')]
     upload = models.ForeignKey(SalesReportUpload, on_delete=models.CASCADE, related_name='invoices')
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='sales_invoices')
     sale_date = models.DateField()
@@ -1131,6 +1132,8 @@ class SalesInvoice(models.Model):
     match_status = models.CharField(max_length=12, choices=MATCH, default='NOT_IN_APP')
     app_invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_rows')
     app_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # Simple visit flow: visits carry no bill, so a bill is matched to the visit with the same phone that day.
+    app_visit = models.ForeignKey('Visit', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_rows')
 
     class Meta:
         ordering = ['sale_date', 'sold_at', 'pk']

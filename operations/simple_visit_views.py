@@ -35,8 +35,8 @@ def staff_label(user):
     return user.get_full_name() or user.username
 
 
-def card_image(card):
-    if card.selected_type:
+def card_image(card, show_type=True):
+    if show_type and card.selected_type:
         return type_image(card.category, card.selected_type)
     if card.category == NAILS:
         return NAILS_IMAGE
@@ -459,7 +459,7 @@ def take_customer(request, visit_id):
     return redirect('record_visit', visit_id=visit.pk)
 
 
-@roles_required('ADMIN', 'GENERAL_MANAGER', 'MANAGER')
+@roles_required('ADMIN', 'GENERAL_MANAGER')
 def customer_types(request):
     """How many customers of each type each branch has served (latest pick per visit)."""
     _require_simple_flow()

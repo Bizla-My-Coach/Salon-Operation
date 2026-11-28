@@ -633,7 +633,7 @@ def manager_dashboard(request):
     for visit in visits:
         visit.simple_assignments = list(visit.category_assignments.all())
         for item in visit.simple_assignments:
-            item.image = card_image(item)
+            item.image = card_image(item, show_type=False)  # managers see the category, not the type
             item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
         if simple:
             visit.people_rows = people_rows(visit, visit.simple_assignments)

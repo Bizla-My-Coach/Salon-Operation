@@ -23,6 +23,7 @@ class SimpleVisitFlowTests(TestCase):
         self.anu = make_user('anu', 'EMPLOYEE', self.branch)
         self.bina = make_user('bina', 'EMPLOYEE', self.branch)
         self.outsider = make_user('outsider', 'EMPLOYEE', self.other)
+        self.admin = make_user('boss', 'ADMIN', None)
 
     def create_customer(self, name='Riya', mobile='9876543210'):
         self.client.force_login(self.manager)
@@ -107,8 +108,12 @@ class SimpleVisitFlowTests(TestCase):
         self.assertContains(board, 'aria-current="page">Finished today')
         self.assertContains(board, 'data-copy="9876543210"')
         self.assertContains(board, 'js/copy-phone.js')
-        self.assertContains(board, 'Wavy')
-        self.assertContains(board, 'Oily')
+        # Managers see who did which category, not the types staff entered.
+        self.assertContains(board, '<b>Hair</b>', html=False)
+        self.assertNotContains(board, 'Wavy')
+        self.assertNotContains(board, 'Oily')
+        self.assertNotContains(board, reverse('customer_types'))
+        self.assertEqual(self.client.get(reverse('customer_types')).status_code, 403)
         self.assertNotContains(board, reverse('add_invoice', args=[visit.pk]))
         self.assertNotContains(board, reverse('assign_staff', args=[visit.pk]))
 
@@ -175,7 +180,7 @@ class SimpleVisitFlowTests(TestCase):
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'CLOSED')
         self.assertEqual(visit.category_assignments.filter(employee=self.bina, customer=guest).get().category, 'PEDI')
-        self.client.force_login(self.manager)
+        self.client.force_login(self.admin)
         report = self.client.get(reverse('customer_types'))
         self.assertContains(report, '3 of 3 customers have a type recorded')
 
@@ -333,7 +338,7 @@ class SimpleVisitFlowTests(TestCase):
         visit = Visit.objects.create(branch=self.branch, customer=customer, created_by=self.manager, status='EMPLOYEE_DONE')
         VisitAssignment.objects.create(visit=visit, customer=customer, category='HAIR', employee=self.anu, assigned_by=self.manager,
                                        status='DONE', selected_type='WAVY', concerns=['DANDRUFF'])
-        self.client.force_login(self.manager)
+        self.client.force_login(self.admin)
         page = self.client.get(reverse('customer_types'))
         self.assertContains(page, '1 of 1 customers have a type recorded')
         self.assertContains(page, 'Hair · 1 customer')

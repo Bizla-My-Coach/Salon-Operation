@@ -21,11 +21,13 @@ from .decorators import roles_required
 from .forms import BootstrapMixin
 from .models import Branch, Invoice, InvoiceSettings, SalesInvoice, SalesReportUpload
 from .roster import working_branch
-from .sales_matching import existing_days, match_invoices, save_sales_upload
+from .customer_types import simple_flow_enabled
+from .sales_matching import existing_days, match_invoices, phone_key, save_sales_upload, simple_visits
 
 HISTORY_DAYS = 14
 FILTERS = [('', 'All'), ('NOT_IN_APP', 'Not in app'), ('AMOUNT_DIFF', 'Amount differs'),
            ('FORMAT', 'Wrong format'), ('MATCHED', 'Matched')]
+PHONE_FILTERS = [('', 'All'), ('NOT_IN_APP', 'Not in app'), ('NO_PHONE', 'No phone'), ('MATCHED', 'Matched')]
 
 
 def _see_all(user):
@@ -140,10 +142,15 @@ def _upload(request, branch, day, see_all):
         return back
     span = (f'{upload.first_date:%d %b}' if upload.first_date == upload.last_date
             else f'{upload.first_date:%d %b} – {upload.last_date:%d %b %Y}')
-    messages.success(request, (
-        f'Saved {upload.invoice_count} bills for {span}. Matched with app: {upload.matched_count}, '
-        f'not in app: {upload.not_in_app_count}, amount differs: {upload.amount_diff_count}, '
-        f'wrong number format: {upload.format_count}.'))
+    if simple_flow_enabled():
+        messages.success(request, (
+            f'Saved {upload.invoice_count} bills for {span}. Matched by phone: {upload.matched_count}, '
+            f'not in app: {upload.not_in_app_count}, no phone on bill: {upload.no_phone_count}.'))
+    else:
+        messages.success(request, (
+            f'Saved {upload.invoice_count} bills for {span}. Matched with app: {upload.matched_count}, '
+            f'not in app: {upload.not_in_app_count}, amount differs: {upload.amount_diff_count}, '
+            f'wrong number format: {upload.format_count}.'))
     return redirect(_url(upload.last_date, branch, see_all))
 
 
@@ -167,18 +174,26 @@ def daily_report(request):
         return _upload(request, branch, day, see_all)
 
     invoices = match_invoices(
-        SalesInvoice.objects.filter(branch=branch, sale_date=day).prefetch_related('lines'), settings)
+        SalesInvoice.objects.filter(branch=branch, sale_date=day).prefetch_related('lines')
+        .select_related('app_visit__customer'), settings)
+    by_phone = simple_flow_enabled()
+    filters = PHONE_FILTERS if by_phone else FILTERS
     show = data.get('show', '')
-    if show not in dict(FILTERS):
+    if show not in dict(filters):
         show = ''
     counts = defaultdict(int)
     for invoice in invoices:
         counts[invoice.match_status] += 1
         invoice.kind_lines = bool(invoice.lines.all()) or bool(invoice.staff)
     numbers = {invoice.invoice_number for invoice in invoices}
-    app_only = [i for i in Invoice.objects.filter(branch=branch, status='COMPLETED', created_at__date=day)
-                .select_related('visit__customer').order_by('invoice_number')
-                if settings.shared_bill(i.invoice_number)[0] not in numbers]
+    app_only = [] if by_phone else [
+        i for i in Invoice.objects.filter(branch=branch, status='COMPLETED', created_at__date=day)
+        .select_related('visit__customer').order_by('invoice_number')
+        if settings.shared_bill(i.invoice_number)[0] not in numbers]
+    visits = list(simple_visits(branch, {day})) if by_phone else []
+    billed = {phone_key(i.phone) for i in invoices} - {''}
+    unbilled = [v for v in visits if phone_key(v.customer.mobile) not in billed]
+    people = sum(1 + len(v.guests.all()) for v in visits)
     total = sum((i.gross_total for i in invoices), Decimal('0'))
     first = day - timedelta(days=HISTORY_DAYS - 1)
     saved = dict(SalesInvoice.objects.filter(branch=branch, sale_date__range=(first, day))
@@ -190,7 +205,12 @@ def daily_report(request):
         'all_count': len(invoices), 'total': total, 'average': total / len(invoices) if invoices else 0,
         'counts': counts, 'app_only': app_only, 'show': show,
         'filters': [{'key': k, 'label': l, 'url': _url(day, branch, see_all, k),
-                     'count': len(invoices) if not k else counts.get(k, 0)} for k, l in FILTERS],
+                     'count': len(invoices) if not k else counts.get(k, 0)} for k, l in filters],
+        'by_phone': by_phone, 'simple_manager': by_phone and not see_all,
+        'visit_count': len(visits), 'people_count': people, 'guest_count': people - len(visits),
+        'unbilled': unbilled,
+        'needs_check': len(unbilled) + sum(1 for i in invoices if i.match_status in ('NOT_IN_APP', 'NO_PHONE')),
+        'unmatched': [i for i in invoices if i.match_status in ('NOT_IN_APP', 'NO_PHONE')],
         'by_payment': _payment_split(invoices), 'by_staff': _staff_split(invoices),
         'has_payments': any(i.payments or i.pending for i in invoices),
         'has_lines': any(i.kind_lines for i in invoices),
