@@ -136,9 +136,12 @@ def auto_close_positive(queryset=None, now=None):
 
 
 def staff_names(visit):
+    """Staff who served the visit: simple-flow staff cards first, then older SOP services."""
     names = []
-    for service in visit.services.exclude(status='CANCELLED').select_related('employee'):
-        name = service.employee.get_full_name() or service.employee.username
+    people = [a.employee for a in visit.category_assignments.exclude(status='CANCELLED').select_related('employee')]
+    people += [s.employee for s in visit.services.exclude(status='CANCELLED').select_related('employee')]
+    for person in people:
+        name = person.get_full_name() or person.username
         if name not in names:
             names.append(name)
     return names

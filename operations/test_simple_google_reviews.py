@@ -162,6 +162,10 @@ class SimpleGoogleReviewTests(TestCase):
         Visit.objects.create(branch=self.other_branch, customer=customer, created_by=self.people['manager'])
         service = Service.objects.create(code='HC1', name='Hair cut') if not Service.objects.exists() else Service.objects.first()
         VisitService.objects.create(visit=visit, service=service, employee=self.people['employee'], assigned_by=self.people['manager'])
+        from .models import VisitAssignment
+        from django.contrib.auth.models import User
+        stylist = User.objects.create_user('simple-stylist', first_name='Riya')
+        VisitAssignment.objects.create(visit=visit, employee=stylist, assigned_by=self.people['manager'], category='HAIR')
         review = self.add('visit-match', rating=2, name='Asha M.')
         GoogleReview.objects.filter(pk=review.pk).update(google_created_at=timezone.now())
         url = reverse('google_review_detail', args=[review.pk])
@@ -176,6 +180,7 @@ class SimpleGoogleReviewTests(TestCase):
         page = self.client.get(url)
         self.assertContains(page, 'href="tel:9876543210"')
         self.assertContains(page, self.people['employee'].username)
+        self.assertContains(page, 'Riya')
         self.assertEqual(self.client.post(action, {'action': 'not_found'}).status_code, 302)
         review.refresh_from_db()
         self.assertIsNone(review.visit_id)
