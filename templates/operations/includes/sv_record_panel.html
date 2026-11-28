@@ -1,0 +1,37 @@
+{% load static %}
+<section class="sv-person-panel" data-panel="{{ p.key }}" aria-label="{{ p.name }}"{% if not forloop.first and not active %} hidden{% endif %}>
+  {% if p.new %}<input type="hidden" name="new_person" value="{{ p.key }}">
+  <div class="sv-person-name">
+    <label for="name_{{ p.key }}">Name <small>optional</small></label>
+    <input id="name_{{ p.key }}" class="form-control" name="name_{{ p.key }}" value="{{ p.typed_name }}" placeholder="Guest" maxlength="120" autocomplete="off" data-person-name>
+    <button type="button" class="button outline sv-remove" data-remove-person>Remove</button>
+  </div>
+  {% else %}
+  <p class="sv-person-meta">{% if p.visits > 1 %}Visit {{ p.visits }}{% else %}First visit{% endif %}{% for line in p.others %} · {{ line }}{% endfor %}</p>
+  {% endif %}
+  {% if p.hint %}<p class="sv-person-hint">{{ p.hint }}</p>{% endif %}
+  <div class="sv-cat-toggle" role="group" aria-label="What are you doing for {{ p.name }}?">
+    {% for s in p.sections %}<label><input type="checkbox" name="cat_{{ p.key }}" value="{{ s.key }}" data-section-toggle="{{ s.key }}"{% if s.open %} checked{% endif %}><span>{{ s.label }}</span></label>{% endfor %}
+  </div>
+  {% for s in p.sections %}
+  <fieldset class="sv-fieldset sv-section" data-section="{{ s.key }}"{% if not s.open %} hidden{% endif %}>
+    <legend class="sv-question">{{ s.label }} · {{ s.question }}{% if s.previous %} <small>Last time: {{ s.previous }}</small>{% endif %}</legend>
+    <div class="sv-type-grid">
+      {% for option in s.options %}
+      <label class="sv-type">
+        <input type="radio" name="type_{{ p.key }}_{{ s.key }}" value="{{ option.code }}"{% if option.selected %} checked{% endif %}>
+        <img src="{% static option.image %}" alt="">
+        <b>{{ option.label }}</b><small>{{ option.hint }}</small>
+      </label>
+      {% endfor %}
+    </div>
+    <label class="sv-unsure-option"><input type="radio" name="type_{{ p.key }}_{{ s.key }}" value="UNKNOWN"{% if s.unsure %} checked{% endif %}> Not sure</label>
+    <p class="sv-question sv-concern-q">Any concerns? <small>Optional · tap all that apply</small></p>
+    <div class="sv-concerns">
+      {% for concern in s.concerns %}
+      <label class="sv-concern"><input type="checkbox" name="concern_{{ p.key }}_{{ s.key }}" value="{{ concern.code }}"{% if concern.checked %} checked{% endif %}><span>{{ concern.label }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% endfor %}
+</section>

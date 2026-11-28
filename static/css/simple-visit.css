@@ -154,3 +154,37 @@
 .sv-board-tabs a.active{background:#033a30;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .sv-board-tabs a.active span{background:rgba(255,255,255,.2);color:#fff}
 @media (max-width:640px){.sv-board-tabs{max-width:none}}
+
+/* People on one visit: the customer plus family / friends */
+.sv-people-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 0 6px;scrollbar-width:none}
+.sv-people-tabs::-webkit-scrollbar{display:none}
+.sv-person-tab,.sv-person-add{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-weight:800;font-size:.95rem;cursor:pointer;white-space:nowrap}
+.sv-person-tab em{font-style:normal;min-width:22px;padding:0 7px;border-radius:999px;background:#e6efeb;font-size:.8rem;text-align:center}
+.sv-person-tab em:empty{display:none}
+.sv-person-tab.active{background:#033a30;border-color:#033a30;color:#fff}
+.sv-person-tab.active em{background:rgba(255,255,255,.22);color:#fff}
+.sv-person-add{border-style:dashed;color:var(--brand)}
+.sv-person-panel[hidden]{display:none}
+.sv-person-name{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:end;margin:0 0 14px}
+.workflow-page .sv-person-name label,.sv-person-name label{grid-column:1/-1;display:block;font-weight:800;margin:0}
+.sv-person-name label small{color:var(--muted);font-weight:600}
+.sv-person-name .sv-remove{min-height:44px}
+.sv-person-meta{color:var(--muted);margin:0 0 8px}
+.sv-person-hint{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fff6e5;color:#6b4a00;font-weight:700}
+.sv-cat-toggle{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.sv-cat-toggle label{position:relative;cursor:pointer}
+.sv-cat-toggle input{position:absolute;opacity:0;pointer-events:none}
+.sv-cat-toggle span{display:inline-flex;align-items:center;min-height:44px;padding:8px 16px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:800}
+.sv-cat-toggle span::before{content:"+";margin-right:6px;font-weight:900;color:var(--brand)}
+.sv-cat-toggle input:checked+span{background:#033a30;border-color:#033a30;color:#fff}
+.sv-cat-toggle input:checked+span::before{content:"✓";color:#fff}
+.sv-cat-toggle input:focus-visible+span{outline:3px solid rgba(23,107,91,.35)}
+.sv-section{margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fbfdfc}
+.sv-section[hidden]{display:none}
+.sv-section .sv-question small{color:var(--muted);font-weight:600}
+.sv-concern-q{margin:14px 0 8px}
+.sv-card-line{margin:2px 0}
+.sv-person-row{margin-top:10px}
+.sv-person-row .sv-chips{margin-top:4px}
+.sv-person-label{display:block;font-weight:800;font-size:.9rem}
+.sv-finished-row .sv-person-row{grid-column:1/-1}

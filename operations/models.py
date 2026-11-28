@@ -414,6 +414,9 @@ class Visit(TimeStamped):
     status = models.CharField(max_length=30, choices=STATUS, default="WAITING")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="visits_created")
     closed_at = models.DateTimeField(null=True, blank=True)
+    # Simple visit flow: family or friends on the same bill.  Each is their own
+    # Customer (sharing the main person's phone) so their types are tracked.
+    guests = models.ManyToManyField(Customer, blank=True, related_name="guest_visits")
     # One-time tokens from the create and assignment forms.  A repeated press
     # of the same form (slow network, double tap) carries the same token, so
     # the server can recognise it and avoid creating a second visit or a
@@ -444,6 +447,8 @@ class VisitAssignment(TimeStamped):
     """
     STATUS = [("ASSIGNED", "Assigned"), ("DONE", "Type recorded"), ("CANCELLED", "Cancelled")]
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="category_assignments")
+    # The person on the visit this card is for: the main customer or a family / friend guest.
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="type_cards", null=True, blank=True)
     # Blank until the staff member chooses Hair, Skin or Mani / Pedi on the card.
     category = models.CharField(max_length=10, blank=True)
     employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments")
@@ -475,6 +480,10 @@ class VisitAssignment(TimeStamped):
     def concern_labels(self):
         from .customer_types import concern_labels
         return concern_labels(self.category, self.concerns)
+
+    @property
+    def person(self):
+        return self.customer or self.visit.customer
 
     @property
     def self_assigned(self):
