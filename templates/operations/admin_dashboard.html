@@ -10,6 +10,7 @@
   <article><small>Services</small><strong>{{ services }}</strong></article>
   <article><small>SOP tasks</small><strong>{{ sop_tasks }}</strong></article>
 </section>
+{% load review_target_tags %}{% review_target_bars all_branches=True %}
 <section>
   <h2 class="section-title">Operations</h2>
   <div class="action-grid">

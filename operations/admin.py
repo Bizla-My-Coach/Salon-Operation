@@ -377,3 +377,63 @@ class SalesInvoiceAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+from django import forms as _forms
+from .models import ReviewTarget
+
+
+class ReviewTargetForm(_forms.ModelForm):
+    weekend_days = _forms.TypedMultipleChoiceField(choices=ReviewTarget.WEEKDAYS, coerce=int,
+        widget=_forms.CheckboxSelectMultiple, initial=[5, 6], help_text='Which days count as the weekend.')
+
+    class Meta:
+        model = ReviewTarget
+        fields = ['branch', 'month', 'target', 'weekday_weight', 'weekend_weight', 'weekend_days']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial['weekend_days'] = sorted(self.instance.weekend_set)
+
+    def clean_weekend_days(self):
+        return ','.join(str(d) for d in sorted(self.cleaned_data['weekend_days']))
+
+    def clean(self):
+        data = super().clean()
+        if data.get('weekday_weight') == 0 and data.get('weekend_weight') == 0:
+            raise _forms.ValidationError('At least one of the weights must be above 0.')
+        return data
+
+
+@admin.register(ReviewTarget)
+class ReviewTargetAdmin(admin.ModelAdmin):
+    form = ReviewTargetForm
+    list_display = ('branch', 'month_label', 'target', 'weekday_daily', 'weekend_daily')
+    list_filter = ('month', 'branch')
+    search_fields = ('branch__name',)
+    readonly_fields = ('daily_split',)
+
+    @admin.display(description='Month', ordering='month')
+    def month_label(self, obj):
+        return obj.month.strftime('%b %Y')
+
+    def _share(self, obj, weekend):
+        days = [d for d in obj.days() if (d.weekday() in obj.weekend_set) == weekend]
+        return round(obj.daily_targets()[days[0]], 1) if days else '-'
+
+    @admin.display(description='Per weekday')
+    def weekday_daily(self, obj):
+        return self._share(obj, False)
+
+    @admin.display(description='Per weekend day')
+    def weekend_daily(self, obj):
+        return self._share(obj, True)
+
+    @admin.display(description='Daily split')
+    def daily_split(self, obj):
+        if not obj.pk:
+            return 'Save to see the target for each day.'
+        from django.utils.html import format_html_join
+        return format_html_join(', ', '{} {}: {}', ((d.strftime('%a'), d.day, round(v, 1))
+            for d, v in obj.daily_targets().items()))

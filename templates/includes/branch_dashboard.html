@@ -1,3 +1,4 @@
+{% load review_target_tags %}{% if dashboard_branch %}{% review_target_bars dashboard_branch %}{% else %}{% review_target_bars all_branches=True %}{% endif %}
 <section class="dashboard-kpis" aria-label="Current workload">
   <article class="dashboard-kpi featured"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='activity' only %}</span><span>Open visits</span></div><strong>{{ pending_visits }}</strong><small>Across every stage of service</small></article>
   <article class="dashboard-kpi"><div><span class="kpi-icon">{% include 'includes/nav_icon.html' with icon='staff' only %}</span><span>Team on duty</span></div><strong>{{ active_users|length }}</strong><small>Working on today's roster</small></article>

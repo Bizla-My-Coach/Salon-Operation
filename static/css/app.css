@@ -77,3 +77,16 @@ input:disabled,select:disabled,textarea:disabled{background:#edf1ef!important;co
 .catalogue-actions{display:flex;flex-wrap:wrap;gap:8px}.service-picker .add-service-link{white-space:nowrap}.start-choice{border:0;padding:0;margin:0 0 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}.start-choice legend{font-size:.84rem;font-weight:700;margin-bottom:8px;padding:0}.start-option{display:flex!important;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:11px;padding:13px;cursor:pointer;margin:0!important}.start-option:has(input:checked){border-color:var(--brand);background:#e9f4f1}.start-option input{width:auto!important;margin-top:3px}.start-option span{display:grid;gap:3px}.start-option small{color:var(--muted);font-weight:500;line-height:1.4}.service-create .helptext{display:block;margin-top:5px}[data-theme="dark"] .start-option:has(input:checked){background:#1c3d36}@media(max-width:650px){.start-choice{grid-template-columns:1fr}.page-head.split{flex-wrap:wrap}}
 .catalogue-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
 .full-task-list .task-item,.opening-check{scroll-margin-top:84px}
+
+/* Google review target bars */
+.review-target{padding:18px 20px;margin:0 0 20px}
+.review-target-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px}
+.review-target-head h2{font-size:1rem;margin:0}.review-target-head span{font-size:.75rem;color:var(--muted)}
+.review-target-row+.review-target-row{margin-top:14px}
+.review-target-label{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;margin-bottom:6px}
+.review-target-label span{font-size:.75rem;font-weight:700}.review-target-label .is-good{color:#1f6b45}.review-target-label .is-behind{color:#9d2c17}
+.review-target-track{position:relative;height:12px;border-radius:999px;background:var(--bg);border:1px solid var(--line)}
+.review-target-fill{height:100%;border-radius:999px;background:#2e8b57;max-width:100%}.review-target-fill.is-behind{background:#d9822b}
+.review-target-marker{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);transform:translateX(-1px)}
+.review-target-note{margin:6px 0 0;font-size:.75rem;color:var(--muted)}
+.metrics+.review-target{margin-top:20px}

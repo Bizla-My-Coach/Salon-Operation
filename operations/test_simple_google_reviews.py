@@ -1,4 +1,4 @@
-"""The single review form, state tabs and branch permissions."""
+"""Simple review follow-up: negative reviews need a call and a note, positive ones close after 24 hours."""
 from copy import deepcopy
 import json
 from unittest.mock import patch
@@ -25,152 +25,169 @@ class SimpleGoogleReviewTests(TestCase):
 
     def update(self, **extra):
         self.review.refresh_from_db()
-        data = {'action': 'update', 'version': self.review.edit_token, 'customer_followup': 'CONTACTED',
-            'staff_followup': 'IN_PROGRESS', 'justification': 'Spoke with the reviewer and checked with staff.'}
+        data = {'action': 'update', 'version': self.review.edit_token, 'call_outcome': 'SPOKE',
+            'staff_spoken': 'on', 'justification': 'Spoke with the reviewer and checked with staff.'}
         data.update(extra)
         return self.client.post(reverse('google_review_action', args=[self.review.pk]), data)
 
-    def test_detail_has_exactly_two_dropdowns_and_one_justification_for_every_role(self):
+    def add(self, event_id, rating=5, text='A lovely appointment.', name='Asha Menon'):
+        data = base.GoogleReviewTests.positive(self)
+        data['event_id'] = event_id
+        source = data['source']
+        source['review_id'] = event_id.upper()
+        source['review_name'] = source['review_name'].rsplit('/', 1)[0] + '/' + source['review_id']
+        source['review_snapshot'].update(star_rating=rating, text=text, reviewer_display_name=name)
+        self.assertEqual(self.send(data).status_code, 200)
+        return GoogleReview.objects.get(google_review_id=source['review_id'])
+
+    def age(self, review, hours):
+        from datetime import timedelta
+        from django.utils import timezone
+        then = timezone.now() - timedelta(hours=hours)
+        GoogleReview.objects.filter(pk=review.pk).update(created_at=then, google_updated_at=then, google_created_at=then)
+
+    def test_detail_has_one_simple_followup_form_for_every_role(self):
         for role in ('manager', 'gm', 'admin'):
             with self.subTest(role=role):
                 self.client.force_login(self.people[role])
                 response = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
-                self.assertContains(response, '<select', count=2)
+                self.assertContains(response, '<select', count=0)
                 self.assertContains(response, '<textarea', count=1)
                 self.assertEqual(list(response.context['update_form'].fields),
-                    ['version', 'customer_followup', 'staff_followup', 'justification'])
-                for label in ['Customer review', 'System reply', 'Customer follow-up status',
-                              'Staff follow-up status', 'Justification', 'Save review']:
+                    ['version', 'call_outcome', 'staff_spoken', 'justification'])
+                for label in ['Find the customer', 'Spoke to customer', 'Not reachable',
+                              'I spoke to the staff who served them', 'Complete follow-up', 'Save for later']:
                     self.assertContains(response, label)
-                for label in ['Open follow-up', 'Assign manager', 'Add another reported issue',
-                              'Review activity', 'Generated reply', 'Review and analysis history']:
+                for label in ['Close now', 'Customer follow-up status', 'Staff follow-up status', 'Justification']:
                     self.assertNotContains(response, label)
 
-    def test_one_update_saves_actor_and_time_preserving_old_issue_work_and_public_reply(self):
+    def test_negative_review_cannot_close_without_call_and_note(self):
+        self.assertTrue(self.review.requires_followup)
+        for values in [{'call_outcome': ''}, {'justification': ''}, {'justification': '   '}]:
+            with self.subTest(values=values):
+                self.assertEqual(self.update(intent='close', **values).status_code, 400)
+                self.review.refresh_from_db()
+                self.assertFalse(self.review.is_closed)
+        self.assertFalse(GoogleReviewAction.objects.exists())
+        self.assertEqual(self.update(intent='close', call_outcome='NOT_REACHABLE', staff_spoken='').status_code, 302)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.is_closed)
+        self.assertEqual(self.review.call_outcome, 'NOT_REACHABLE')
+        self.assertFalse(self.review.staff_spoken)
+        self.assertEqual(self.review.case.closure_outcome, 'UNRESOLVED')
+        self.assertEqual(self.review.closed_by, self.people['manager'])
+
+    def test_save_for_later_keeps_review_open_and_old_work(self):
         issue = self.review.case.issues.get()
         issue.action_summary = 'Earlier individual issue work.'
         issue.save()
         public_reply = self.review.published_text
-        self.assertEqual(self.update(staff_followup='WAITING', customer_followup='AWAITING_REPLY').status_code, 302)
+        self.assertEqual(self.update(call_outcome='', justification='Will call after 5pm.').status_code, 302)
         self.review.refresh_from_db()
-        self.assertEqual(self.review.customer_followup, 'AWAITING_REPLY')
-        self.assertEqual(self.review.staff_followup, 'WAITING')
-        self.assertEqual(self.review.case.status, 'WAITING')
+        self.assertFalse(self.review.is_closed)
+        self.assertEqual(self.review.justification, 'Will call after 5pm.')
+        self.assertEqual(self.review.case.status, 'IN_PROGRESS')
         self.assertEqual(self.review.followup_updated_by, self.people['manager'])
-        self.assertIsNotNone(self.review.followup_updated_at)
         self.assertEqual(self.review.published_text, public_reply)
         issue.refresh_from_db()
         self.assertEqual(issue.action_summary, 'Earlier individual issue work.')
-        self.assertEqual(issue.status, 'NEW')
-        self.assertFalse(Customer.objects.exists())
         self.assertEqual(GoogleReviewAction.objects.count(), 1)
+
+    def test_complete_then_reopen(self):
+        self.assertEqual(self.update(intent='close').status_code, 302)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.is_closed)
+        self.assertEqual(self.review.case.closure_outcome, 'RESOLVED')
+        self.assertEqual(self.review.customer_followup, 'CONTACTED')
+        inbox = reverse('google_review_inbox')
+        self.assertEqual(self.client.get(inbox + '?status=closed').context['page_obj'].paginator.count, 1)
+        self.assertEqual(self.client.get(inbox).context['page_obj'].paginator.count, 0)
+        self.assertContains(self.client.get(reverse('google_review_detail', args=[self.review.pk])), 'Reopen review')
+        self.assertEqual(self.update(intent='reopen').status_code, 302)
+        self.review.refresh_from_db()
         self.assertFalse(self.review.is_closed)
+        self.assertEqual(self.client.get(inbox).context['page_obj'].paginator.count, 1)
 
-    def test_explicit_close_preserves_outcomes_and_same_form_can_reopen(self):
-        for status, outcome in [('RESOLVED', 'RESOLVED'), ('CLOSED_UNRESOLVED', 'UNRESOLVED'),
-                                ('NOT_ACTIONABLE', 'NOT_ACTIONABLE')]:
-            with self.subTest(status=status):
-                self.assertEqual(self.update(intent='close', staff_followup=status).status_code, 302)
-                self.review.refresh_from_db()
-                self.assertTrue(self.review.is_closed)
-                self.assertEqual(self.review.case.closure_outcome, outcome)
-                self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=closed').context['page_obj'].paginator.count, 1)
-                self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=open').context['page_obj'].paginator.count, 0)
-                self.assertEqual(self.update(intent='reopen', staff_followup='IN_PROGRESS', justification='Reviewer asked us to check again.').status_code, 302)
-                self.review.refresh_from_db()
-                self.assertFalse(self.review.is_closed)
-                self.assertIsNone(self.review.closed_at)
-                self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=open').context['page_obj'].paginator.count, 1)
+    def test_star_rating_and_complaints_decide_negative(self):
+        for rating in range(1, 6):
+            review = self.add(f'rating-{rating}', rating=rating)
+            self.assertEqual(review.requires_followup, rating <= 3)
+        flagged = self.add('flagged-four', rating=4)
+        GoogleReview.objects.filter(pk=flagged.pk).update(needs_followup=True)
+        flagged.refresh_from_db()
+        self.assertTrue(flagged.requires_followup)
+        tabs = {t['key']: t['count'] for t in self.client.get(reverse('google_review_inbox')).context['tabs']}
+        self.assertEqual(tabs, {'followup': 5, 'positive': 2, 'closed': 0, 'all': 7})
 
-    def test_appreciations_and_rating_only_reviews_use_the_same_form(self):
-        for rating in (5, 1):
-            data = base.GoogleReviewTests.positive(self)
-            data['event_id'] = f'simple-rating-{rating}'
-            source = data['source']
-            source['review_id'] = f'SIMPLE_RATING_{rating}'
-            source['review_name'] = source['review_name'].rsplit('/', 1)[0] + '/' + source['review_id']
-            source['review_snapshot'].update(star_rating=rating, text='')
-            self.assertEqual(self.send(data).status_code, 200)
-            self.review = GoogleReview.objects.get(google_review_id=source['review_id'])
-            self.assertEqual(self.update(intent='close', staff_followup='RESOLVED').status_code, 302)
-            self.review.refresh_from_db()
-            self.assertTrue(self.review.is_closed)
-        self.assertEqual(ReviewIssue.objects.count(), 1)
+    def test_positive_review_closes_itself_after_24_hours_and_can_close_early(self):
+        from django.core.management import call_command
+        fresh, old = self.add('fresh-five'), self.add('old-five', rating=4)
+        negative = self.add('old-two', rating=2)
+        self.age(old, 25)
+        self.age(negative, 72)
+        page = self.client.get(reverse('google_review_detail', args=[fresh.pk]))
+        self.assertContains(page, 'closes automatically in')
+        self.assertContains(page, 'Close now')
+        self.assertNotContains(page, 'Find the customer')
+        call_command('close_positive_reviews', stdout=__import__('io').StringIO())
+        old.refresh_from_db(); fresh.refresh_from_db(); negative.refresh_from_db()
+        self.assertTrue(old.is_closed and old.auto_closed)
+        self.assertIsNone(old.closed_by)
+        self.assertEqual(old.closed_at, old.auto_close_at)
+        self.assertFalse(fresh.is_closed)
+        self.assertFalse(negative.is_closed)
+        self.assertTrue(negative.followup_overdue)
+        self.assertEqual(old.actions.get().action, 'Closed automatically')
+        self.review = fresh
+        self.assertEqual(self.client.post(reverse('google_review_action', args=[fresh.pk]), {
+            'action': 'update', 'intent': 'close', 'version': fresh.edit_token}).status_code, 302)
+        fresh.refresh_from_db()
+        self.assertTrue(fresh.is_closed)
+        self.assertFalse(fresh.auto_closed)
 
-    def test_invalid_status_or_blank_justification_saves_nothing_and_csrf_is_required(self):
-        for values in [{'justification': ''}, {'justification': ' '}, {'staff_followup': 'BOGUS'},
-                       {'customer_followup': 'BOGUS'}, {'justification': 'x' * 3001}, {'action': 'close'}]:
+    def test_pages_close_due_positive_reviews_without_the_command(self):
+        old = self.add('page-close', rating=5)
+        self.age(old, 30)
+        response = self.client.get(reverse('google_review_inbox') + '?status=closed')
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+        self.assertContains(response, 'Closed automatically')
+
+    def test_possible_visits_link_and_call(self):
+        from django.utils import timezone
+        from .models import Service, Visit, VisitService
+        customer = Customer.objects.create(name='Asha Menon', mobile='9876543210')
+        other = Customer.objects.create(name='Someone Else', mobile='9000000000')
+        visit = Visit.objects.create(branch=self.branch, customer=customer, created_by=self.people['manager'])
+        Visit.objects.create(branch=self.branch, customer=other, created_by=self.people['manager'])
+        Visit.objects.create(branch=self.other_branch, customer=customer, created_by=self.people['manager'])
+        service = Service.objects.create(code='HC1', name='Hair cut') if not Service.objects.exists() else Service.objects.first()
+        VisitService.objects.create(visit=visit, service=service, employee=self.people['employee'], assigned_by=self.people['manager'])
+        review = self.add('visit-match', rating=2, name='Asha M.')
+        GoogleReview.objects.filter(pk=review.pk).update(google_created_at=timezone.now())
+        url = reverse('google_review_detail', args=[review.pk])
+        page = self.client.get(url)
+        self.assertEqual([c['visit'].pk for c in page.context['possible_visits']], [visit.pk])
+        self.assertContains(page, 'This is the customer')
+        self.assertEqual(len(self.client.get(url, {'find': '9000'}).context['possible_visits']), 1)
+        foreign = Visit.objects.get(branch=self.other_branch)
+        action = reverse('google_review_action', args=[review.pk])
+        self.assertEqual(self.client.post(action, {'action': 'link_visit', 'visit': foreign.pk}).status_code, 404)
+        self.assertEqual(self.client.post(action, {'action': 'link_visit', 'visit': visit.pk}).status_code, 302)
+        page = self.client.get(url)
+        self.assertContains(page, 'href="tel:9876543210"')
+        self.assertContains(page, self.people['employee'].username)
+        self.assertEqual(self.client.post(action, {'action': 'not_found'}).status_code, 302)
+        review.refresh_from_db()
+        self.assertIsNone(review.visit_id)
+        self.assertTrue(review.customer_not_found)
+
+    def test_invalid_values_save_nothing_and_csrf_is_required(self):
+        for values in [{'call_outcome': 'BOGUS'}, {'justification': 'x' * 3001}, {'action': 'close'}, {'intent': 'bogus'}]:
             self.assertEqual(self.update(**values).status_code, 400)
         self.assertFalse(GoogleReviewAction.objects.exists())
-        self.review.refresh_from_db()
-        self.assertIsNone(self.review.followup_updated_at)
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.people['manager'])
         self.assertEqual(client.post(reverse('google_review_action', args=[self.review.pk]), {'action': 'update'}).status_code, 403)
-
-    def test_justification_is_required_only_for_one_and_two_stars_on_save_and_close(self):
-        for rating in range(1, 6):
-            GoogleReview.objects.filter(pk=self.review.pk).update(star_rating=rating)
-            self.review.refresh_from_db()
-            page = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
-            self.assertEqual(page.context['update_form'].fields['justification'].required, rating <= 2)
-            for intent in ('save', 'close'):
-                for justification in ('', '  '):
-                    with self.subTest(rating=rating, intent=intent, justification=justification):
-                        revision = self.review.followup_revision
-                        response = self.update(intent=intent, justification=justification,
-                            customer_followup='', staff_followup='')
-                        self.assertEqual(response.status_code, 400 if rating <= 2 else 302)
-                        self.review.refresh_from_db()
-                        self.assertEqual(self.review.followup_revision, revision + (rating >= 3))
-                        if rating >= 3:
-                            self.assertEqual(self.review.justification, '')
-                            self.assertEqual(self.review.customer_followup, 'NOT_CONTACTED')
-                            self.assertEqual(self.review.staff_followup, 'NEW')
-            self.assertEqual(self.update(intent='reopen', justification='Review checked.').status_code, 302)
-
-    def test_omitted_dropdowns_default_and_high_rating_can_close_without_any_followup(self):
-        data = base.GoogleReviewTests.positive(self)
-        data['event_id'] = 'quick-close-appreciation'
-        data['source']['review_id'] = 'QUICK_CLOSE'
-        data['source']['review_name'] = data['source']['review_name'].rsplit('/', 1)[0] + '/QUICK_CLOSE'
-        self.assertEqual(self.send(data).status_code, 200)
-        self.review = GoogleReview.objects.get(google_review_id=data['source']['review_id'])
-        self.assertIsNone(self.review.case_id)
-        page = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
-        form = page.context['update_form']
-        self.assertEqual(form['customer_followup'].value(), 'NOT_CONTACTED')
-        self.assertEqual(form['staff_followup'].value(), 'NEW')
-        self.assertFalse(form.fields['customer_followup'].required)
-        self.assertFalse(form.fields['staff_followup'].required)
-        self.assertContains(page, 'Not discussed')
-        response = self.client.post(reverse('google_review_action', args=[self.review.pk]), {
-            'action': 'update', 'intent': 'close', 'version': self.review.edit_token,
-        })
-        self.assertEqual(response.status_code, 302)
-        self.review.refresh_from_db()
-        self.assertTrue(self.review.is_closed)
-        self.assertEqual(self.review.customer_followup, 'NOT_CONTACTED')
-        self.assertEqual(self.review.staff_followup, 'NEW')
-        self.assertEqual(self.review.justification, '')
-
-    def test_dropdowns_do_not_control_close_or_reopen(self):
-        for staff_status, _ in GoogleReview.STAFF_FOLLOWUP:
-            with self.subTest(staff_status=staff_status):
-                self.assertEqual(self.update(staff_followup=staff_status, customer_followup='NOT_CONTACTED').status_code, 302)
-                self.review.refresh_from_db()
-                self.assertFalse(self.review.is_closed)
-                self.assertEqual(self.update(intent='close', staff_followup=staff_status).status_code, 302)
-                self.review.refresh_from_db()
-                self.assertTrue(self.review.is_closed)
-                closed_at = self.review.closed_at
-                self.assertEqual(self.update(staff_followup='NEW').status_code, 302)
-                self.review.refresh_from_db()
-                self.assertTrue(self.review.is_closed)
-                self.assertEqual(self.review.closed_at, closed_at)
-                self.assertEqual(self.update(intent='reopen', staff_followup=staff_status).status_code, 302)
-                self.review.refresh_from_db()
-                self.assertFalse(self.review.is_closed)
 
     def test_stale_staff_and_google_versions_do_not_overwrite_saved_work(self):
         token = self.review.edit_token
@@ -190,7 +207,7 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertEqual(self.review.justification, 'Latest staff work.')
 
     def test_new_issue_reopens_review_without_removing_justification(self):
-        self.update(intent='close', staff_followup='RESOLVED', justification='Saved original outcome.')
+        self.update(intent='close', justification='Saved original outcome.')
         edited = deepcopy(self.payload)
         edited['event_id'] = 'additional-concern'
         edited['source']['review_update_time'] = '2026-10-20T10:00:00Z'
@@ -201,13 +218,13 @@ class SimpleGoogleReviewTests(TestCase):
         self.review.refresh_from_db()
         self.assertFalse(self.review.is_closed)
         response = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
-        self.assertEqual(response.context['update_form'].initial['staff_followup'], 'RESOLVED')
+        self.assertEqual(response.context['update_form'].initial['call_outcome'], 'SPOKE')
         self.assertContains(response, 'Saved original outcome.')
 
     def test_failed_audit_rolls_back_status_and_case(self):
         with patch('operations.google_review_workflow.GoogleReviewAction.objects.create', side_effect=RuntimeError('Audit failed')):
             with self.assertRaises(RuntimeError):
-                self.update(intent='close', staff_followup='RESOLVED')
+                self.update(intent='close')
         self.review.refresh_from_db()
         self.assertIsNone(self.review.followup_updated_at)
         self.assertFalse(self.review.is_closed)
@@ -222,15 +239,15 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertEqual(self.send(data).status_code, 200)
         other = GoogleReview.objects.get(branch=self.other_branch)
         inbox = reverse('google_review_inbox')
-        self.assertEqual(self.client.get(inbox + '?branch=' + str(self.other_branch.pk)).context['page_obj'].paginator.count, 1)
+        self.assertEqual(self.client.get(inbox + '?status=all&branch=' + str(self.other_branch.pk)).context['page_obj'].paginator.count, 1)
         self.assertEqual(self.client.get(reverse('google_review_detail', args=[other.pk])).status_code, 404)
         self.assertEqual(self.client.post(reverse('google_review_action', args=[other.pk]), {'action': 'update'}).status_code, 404)
         for role in ('gm', 'admin'):
             self.client.force_login(self.people[role])
             response = self.client.get(inbox)
-            self.assertEqual(response.context['page_obj'].paginator.count, 2)
-            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['All reviews', 'Open reviews', 'Closed reviews'])
-            response = self.client.get(inbox, {'branch': self.other_branch.pk, 'rating': '5',
+            self.assertEqual(self.client.get(inbox, {'status': 'all'}).context['page_obj'].paginator.count, 2)
+            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['Needs follow-up', 'Closing automatically', 'Closed', 'All'])
+            response = self.client.get(inbox, {'status': 'all', 'branch': self.other_branch.pk, 'rating': '5',
                 'since': '2026-10-20', 'until': '2026-10-20', 'q': 'OTHER'})
             self.assertEqual(response.context['page_obj'].paginator.count, 1)
             for tab in response.context['tabs']:
@@ -248,7 +265,7 @@ class SimpleGoogleReviewTests(TestCase):
         issue.save()
         response = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
         self.assertContains(response, 'Previous manager note.')
-        self.assertEqual(response.context['update_form'].initial['customer_followup'], 'CONTACTED')
+        self.assertEqual(response.context['update_form'].initial['call_outcome'], 'SPOKE')
         alert = self.review.case.notifications.get()
         response = self.client.post(reverse('review_notification_open', args=[alert.pk]))
         self.assertRedirects(response, reverse('google_review_detail', args=[self.review.pk]))

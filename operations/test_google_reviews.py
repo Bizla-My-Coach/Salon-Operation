@@ -390,12 +390,11 @@ class GoogleReviewTests(TestCase):
         self.assertIsNone(record.case_id)
         self.client.force_login(self.people['admin'])
         production = self.client.get(reverse('google_review_inbox'))
-        for label in ['All reviews', 'Open reviews', 'Closed reviews']:
+        for label in ['Needs follow-up', 'Closing automatically', 'Closed']:
             self.assertContains(production, label)
         self.assertNotContains(production, data['source']['review_snapshot']['text'])
-        sandbox = self.client.get(reverse('google_review_inbox') + '?demo=1')
-        self.assertContains(sandbox, data['source']['review_snapshot']['text'])
-        self.assertContains(sandbox, record.google_review_id)
+        sandbox = self.client.get(reverse('google_review_inbox') + '?demo=1&status=positive')
+        self.assertContains(sandbox, data['source']['review_snapshot']['text'][:100])
         self.assertContains(sandbox, reverse('google_review_detail', args=[record.pk]) + '?demo=1')
         detail = self.client.get(reverse('google_review_detail', args=[record.pk]) + '?demo=1')
         self.assertContains(detail, data['source']['review_snapshot']['text'])
@@ -455,7 +454,7 @@ class GoogleReviewTests(TestCase):
         self.client.force_login(self.people['employee'])
         self.assertEqual(self.client.get(reverse('google_review_inbox')).status_code, 403)
         self.client.force_login(self.people['gm'])
-        self.assertEqual(self.client.get(reverse('google_review_inbox')).context['page_obj'].paginator.count, 1)
+        self.assertEqual(self.client.get(reverse('google_review_inbox') + '?status=all').context['page_obj'].paginator.count, 1)
 
     def test_authentication_validation_https_and_bounded_payload(self):
         self.assertEqual(self.send(token='wrong').status_code, 401)

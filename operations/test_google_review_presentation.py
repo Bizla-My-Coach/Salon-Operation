@@ -32,10 +32,14 @@ class GoogleReviewPresentationTests(TestCase):
                     reverse('review_inbox'), reverse('review_detail', args=[record.case_id])]:
             with self.subTest(url=url):
                 response = self.client.get(url)
-                for value in ['Example Reviewer', record.review_text, self.branch.name,
-                              record.google_review_id, '20 Oct 2026', 'Google Review']:
+                google_page = url.startswith(reverse('google_review_inbox'))
+                values = ['Example Reviewer', self.branch.name, 'Google Review']
+                if not (google_page and url == reverse('google_review_inbox')):
+                    values += [record.review_text, record.google_review_id, '20 Oct 2026']
+                for value in values:
                     self.assertContains(response, value)
-                self.assertRegex(response.content.decode(), rf'{record.star_rating}\s*(?:<small>)?/\s*5')
+                pattern = rf'★ {record.star_rating}' if google_page else rf'{record.star_rating}\s*(?:<small>)?/\s*5'
+                self.assertRegex(response.content.decode(), pattern)
                 self.assertNotContains(response, 'Tickets')
         self.assertEqual(record.case.customer_label, 'Example Reviewer')
 
@@ -52,7 +56,7 @@ class GoogleReviewPresentationTests(TestCase):
                 record = GoogleReview.objects.get(google_review_id=data['source']['review_id'])
                 self.assertEqual(record.reviewer_name, 'Anonymous reviewer')
                 self.client.force_login(self.people['manager'])
-                for url in [reverse('google_review_inbox'), reverse('google_review_detail', args=[record.pk])]:
+                for url in [reverse('google_review_inbox') + '?status=all', reverse('google_review_detail', args=[record.pk])]:
                     response = self.client.get(url)
                     self.assertContains(response, 'Anonymous reviewer')
                     self.assertNotContains(response, 'Private name')
@@ -130,7 +134,7 @@ class GoogleReviewPresentationTests(TestCase):
         for label in ['Sandbox reviews', 'Branch analytics', 'Issue reporting', 'Review and analysis history', 'Open follow-up']:
             self.assertNotContains(response, label)
         self.assertContains(response, 'System reply')
-        self.assertContains(response, 'Justification')
+        self.assertContains(response, 'What happened and what was done')
         self.assertEqual(self.client.get('/health/').status_code, 200)
 
     def test_reviewer_metadata_refresh_does_not_change_followup_version(self):

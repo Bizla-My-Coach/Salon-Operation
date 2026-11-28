@@ -1,0 +1,18 @@
+{% if rows %}
+<section class="panel review-target" aria-labelledby="review-target-heading">
+  <header class="review-target-head"><h2 id="review-target-heading">Google review target · {{ rows.0.target.month|date:'F' }}</h2>{% if single %}<span>{{ rows.0.days_left }} day{{ rows.0.days_left|pluralize }} left</span>{% endif %}</header>
+  {% for row in rows %}
+  <div class="review-target-row">
+    <div class="review-target-label">
+      <strong>{% if single %}{{ row.done }} of {{ row.goal }} reviews{% else %}{{ row.branch.name }}{% endif %}</strong>
+      <span class="{% if row.on_track %}is-good{% else %}is-behind{% endif %}">{% if row.on_track %}On track{% else %}{{ row.behind }} behind{% endif %}{% if not single %} · {{ row.done }}/{{ row.goal }}{% endif %}</span>
+    </div>
+    <div class="review-target-track" role="img" aria-label="{{ row.done }} of {{ row.goal }} reviews this month. {{ row.expected }} expected by today.">
+      <div class="review-target-fill{% if not row.on_track %} is-behind{% endif %}" style="width: {{ row.percent }}%"></div>
+      <i class="review-target-marker" style="left: {{ row.marker }}%" title="Expected by today: {{ row.expected }}"></i>
+    </div>
+    {% if single %}<p class="review-target-note">Today: {{ row.today_done }} of {{ row.today_goal }}{% if row.weekend_today %} (weekend target){% endif %} · Expected by today: {{ row.expected }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}

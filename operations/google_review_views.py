@@ -10,17 +10,21 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from .models import Branch, GoogleReview, GoogleReviewEvent, ReviewIssue
+from .models import Branch, GoogleReview, GoogleReviewAction, GoogleReviewEvent, ReviewIssue
 from .review_views import review_roles, review_admin_roles, demo_mode
 from .review_workflow import is_review_admin, is_review_senior, review_scope, branch_managers
 from .roster import working_branch
 from .google_review_ingestion import ingest_review, EventConflict
 from .review_forms import GoogleReviewFilterForm, GoogleReviewUpdateForm
-from .google_review_workflow import form_initial, save_update
+from .google_review_workflow import (form_initial, save_update, auto_close_positive, possible_visits,
+    visit_card, branch_visits)
 from .google_review_presentation import review_findings
 
 
 def scope(request):
+    if not getattr(request, '_reviews_auto_closed', False):
+        request._reviews_auto_closed = True
+        auto_close_positive()
     query = GoogleReview.objects.filter(environment='sandbox' if demo_mode(request) else 'production')
     if not is_review_senior(request.user):
         branch = working_branch(request.user)
@@ -73,42 +77,71 @@ def context(request):
 @require_GET
 def inbox(request):
     query = filtered(request).select_related('branch', 'case', 'case__owner')
-    tab = request.GET.get('status', '')
-    if tab not in ('', 'open', 'closed'):
-        tab = ''
-    closed = Q(case__closed_at__isnull=False) | Q(case__isnull=True, closed_at__isnull=False,
-        closed_review_version=F('google_updated_at'))
+    tab = request.GET.get('status', 'followup')
+    if tab not in ('followup', 'positive', 'closed', 'all'):
+        tab = 'followup'
+    closed, negative = GoogleReview.closed_q(), GoogleReview.negative_q()
+    views = {'followup': query.exclude(closed).filter(negative), 'positive': query.exclude(closed).exclude(negative),
+        'closed': query.filter(closed), 'all': query}
     params = request.GET.copy()
     params.pop('page', None)
     params.pop('status', None)
     tabs = []
-    for key, label, count in [('', 'All reviews', query.count()), ('open', 'Open reviews', query.exclude(closed).count()),
-                             ('closed', 'Closed reviews', query.filter(closed).count())]:
+    for key, label in [('followup', 'Needs follow-up'), ('positive', 'Closing automatically'),
+                       ('closed', 'Closed'), ('all', 'All')]:
         params['status'] = key
-        tabs.append({'key': key, 'label': label, 'count': count, 'query': params.urlencode()})
-    if tab == 'open':
-        query = query.exclude(closed)
-    elif tab == 'closed':
-        query = query.filter(closed)
+        tabs.append({'key': key, 'label': label, 'count': views[key].count(), 'query': params.urlencode()})
+    query = views[tab]
+    if tab == 'followup':
+        query = query.order_by('google_updated_at', 'id')
     page = Paginator(query, 20).get_page(request.GET.get('page'))
     params = request.GET.copy()
     params.pop('page', None)
     return render(request, 'reviews/google_inbox.html', {**context(request), 'page_obj': page,
-        'page_query': params.urlencode(), 'selected_status': tab,
+        'page_query': params.urlencode(), 'selected_status': tab, 'now': timezone.now(),
         'tabs': tabs, 'filter_form': filter_form(request)})
 
 
 def detail_context(request, review, form=None):
-    return {**context(request), **review_findings(review), 'review': review,
+    search = request.GET.get('find', '').strip()[:60]
+    linked = visit_card(review.visit) if review.visit_id else None
+    return {**context(request), **review_findings(review), 'review': review, 'now': timezone.now(),
+        'linked_visit': linked, 'visit_search': search,
+        'possible_visits': [] if linked else possible_visits(review, search),
+        'history': review.actions.select_related('actor')[:10],
         'update_form': form if form is not None else GoogleReviewUpdateForm(review=review, initial=form_initial(review))}
+
+
+def detail_url(request, review):
+    return reverse('google_review_detail', args=[review.pk]) + ('?demo=1' if demo_mode(request) else '')
 
 
 @never_cache
 @review_roles
 @require_GET
 def detail(request, review_id):
-    review = get_object_or_404(scope(request).select_related('case', 'branch', 'closed_by'), pk=review_id)
+    review = get_object_or_404(scope(request).select_related('case', 'branch', 'closed_by', 'visit__customer'), pk=review_id)
     return render(request, 'reviews/google_detail.html', detail_context(request, review))
+
+
+def link_visit(request, review, kind):
+    if kind == 'link_visit':
+        visit_id = request.POST.get('visit', '')
+        if not visit_id.isdigit():
+            return HttpResponseBadRequest('Choose a visit.')
+        visit = get_object_or_404(branch_visits(review), pk=visit_id)
+        review.visit, review.customer_not_found = visit, False
+        note = f'Linked to visit #{visit.pk} ({visit.customer.name})'
+    elif kind == 'not_found':
+        review.visit, review.customer_not_found = None, True
+        note = 'Customer not found in visits'
+    else:
+        review.visit, review.customer_not_found = None, False
+        note = 'Visit link removed'
+    review.save(update_fields=['visit', 'customer_not_found', 'updated_at'])
+    GoogleReviewAction.objects.create(review=review, actor=request.user, action='Customer lookup',
+        review_version=review.google_updated_at, note=note)
+    return redirect(detail_url(request, review))
 
 
 @never_cache
@@ -117,7 +150,10 @@ def detail(request, review_id):
 @transaction.atomic
 def action(request, review_id):
     review = get_object_or_404(scope(request).select_for_update(), pk=review_id)
-    if request.POST.get('action') != 'update':
+    kind = request.POST.get('action')
+    if kind in ('link_visit', 'unlink_visit', 'not_found'):
+        return link_visit(request, review, kind)
+    if kind != 'update':
         return HttpResponseBadRequest('Choose a valid review update.')
     intent = request.POST.get('intent', 'save')
     if intent not in ('save', 'close', 'reopen'):
@@ -132,8 +168,9 @@ def action(request, review_id):
             if not saved:
                 form.add_error(None, 'This review changed in another session. Reload it before saving.')
                 return render(request, 'reviews/google_detail.html', detail_context(request, review, form), status=409)
-            messages.success(request, 'Review saved.')
-            return redirect(reverse('google_review_detail', args=[review.pk]) + ('?demo=1' if demo_mode(request) else ''))
+            messages.success(request, {'close': 'Follow-up completed. Review closed.' if review.requires_followup
+                else 'Review closed.', 'reopen': 'Review reopened.'}.get(intent, 'Follow-up saved.'))
+            return redirect(detail_url(request, review))
     return render(request, 'reviews/google_detail.html', detail_context(request, review, form), status=400)
 
 

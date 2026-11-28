@@ -897,11 +897,52 @@ class GoogleReview(TimeStamped):
     followup_updated_at = models.DateTimeField(null=True, blank=True)
     followup_updated_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True,
         related_name='google_review_updates')
+    CALL_OUTCOMES = [('SPOKE', 'Spoke to customer'), ('NOT_REACHABLE', 'Not reachable')]
+    call_outcome = models.CharField(max_length=16, choices=CALL_OUTCOMES, blank=True)
+    staff_spoken = models.BooleanField(default=False)
+    visit = models.ForeignKey('Visit', on_delete=models.SET_NULL, null=True, blank=True, related_name='google_reviews')
+    customer_not_found = models.BooleanField(default=False)
+    auto_closed = models.BooleanField(default=False)
+
+    # Ratings at or below this need a follow-up; so does any review the analysis flags.
+    NEGATIVE_MAX_STARS = 3
+    AUTO_CLOSE_AFTER = timedelta(hours=24)
+    FOLLOWUP_DUE_AFTER = timedelta(hours=24)
 
     class Meta:
         ordering = ['-google_updated_at', 'id']
         constraints = [models.UniqueConstraint(fields=['environment', 'review_name'], name='unique_google_review_env')]
         indexes = [models.Index(fields=['environment', 'branch', 'sentiment'])]
+
+    @classmethod
+    def negative_q(cls):
+        return models.Q(star_rating__lte=cls.NEGATIVE_MAX_STARS) | models.Q(needs_followup=True)
+
+    @classmethod
+    def closed_q(cls):
+        return models.Q(case__closed_at__isnull=False) | models.Q(case__isnull=True, closed_at__isnull=False,
+            closed_review_version=models.F('google_updated_at'))
+
+    @property
+    def requires_followup(self):
+        return self.star_rating <= self.NEGATIVE_MAX_STARS or self.needs_followup
+
+    @property
+    def arrived_at(self):
+        """When this version of the review reached the app."""
+        return max(self.created_at, self.google_updated_at)
+
+    @property
+    def auto_close_at(self):
+        return self.arrived_at + self.AUTO_CLOSE_AFTER
+
+    @property
+    def followup_due_at(self):
+        return self.arrived_at + self.FOLLOWUP_DUE_AFTER
+
+    @property
+    def followup_overdue(self):
+        return self.requires_followup and not self.is_closed and self.followup_due_at < timezone.now()
 
     @property
     def reviewer_name(self):
@@ -980,7 +1021,7 @@ class GoogleReplyPublication(models.Model):
 
 class GoogleReviewAction(models.Model):
     review = models.ForeignKey(GoogleReview, on_delete=models.PROTECT, related_name='actions')
-    actor = models.ForeignKey(User, on_delete=models.PROTECT)
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
     action = models.CharField(max_length=30)
     note = models.TextField(blank=True, max_length=4000)
     review_version = models.DateTimeField()
@@ -1106,3 +1147,54 @@ class SalesInvoiceLine(models.Model):
 
     class Meta:
         ordering = ['row_number']
+
+
+class ReviewTarget(TimeStamped):
+    """Monthly Google review target for one branch, spread over the days of the month.
+
+    Each day gets a share of the month's target in proportion to its weight, so a
+    weekend weight of 2 asks for twice as many reviews on a weekend day as on a weekday.
+    """
+    WEEKDAYS = [(0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'), (3, 'Thursday'),
+                (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday')]
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='review_targets')
+    month = models.DateField(help_text='Any date in the month. It is saved as the 1st of that month.')
+    target = models.PositiveIntegerField(help_text='Google reviews wanted from this branch in the month.')
+    weekday_weight = models.DecimalField(max_digits=5, decimal_places=2, default=1,
+        validators=[MinValueValidator(0)], help_text='Share for each weekday. 1 is normal.')
+    weekend_weight = models.DecimalField(max_digits=5, decimal_places=2, default=2,
+        validators=[MinValueValidator(0)], help_text='Share for each weekend day. 2 means twice a weekday.')
+    weekend_days = models.CharField(max_length=20, default='5,6',
+        help_text='Which days count as the weekend.')
+
+    class Meta:
+        ordering = ['-month', 'branch__name']
+        constraints = [models.UniqueConstraint(fields=['branch', 'month'], name='unique_review_target_month')]
+
+    def __str__(self):
+        return f'{self.branch} · {self.month:%b %Y} · {self.target} reviews'
+
+    def save(self, *args, **kwargs):
+        self.month = self.month.replace(day=1)
+        super().save(*args, **kwargs)
+
+    @property
+    def weekend_set(self):
+        return {int(d) for d in self.weekend_days.split(',') if d.strip().isdigit()}
+
+    def days(self):
+        import calendar
+        first = self.month.replace(day=1)
+        count = calendar.monthrange(first.year, first.month)[1]
+        return [first.replace(day=n) for n in range(1, count + 1)]
+
+    def weight(self, day):
+        return self.weekend_weight if day.weekday() in self.weekend_set else self.weekday_weight
+
+    def daily_targets(self):
+        """{date: share of the month's target}; shares add up to the target."""
+        days = self.days()
+        total = sum(self.weight(d) for d in days)
+        if not total:
+            return {d: 0.0 for d in days}
+        return {d: float(self.target * self.weight(d) / total) for d in days}

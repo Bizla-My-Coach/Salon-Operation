@@ -5,7 +5,7 @@ they run (today's roster, falling back to their home branch).
 """
 from datetime import datetime, time, timedelta
 
-from django.db.models import Avg, Count, F, Q, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -39,9 +39,9 @@ def _grouped(query, field, **aggregates):
 
 
 def _open_google_reviews():
-    closed = Q(case__closed_at__isnull=False) | Q(
-        case__isnull=True, closed_at__isnull=False, closed_review_version=F('google_updated_at'))
-    return GoogleReview.objects.filter(environment='production').exclude(closed)
+    from .google_review_workflow import auto_close_positive
+    auto_close_positive()
+    return GoogleReview.objects.filter(environment='production').exclude(GoogleReview.closed_q())
 
 
 def _branch_rows(branches, start):

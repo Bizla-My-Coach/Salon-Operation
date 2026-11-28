@@ -54,7 +54,7 @@ class GoogleReviewFindingsTests(TestCase):
     def update(self, **extra):
         self.review.refresh_from_db()
         data = {'action': 'update', 'version': self.review.edit_token, 'intent': 'save',
-            'customer_followup': 'CONTACTED', 'staff_followup': 'IN_PROGRESS', 'justification': 'Checked with the branch team.'}
+            'call_outcome': 'SPOKE', 'staff_spoken': 'on', 'justification': 'Checked with the branch team.'}
         data.update(extra)
         return self.client.post(reverse('google_review_action', args=[self.review.pk]), data)
 
@@ -69,26 +69,22 @@ class GoogleReviewFindingsTests(TestCase):
             with self.subTest(role=role):
                 self.client.force_login(self.people[role])
                 response = self.detail()
-                for text in ('Customer reported waiting 40 minutes.', 'Waiting time', 'Normal priority', 'Issues', 'Appreciation'):
+                for text in ('Customer reported waiting 40 minutes.', 'Waiting time', 'What went wrong'):
                     self.assertContains(response, text)
                 parser = ReviewLayoutParser()
                 parser.feed(response.content.decode())
-                self.assertEqual(len(parser.details), 2)
+                self.assertEqual(len(parser.details), 1)
                 self.assertTrue(all('open' not in attrs for attrs in parser.details))
-                self.assertEqual(parser.visible_findings, [True, True])
                 html = response.content.decode()
-                self.assertLess(html.index('id="review-issues-heading"'), html.index('name="justification"'))
-                self.assertContains(response, '<select', count=2)
+                self.assertLess(html.index('What went wrong'), html.index('name="justification"'))
+                self.assertContains(response, '<select', count=0)
                 self.assertContains(response, '<textarea', count=1)
                 self.assertNotContains(response, 'amazon.nova')
 
     def test_sample_without_appreciation_points_does_not_invent_them(self):
         response = self.detail()
         self.assertEqual(response.context['review_appreciations'], [])
-        self.assertContains(response, 'No separate appreciation points were supplied.')
-        section = response.content.decode().split('id="review-appreciation-heading"', 1)[1].split('</section>', 1)[0]
-        self.assertNotIn('Great haircut', section)
-        self.assertNotIn('friendly staff', section)
+        self.assertNotContains(response, 'Appreciation')
 
     def test_optional_explicit_appreciations_are_saved_and_displayed_with_html_escaped(self):
         payload = self.next_result()
@@ -96,9 +92,7 @@ class GoogleReviewFindingsTests(TestCase):
             {'category': 'staff_friendliness', 'reported_appreciation': 'Customer praised <script>alert(1)</script> friendly staff.'}]
         self.assertEqual(self.send(payload).status_code, 200)
         response = self.detail()
-        self.assertContains(response, 'Customer praised the haircut.')
-        self.assertContains(response, 'Staff friendliness')
-        self.assertContains(response, '&lt;script&gt;alert(1)&lt;/script&gt;')
+        # Appreciation points are kept but no longer shown on the simple review page.
         self.assertNotContains(response, '<script>alert(1)</script>')
         self.assertEqual(len(response.context['review_appreciations']), 2)
         self.review.refresh_from_db()
@@ -133,17 +127,17 @@ class GoogleReviewFindingsTests(TestCase):
         self.assertContains(response, 'Customer reported waiting 40 minutes.', status_code=409)
 
     def test_explicit_close_accepts_default_statuses_without_justification_for_five_stars(self):
-        self.assertEqual(self.update(intent='close', customer_followup='', staff_followup='', justification='').status_code, 302)
+        GoogleReview.objects.filter(pk=self.review.pk).update(star_rating=5, needs_followup=False)
+        self.assertEqual(self.update(intent='close', call_outcome='', justification='').status_code, 302)
         self.review.refresh_from_db()
         self.assertTrue(self.review.is_closed)
-        self.assertEqual(self.review.staff_followup, 'NEW')
-        self.assertEqual(self.review.case.closure_outcome, '')
+        self.assertEqual(self.review.case.closure_outcome, 'RESOLVED')
         self.assertEqual(self.review.justification, '')
-        self.assertNotContains(self.detail(), '>Close review</button>')
+        self.assertNotContains(self.detail(), '>Close now</button>')
         self.assertContains(self.detail(), '>Reopen review</button>')
 
     def test_explicit_close_preserves_unresolved_outcome(self):
-        self.assertEqual(self.update(intent='close', staff_followup='CLOSED_UNRESOLVED').status_code, 302)
+        self.assertEqual(self.update(intent='close', call_outcome='NOT_REACHABLE', justification='Called twice.').status_code, 302)
         self.review.refresh_from_db()
         self.assertEqual(self.review.case.closure_outcome, 'UNRESOLVED')
 
