@@ -235,3 +235,27 @@
 @media(max-width:650px){.review-gcard{flex-wrap:wrap;padding:12px}.review-gcard .review-pill{margin-left:62px}
 .review-visit{flex-direction:column;align-items:stretch}.review-visit .button{width:100%;text-align:center}
 .review-submit-actions .button{flex:1 1 100%;min-height:46px}.review-choice-option{flex:1 1 100%}}
+
+/* Compact review headers */
+.content:has(.reviews-workspace)>[data-live-status]{display:none}
+.review-compact-head{margin:0 0 6px}.review-compact-head h1{font-size:1.45rem;line-height:1.2;margin:0;letter-spacing:-.02em}
+.review-tabs.review-tabs-compact{gap:8px;padding:8px 0 10px;margin:0;border-bottom:0;scrollbar-width:none}
+.review-tabs-compact::-webkit-scrollbar{display:none}
+.review-tabs-compact a{padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:.8rem}
+.review-tabs-compact a[aria-current]{background:var(--brand);border-color:var(--brand);color:var(--card)}
+.review-tabs-compact a[aria-current]>span{background:rgba(255,255,255,.2);color:inherit}
+.review-filter-toggle{margin:0 0 10px}.review-filter-toggle>summary{display:inline-block;cursor:pointer;font-size:.8rem;font-weight:700;color:var(--brand);padding:4px 0}
+.review-filter-toggle .review-filters{margin:8px 0 4px}
+.review-inbox-compact .review-case-list{gap:10px}
+.review-detail-compact{margin:4px 0 14px}.review-detail-compact .review-card-meta{margin:6px 0 0}.review-detail-compact .review-pill{margin-top:8px}
+.review-detail-title{display:flex;align-items:center;gap:10px}.review-detail-title h1{font-size:1.45rem;line-height:1.2;margin:0}
+.review-simple-page .review-back{margin-bottom:6px}
+.review-simple-page .review-quote{margin-top:0}
+@media(max-width:650px){
+  .review-compact-head h1,.review-detail-title h1{font-size:1.25rem}
+  .review-tabs.review-tabs-compact{gap:6px}.review-tabs-compact a{padding:6px 9px;font-size:.74rem;gap:5px}.review-tabs-compact a>span{padding:2px 5px}
+  .review-gcard{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:6px}
+  .review-gcard .review-pill{grid-column:2;margin-left:0;justify-self:start}
+}
+.review-phone-row{display:flex;gap:8px;margin-bottom:16px}.review-phone-row input{flex:1;min-width:0;max-width:320px}
+.review-phone-row .button{min-height:44px;display:inline-flex;align-items:center}

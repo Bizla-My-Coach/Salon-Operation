@@ -54,11 +54,11 @@ class SimpleGoogleReviewTests(TestCase):
                 self.assertContains(response, '<select', count=0)
                 self.assertContains(response, '<textarea', count=1)
                 self.assertEqual(list(response.context['update_form'].fields),
-                    ['version', 'call_outcome', 'staff_spoken', 'justification'])
-                for label in ['Find the customer', 'Spoke to customer', 'Not reachable',
+                    ['version', 'customer_phone', 'call_outcome', 'staff_spoken', 'justification'])
+                for label in ["Customer&#x27;s phone number", 'Spoke to customer', 'Not reachable',
                               'I spoke to the staff who served them', 'Complete follow-up', 'Save for later']:
                     self.assertContains(response, label)
-                for label in ['Close now', 'Customer follow-up status', 'Staff follow-up status', 'Justification']:
+                for label in ['Close now', 'Find the customer', 'Search name or phone', 'Customer follow-up status', 'Staff follow-up status', 'Justification']:
                     self.assertNotContains(response, label)
 
     def test_negative_review_cannot_close_without_call_and_note(self):
@@ -152,39 +152,19 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
         self.assertContains(response, 'Closed automatically')
 
-    def test_possible_visits_link_and_call(self):
-        from django.utils import timezone
-        from .models import Service, Visit, VisitService
-        customer = Customer.objects.create(name='Asha Menon', mobile='9876543210')
-        other = Customer.objects.create(name='Someone Else', mobile='9000000000')
-        visit = Visit.objects.create(branch=self.branch, customer=customer, created_by=self.people['manager'])
-        Visit.objects.create(branch=self.branch, customer=other, created_by=self.people['manager'])
-        Visit.objects.create(branch=self.other_branch, customer=customer, created_by=self.people['manager'])
-        service = Service.objects.create(code='HC1', name='Hair cut') if not Service.objects.exists() else Service.objects.first()
-        VisitService.objects.create(visit=visit, service=service, employee=self.people['employee'], assigned_by=self.people['manager'])
-        from .models import VisitAssignment
-        from django.contrib.auth.models import User
-        stylist = User.objects.create_user('simple-stylist', first_name='Riya')
-        VisitAssignment.objects.create(visit=visit, employee=stylist, assigned_by=self.people['manager'], category='HAIR')
-        review = self.add('visit-match', rating=2, name='Asha M.')
-        GoogleReview.objects.filter(pk=review.pk).update(google_created_at=timezone.now())
-        url = reverse('google_review_detail', args=[review.pk])
-        page = self.client.get(url)
-        self.assertEqual([c['visit'].pk for c in page.context['possible_visits']], [visit.pk])
-        self.assertContains(page, 'This is the customer')
-        self.assertEqual(len(self.client.get(url, {'find': '9000'}).context['possible_visits']), 1)
-        foreign = Visit.objects.get(branch=self.other_branch)
-        action = reverse('google_review_action', args=[review.pk])
-        self.assertEqual(self.client.post(action, {'action': 'link_visit', 'visit': foreign.pk}).status_code, 404)
-        self.assertEqual(self.client.post(action, {'action': 'link_visit', 'visit': visit.pk}).status_code, 302)
-        page = self.client.get(url)
-        self.assertContains(page, 'href="tel:9876543210"')
-        self.assertContains(page, self.people['employee'].username)
-        self.assertContains(page, 'Riya')
-        self.assertEqual(self.client.post(action, {'action': 'not_found'}).status_code, 302)
-        review.refresh_from_db()
-        self.assertIsNone(review.visit_id)
-        self.assertTrue(review.customer_not_found)
+    def test_phone_number_is_saved_and_can_be_called(self):
+        self.assertEqual(self.update(customer_phone='98470 12345', call_outcome='', justification='').status_code, 302)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.customer_phone, '98470 12345')
+        self.assertFalse(self.review.is_closed)
+        page = self.client.get(reverse('google_review_detail', args=[self.review.pk]))
+        self.assertContains(page, 'href="tel:9847012345"')
+        self.assertIn('Phone: 98470 12345', self.review.actions.get().note)
+        for bad in ('12', 'call me', '9' * 16):
+            self.assertEqual(self.update(customer_phone=bad).status_code, 400)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.customer_phone, '98470 12345')
+        self.assertEqual(self.update(intent='close', customer_phone='').status_code, 302)
 
     def test_bell_and_dashboard_remind_until_negative_followup_is_done(self):
         self.add('reminder-five', rating=5)
@@ -272,7 +252,7 @@ class SimpleGoogleReviewTests(TestCase):
             self.client.force_login(self.people[role])
             response = self.client.get(inbox)
             self.assertEqual(self.client.get(inbox, {'status': 'all'}).context['page_obj'].paginator.count, 2)
-            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['Needs follow-up', 'Closing automatically', 'Closed', 'All'])
+            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['Follow-up', 'Auto-closing', 'Closed', 'All'])
             response = self.client.get(inbox, {'status': 'all', 'branch': self.other_branch.pk, 'rating': '5',
                 'since': '2026-10-20', 'until': '2026-10-20', 'q': 'OTHER'})
             self.assertEqual(response.context['page_obj'].paginator.count, 1)

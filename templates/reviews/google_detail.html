@@ -1,16 +1,16 @@
-{% extends 'reviews/base.html' %}
+{% extends 'reviews/base.html' %}{% load review_target_tags %}
 {% block title %}Google Review · Hairship{% endblock %}
 {% block reviews_content %}
 <div class="review-simple-page">
   <a class="review-back" href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">← Google Review</a>
   {% with closed=review.is_closed %}
-  <header class="review-detail-heading">
-    <div class="review-section-heading"><h1>{{ review.reviewer_name }}</h1><span class="review-stars is-large" aria-label="{{ review.star_rating }} out of 5 stars">★ {{ review.star_rating }}</span></div>
+  <header class="review-detail-heading review-detail-compact">
+    <div class="review-detail-title"><span class="review-stars" aria-label="{{ review.star_rating }} out of 5 stars">★ {{ review.star_rating }}</span><h1>{{ review.reviewer_name }}</h1></div>
     <p class="review-card-meta">{{ review.branch.name }} · {{ review.google_created_at|date:'d M Y, H:i' }}</p>
     <p class="review-pill{% if closed %} is-closed{% elif review.followup_overdue %} is-overdue{% elif review.requires_followup %} is-due{% else %} is-auto{% endif %}">
       {% if closed %}{% if review.auto_closed %}Closed automatically {{ review.closed_at|date:'d M, H:i' }}{% else %}Closed{% if review.closed_by %} by {{ review.closed_by.get_full_name|default:review.closed_by.username }}{% endif %} · {{ review.closed_at|date:'d M, H:i' }}{% endif %}
-      {% elif review.requires_followup %}{% if review.followup_overdue %}Follow-up overdue{% else %}Follow-up needed within {{ review.followup_due_at|timeuntil:now }}{% endif %}
-      {% else %}Positive review · closes automatically in {{ review.auto_close_at|timeuntil:now }}{% endif %}
+      {% elif review.requires_followup %}{% if review.followup_overdue %}Follow-up overdue by {{ review.followup_due_at|short_span:now }}{% else %}Follow up within {{ review.followup_due_at|short_span:now }}{% endif %}
+      {% else %}Positive · closes automatically in {{ review.auto_close_at|short_span:now }}{% endif %}
     </p>
   </header>
 
@@ -19,38 +19,15 @@
     {% if review_issues %}<h2>What went wrong</h2><ul class="review-issue-list">{% for issue in review_issues %}<li>{% if issue.category %}<span class="review-tag">{{ issue.category }}</span> {% endif %}{{ issue.text }}</li>{% endfor %}</ul>{% endif %}
   </section>
 
-  {% if review.requires_followup or review.visit_id %}
-  <section class="panel review-find" aria-labelledby="find-heading">
-    <h2 id="find-heading">1. Find the customer</h2>
-    {% if linked_visit %}
-      <div class="review-visit is-linked">
-        <div><strong>{{ linked_visit.visit.customer.name }}</strong><small>Visit {{ linked_visit.visit.created_at|date:'d M Y, H:i' }}{% if linked_visit.staff %} · Staff: {{ linked_visit.staff|join:', ' }}{% endif %}</small></div>
-        {% if linked_visit.visit.customer.mobile %}<a class="button primary" href="tel:{{ linked_visit.visit.customer.mobile }}">Call {{ linked_visit.visit.customer.mobile }}</a>{% else %}<span class="review-footnote">No phone saved</span>{% endif %}
-      </div>
-      {% if not closed %}<form method="post" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="unlink_visit"><button class="link-button" type="submit">Not this customer</button></form>{% endif %}
-    {% else %}
-      {% if review.customer_not_found %}<p class="review-footnote">Marked as not found in visits. You can still search below.</p>{% endif %}
-      <form method="get" class="review-find-search">{% if demo %}<input type="hidden" name="demo" value="1">{% endif %}
-        <input class="form-control" type="search" name="find" value="{{ visit_search }}" placeholder="Search name or phone" aria-label="Search visits by customer name or phone">
-        <button class="button outline" type="submit">Search</button>
-      </form>
-      {% for card in possible_visits %}
-      <div class="review-visit">
-        <div><strong>{{ card.visit.customer.name }}</strong><small>{{ card.visit.created_at|date:'d M, H:i' }}{% if card.staff %} · {{ card.staff|join:', ' }}{% endif %}{% if card.visit.customer.mobile %} · {{ card.visit.customer.mobile }}{% endif %}</small></div>
-        <form method="post" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="link_visit"><input type="hidden" name="visit" value="{{ card.visit.pk }}"><button class="button outline" type="submit">This is the customer</button></form>
-      </div>
-      {% empty %}<p class="review-footnote">{% if visit_search %}No visits at this branch match “{{ visit_search }}” in the 30 days before the review.{% elif review.reviewer_is_anonymous %}The reviewer is anonymous. Search by name or phone if you know them.{% else %}No visit with a similar name in the 14 days before the review. Try searching.{% endif %}</p>{% endfor %}
-      {% if not review.customer_not_found and not closed %}<form method="post" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">{% csrf_token %}<input type="hidden" name="action" value="not_found"><button class="link-button" type="submit">Can't find the customer</button></form>{% endif %}
-    {% endif %}
-  </section>
-  {% endif %}
-
   <section class="panel review-simple-close">
-    {% if review.requires_followup %}<h2>2. Follow up</h2>{% endif %}
+    {% if review.requires_followup %}<h2>Follow up</h2>{% endif %}
     <form method="post" class="review-followup" action="{% url 'google_review_action' review.pk %}{% if demo %}?demo=1{% endif %}">
       {% csrf_token %}<input type="hidden" name="action" value="update">{{ update_form.version }}
       {% if update_form.non_field_errors %}<div class="notice error">{% for error in update_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
       {% if review.requires_followup or review.followup_updated_at %}
+      <label class="review-note-label" for="{{ update_form.customer_phone.id_for_label }}">{{ update_form.customer_phone.label }}</label>
+      <div class="review-phone-row">{{ update_form.customer_phone }}{% if review.customer_phone %}<a class="button primary" href="tel:{{ review.customer_phone|cut:' ' }}">Call</a>{% endif %}</div>
+      {{ update_form.customer_phone.errors }}
       <fieldset class="review-choice"><legend>{{ update_form.call_outcome.label }}</legend>
         {% for radio in update_form.call_outcome %}<label class="review-choice-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
         {{ update_form.call_outcome.errors }}
@@ -59,7 +36,7 @@
       <label class="review-note-label" for="{{ update_form.justification.id_for_label }}">{{ update_form.justification.label }}</label>
       {{ update_form.justification }}{{ update_form.justification.errors }}
       {% else %}
-      {{ update_form.call_outcome.as_hidden }}{{ update_form.justification.as_hidden }}
+      {{ update_form.customer_phone.as_hidden }}{{ update_form.call_outcome.as_hidden }}{{ update_form.justification.as_hidden }}
       <p class="review-footnote">No follow-up needed for a positive review.{% if not closed %} It closes by itself, or you can close it now.{% endif %}</p>
       {% endif %}
       <div class="review-submit-actions">
