@@ -56,10 +56,13 @@
   <h2>Saved today</h2>
   <div class="sv-cards">
     {% for card in recorded_cards %}
+    <div class="sv-done-wrap">
     {% if card.can_change %}<a class="sv-customer-card done" href="{% url 'record_visit' card.visit.pk %}" aria-label="Change types for {{ card.visit.customer.name }}">{% else %}<div class="sv-customer-card done">{% endif %}
       <img src="{% static card.image %}" alt="">
       <div><h2>{{ card.visit.customer.name }}</h2>{% for p in card.people %}<p class="sv-card-line">{% if card.people|length > 1 %}<b>{{ p.name }}</b> · {% endif %}{{ p.what }}</p>{% endfor %}<p>Saved {{ card.when|date:'H:i' }}</p></div>
     {% if card.can_change %}</a>{% else %}</div>{% endif %}
+      <a class="sv-rate-btn{% if card.stars %} rated{% endif %}" href="{% url 'rate_visit' card.visit.pk %}" aria-label="{% if card.stars %}Rated {{ card.stars }} of 5. Ask {{ card.visit.customer.name }} again{% else %}Ask {{ card.visit.customer.name }} for a rating{% endif %}"><b aria-hidden="true">★</b>{% if card.stars %}{{ card.stars }}/5{% endif %}</a>
+    </div>
     {% endfor %}
   </div>
 </section>

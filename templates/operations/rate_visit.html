@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Rate your visit · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block content %}
+<div class="sv-rate-page">
+  {% if thanks %}
+  <div class="sv-rate-thanks">
+    <div class="sv-stars-show" aria-label="{{ rating.stars }} of 5 stars">{% for n in '12345' %}<span class="{% if forloop.counter <= rating.stars %}on{% endif %}" aria-hidden="true">★</span>{% endfor %}</div>
+    <h1>Thank you{% if first_name %}, {{ first_name }}{% endif %}!</h1>
+    <p>We hope to see you again soon.</p>
+    <a class="button outline sv-rate-back" href="{% url 'employee_dashboard' %}">Back to my customers</a>
+  </div>
+  {% else %}
+  <form method="post" class="sv-rate-form" data-single-submit>
+    {% csrf_token %}
+    <h1>How was your visit{% if first_name %}, {{ first_name }}{% endif %}?</h1>
+    <fieldset class="sv-stars">
+      <legend class="sr-only">Rate your visit from 1 to 5 stars</legend>
+      {% for n in '12345' %}<label><input type="radio" name="stars" value="{{ n }}"{% if rating and rating.stars|stringformat:'d' == n %} checked{% endif %}><span aria-hidden="true">★</span><span class="sr-only">{{ n }} star{% if n != '1' %}s{% endif %}</span></label>{% endfor %}
+    </fieldset>
+    <button type="submit" class="button primary large sv-rate-submit">Submit</button>
+    <a class="sv-rate-skip" href="{% url 'employee_dashboard' %}">Back</a>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

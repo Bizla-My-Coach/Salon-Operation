@@ -642,6 +642,19 @@ class FeedbackQuestion(TimeStamped):
         return self.text
 
 
+class VisitRating(TimeStamped):
+    """Simple visit flow: the customer taps 1-5 stars on the staff member's phone after the visit."""
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="ratings")
+    employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="visit_ratings")
+    stars = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["visit", "employee"], name="one_rating_per_visit_staff")]
+
+    def __str__(self):
+        return f"{self.stars}/5 - visit #{self.visit_id}"
+
+
 class Feedback(TimeStamped):
     visit = models.OneToOneField(Visit, on_delete=models.CASCADE, related_name="feedback")
     public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)

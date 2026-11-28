@@ -16,6 +16,7 @@ path('manager/visit/<int:visit_id>/assign-staff/', simple_visit_views.assign_sta
 path('employee/visit/<int:visit_id>/take/', simple_visit_views.take_customer, name='take_customer'),
 path('employee/customer/<int:pk>/', simple_visit_views.pick_type, name='pick_type'),
 path('employee/visit/<int:visit_id>/record/', simple_visit_views.record_visit, name='record_visit'),
+path('employee/visit/<int:visit_id>/rate/', simple_visit_views.rate_visit, name='rate_visit'),
 path('reports/customer-types/', simple_visit_views.customer_types, name='customer_types'),
 # Public pages for Google OAuth branding; both spellings answer 200 without a redirect.
 path('about', public_views.about, name='public_about'), path('about/', public_views.about),

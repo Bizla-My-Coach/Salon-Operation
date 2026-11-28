@@ -188,3 +188,31 @@
 .sv-person-row .sv-chips{margin-top:4px}
 .sv-person-label{display:block;font-weight:800;font-size:.9rem}
 .sv-finished-row .sv-person-row{grid-column:1/-1}
+
+/* Customer star rating, handed over on the staff phone */
+.sv-rate-page{min-height:70vh;display:grid;place-items:center;text-align:center;padding:24px 0}
+.sv-rate-form,.sv-rate-thanks{display:grid;gap:22px;justify-items:center;width:100%;max-width:460px}
+.sv-rate-page h1{margin:0;font-size:clamp(1.6rem,6vw,2.2rem)}
+.sv-stars{display:flex;justify-content:center;gap:6px;border:0;margin:0;padding:0}
+.sv-stars label{cursor:pointer;line-height:1}
+.sv-stars input{position:absolute;opacity:0;pointer-events:none}
+.sv-stars label span[aria-hidden]{display:block;font-size:clamp(3rem,15vw,4.4rem);color:#d6dfdb;transition:transform .12s,color .12s}
+.sv-stars label:active span[aria-hidden]{transform:scale(1.15)}
+.sv-stars:has(input[value="1"]:checked) label:nth-of-type(-n+1) span[aria-hidden],
+.sv-stars:has(input[value="2"]:checked) label:nth-of-type(-n+2) span[aria-hidden],
+.sv-stars:has(input[value="3"]:checked) label:nth-of-type(-n+3) span[aria-hidden],
+.sv-stars:has(input[value="4"]:checked) label:nth-of-type(-n+4) span[aria-hidden],
+.sv-stars:has(input[value="5"]:checked) label:nth-of-type(-n+5) span[aria-hidden]{color:#f5a524}
+.sv-stars input:focus-visible+span{outline:3px solid rgba(23,107,91,.35);border-radius:8px}
+.sv-rate-submit{min-width:220px}
+.sv-rate-form:not(:has(input:checked)) .sv-rate-submit{opacity:.45;pointer-events:none}
+.sv-rate-skip{color:var(--muted)}
+.sv-stars-show span{font-size:3rem;color:#d6dfdb}
+.sv-stars-show span.on{color:#f5a524}
+.sv-done-wrap{position:relative}
+.sv-done-wrap .sv-customer-card{padding-right:76px}
+.sv-rate-btn{position:absolute;top:50%;right:14px;transform:translateY(-50%);display:grid;place-items:center;min-width:52px;height:52px;padding:0 8px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:#c98200;font-weight:800;font-size:.85rem;text-decoration:none}
+.sv-rate-btn b{font-size:1.5rem;line-height:1;color:#f5a524}
+.sv-rate-btn.rated{background:#fff8e8;border-color:#f5d48a}
+.sv-stars-chip{color:#c98200;font-weight:800}
+.sv-rate-page .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Branch, Customer, Invoice, Visit, VisitAssignment
+from .models import Branch, Customer, Invoice, Visit, VisitAssignment, VisitRating
 
 
 def make_user(username, role, branch):
@@ -368,6 +368,33 @@ class SimpleVisitFlowTests(TestCase):
         self.assertEqual(visit.status, 'CLOSED')
         self.assertEqual((customer.hand_type, customer.foot_type), ('DRY', 'CRACKED'))
         self.assertEqual(customer.concerns, {'MANI': ['BRITTLE'], 'PEDI': ['FUNGUS']})
+
+    def test_staff_hands_the_phone_to_the_customer_for_stars(self):
+        visit = self.create_customer(name='Riya Paul')
+        key = self.key(visit)
+        self.client.post(reverse('assign_staff', args=[visit.pk]), self.staff(visit, self.anu, 'HAIR'))
+        url = reverse('rate_visit', args=[visit.pk])
+        self.client.force_login(self.anu)
+        self.assertEqual(self.client.get(url).status_code, 404)  # not finished yet
+        self.record(visit, {f'cat_{key}': 'HAIR', f'type_{key}_HAIR': 'WAVY'})
+        home = self.client.get(reverse('employee_dashboard'))
+        self.assertContains(home, url)
+        page = self.client.get(url)
+        self.assertContains(page, 'How was your visit, Riya?')
+        self.assertContains(page, 'name="stars" value="5"')
+        self.client.post(url, {'stars': '9'})
+        self.assertFalse(VisitRating.objects.exists())
+        response = self.client.post(url, {'stars': '4'})
+        self.assertRedirects(response, url + '?thanks=1')
+        self.assertContains(self.client.get(url + '?thanks=1'), 'Thank you, Riya!')
+        self.client.post(url, {'stars': '5'})  # asking again replaces the rating
+        rating = VisitRating.objects.get()
+        self.assertEqual((rating.visit, rating.employee, rating.stars), (visit, self.anu, 5))
+        self.assertContains(self.client.get(reverse('employee_dashboard')), '5/5')
+        self.client.force_login(self.bina)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.client.force_login(self.manager)
+        self.assertContains(self.client.get(reverse('manager_dashboard') + '?view=finished'), '★ 5')
 
 
 class StaffNameTests(TestCase):

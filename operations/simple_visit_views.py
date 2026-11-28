@@ -10,6 +10,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -18,7 +19,7 @@ from .customer_types import (
     option_codes, simple_flow_enabled, type_image, type_label,
 )
 from .decorators import roles_required
-from .models import Branch, Customer, Visit, VisitAssignment
+from .models import Branch, Customer, Visit, VisitAssignment, VisitRating
 from .roster import working_branch, working_employees
 from .staff_names import display_names
 
@@ -272,6 +273,8 @@ def employee_cards(user):
     for card in saved_cards:
         saved.setdefault(card.visit_id, []).append(card)
 
+    ratings = dict(VisitRating.objects.filter(employee=user, visit_id__in=saved).values_list('visit_id', 'stars'))
+
     def build(groups, done):
         result = []
         for cards in groups.values():
@@ -283,6 +286,7 @@ def employee_cards(user):
                                    [c for c in cards if c.status == 'ASSIGNED'], done),
                 'can_change': visit.status in OPEN_VISIT,
                 'when': max(c.completed_at for c in cards if c.completed_at) if done else visit.created_at,
+                'stars': ratings.get(visit.pk),
             })
         return result
     return build(waiting, False), build(saved, True)
@@ -428,6 +432,31 @@ def record_visit(request, visit_id):
     return render(request, 'operations/record_visit.html', {
         'visit': visit, 'panels': panels, 'blank_panel': panel('__KEY__', None, 0), 'errors': errors,
         'next_guest': first_new + len(numbers),
+    })
+
+
+@roles_required('EMPLOYEE')
+@require_http_methods(['GET', 'POST'])
+def rate_visit(request, visit_id):
+    """Five stars the staff member hands to the customer after the visit."""
+    _require_simple_flow()
+    branch = working_branch(request.user)
+    card = (VisitAssignment.objects.filter(visit_id=visit_id, visit__branch=branch, employee=request.user, status='DONE')
+            .select_related('visit__customer').first())
+    if branch is None or card is None:
+        raise Http404('You have not finished this customer.')
+    visit = card.visit
+    rating = VisitRating.objects.filter(visit=visit, employee=request.user).first()
+    if request.method == 'POST':
+        stars = request.POST.get('stars', '')
+        if stars not in {'1', '2', '3', '4', '5'}:
+            messages.error(request, 'Tap a star first.')
+            return redirect('rate_visit', visit_id=visit.pk)
+        VisitRating.objects.update_or_create(visit=visit, employee=request.user, defaults={'stars': int(stars)})
+        return redirect(f"{reverse('rate_visit', args=[visit.pk])}?thanks=1")
+    return render(request, 'operations/rate_visit.html', {
+        'visit': visit, 'rating': rating, 'thanks': request.GET.get('thanks') == '1' and rating is not None,
+        'first_name': visit.customer.name.split()[0] if visit.customer.name else '',
     })
 
 
