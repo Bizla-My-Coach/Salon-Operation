@@ -272,7 +272,7 @@ class SimpleGoogleReviewTests(TestCase):
             self.client.force_login(self.people[role])
             response = self.client.get(inbox)
             self.assertEqual(self.client.get(inbox, {'status': 'all'}).context['page_obj'].paginator.count, 2)
-            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['Needs follow-up', 'Closing automatically', 'Closed', 'All'])
+            self.assertEqual([tab['label'] for tab in response.context['tabs']], ['Follow-up', 'Auto-closing', 'Closed', 'All'])
             response = self.client.get(inbox, {'status': 'all', 'branch': self.other_branch.pk, 'rating': '5',
                 'since': '2026-10-20', 'until': '2026-10-20', 'q': 'OTHER'})
             self.assertEqual(response.context['page_obj'].paginator.count, 1)

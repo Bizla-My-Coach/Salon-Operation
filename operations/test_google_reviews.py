@@ -390,7 +390,7 @@ class GoogleReviewTests(TestCase):
         self.assertIsNone(record.case_id)
         self.client.force_login(self.people['admin'])
         production = self.client.get(reverse('google_review_inbox'))
-        for label in ['Needs follow-up', 'Closing automatically', 'Closed']:
+        for label in ['Follow-up', 'Auto-closing', 'Closed']:
             self.assertContains(production, label)
         self.assertNotContains(production, data['source']['review_snapshot']['text'])
         sandbox = self.client.get(reverse('google_review_inbox') + '?demo=1&status=positive')

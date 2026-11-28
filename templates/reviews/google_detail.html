@@ -1,16 +1,16 @@
-{% extends 'reviews/base.html' %}
+{% extends 'reviews/base.html' %}{% load review_target_tags %}
 {% block title %}Google Review · Hairship{% endblock %}
 {% block reviews_content %}
 <div class="review-simple-page">
   <a class="review-back" href="{% url 'google_review_inbox' %}{% if demo %}?demo=1{% endif %}">← Google Review</a>
   {% with closed=review.is_closed %}
-  <header class="review-detail-heading">
-    <div class="review-section-heading"><h1>{{ review.reviewer_name }}</h1><span class="review-stars is-large" aria-label="{{ review.star_rating }} out of 5 stars">★ {{ review.star_rating }}</span></div>
+  <header class="review-detail-heading review-detail-compact">
+    <div class="review-detail-title"><span class="review-stars" aria-label="{{ review.star_rating }} out of 5 stars">★ {{ review.star_rating }}</span><h1>{{ review.reviewer_name }}</h1></div>
     <p class="review-card-meta">{{ review.branch.name }} · {{ review.google_created_at|date:'d M Y, H:i' }}</p>
     <p class="review-pill{% if closed %} is-closed{% elif review.followup_overdue %} is-overdue{% elif review.requires_followup %} is-due{% else %} is-auto{% endif %}">
       {% if closed %}{% if review.auto_closed %}Closed automatically {{ review.closed_at|date:'d M, H:i' }}{% else %}Closed{% if review.closed_by %} by {{ review.closed_by.get_full_name|default:review.closed_by.username }}{% endif %} · {{ review.closed_at|date:'d M, H:i' }}{% endif %}
-      {% elif review.requires_followup %}{% if review.followup_overdue %}Follow-up overdue{% else %}Follow-up needed within {{ review.followup_due_at|timeuntil:now }}{% endif %}
-      {% else %}Positive review · closes automatically in {{ review.auto_close_at|timeuntil:now }}{% endif %}
+      {% elif review.requires_followup %}{% if review.followup_overdue %}Follow-up overdue by {{ review.followup_due_at|short_span:now }}{% else %}Follow up within {{ review.followup_due_at|short_span:now }}{% endif %}
+      {% else %}Positive · closes automatically in {{ review.auto_close_at|short_span:now }}{% endif %}
     </p>
   </header>
 

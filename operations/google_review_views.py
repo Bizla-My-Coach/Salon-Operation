@@ -87,7 +87,7 @@ def inbox(request):
     params.pop('page', None)
     params.pop('status', None)
     tabs = []
-    for key, label in [('followup', 'Needs follow-up'), ('positive', 'Closing automatically'),
+    for key, label in [('followup', 'Follow-up'), ('positive', 'Auto-closing'),
                        ('closed', 'Closed'), ('all', 'All')]:
         params['status'] = key
         tabs.append({'key': key, 'label': label, 'count': views[key].count(), 'query': params.urlencode()})
