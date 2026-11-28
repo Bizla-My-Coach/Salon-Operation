@@ -13,6 +13,8 @@ class VersionForm(BootstrapMixin, forms.Form):
 
 class GoogleReviewUpdateForm(BootstrapMixin, forms.Form):
     version = forms.CharField(widget=forms.HiddenInput)
+    customer_phone = forms.CharField(max_length=20, required=False, label="Customer's phone number",
+        widget=forms.TextInput(attrs={'type': 'tel', 'inputmode': 'tel', 'autocomplete': 'off', 'placeholder': 'For example 98470 12345'}))
     call_outcome = forms.ChoiceField(choices=GoogleReview.CALL_OUTCOMES, required=False,
         widget=forms.RadioSelect, label='Called the customer?')
     staff_spoken = forms.BooleanField(required=False, label='I spoke to the staff who served them')
@@ -22,6 +24,13 @@ class GoogleReviewUpdateForm(BootstrapMixin, forms.Form):
     def __init__(self, *args, review, **kwargs):
         super().__init__(*args, **kwargs)
         self.review = review
+
+    def clean_customer_phone(self):
+        value = ' '.join(self.cleaned_data['customer_phone'].split())
+        digits = ''.join(c for c in value if c.isdigit())
+        if value and (len(digits) < 7 or len(digits) > 15 or any(c not in '0123456789 +-()' for c in value)):
+            raise forms.ValidationError('Enter a valid phone number.')
+        return value
 
 
 class ReviewDateRangeForm(BootstrapMixin, forms.Form):

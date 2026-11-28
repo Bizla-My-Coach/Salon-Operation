@@ -257,3 +257,5 @@
   .review-gcard{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:6px}
   .review-gcard .review-pill{grid-column:2;margin-left:0;justify-self:start}
 }
+.review-phone-row{display:flex;gap:8px;margin-bottom:16px}.review-phone-row input{flex:1;min-width:0;max-width:320px}
+.review-phone-row .button{min-height:44px;display:inline-flex;align-items:center}

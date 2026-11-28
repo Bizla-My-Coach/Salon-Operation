@@ -922,8 +922,7 @@ class GoogleReview(TimeStamped):
     CALL_OUTCOMES = [('SPOKE', 'Spoke to customer'), ('NOT_REACHABLE', 'Not reachable')]
     call_outcome = models.CharField(max_length=16, choices=CALL_OUTCOMES, blank=True)
     staff_spoken = models.BooleanField(default=False)
-    visit = models.ForeignKey('Visit', on_delete=models.SET_NULL, null=True, blank=True, related_name='google_reviews')
-    customer_not_found = models.BooleanField(default=False)
+    customer_phone = models.CharField(max_length=20, blank=True)
     auto_closed = models.BooleanField(default=False)
 
     # Ratings at or below this need a follow-up; so does any review the analysis flags.
