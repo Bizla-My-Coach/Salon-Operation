@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("operations", "0032_google_review_simple_followup"),
+        ("operations", "0033_google_review_simple_followup"),
     ]
 
     operations = [

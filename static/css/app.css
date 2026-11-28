@@ -90,3 +90,7 @@ input:disabled,select:disabled,textarea:disabled{background:#edf1ef!important;co
 .review-target-marker{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);transform:translateX(-1px)}
 .review-target-note{margin:6px 0 0;font-size:.75rem;color:var(--muted)}
 .metrics+.review-target{margin-top:20px}
+.review-followup-banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 16px;padding:14px 18px;margin:0 0 16px;border-radius:12px;border:1px solid #f0c48a;background:#fff4e2;color:#7a4300;text-decoration:none}
+.review-followup-banner strong{font-size:.92rem}.review-followup-banner span{font-size:.8rem;font-weight:650}
+.review-followup-banner.is-overdue{border-color:#e9a593;background:#fde8e3;color:#8f2412}
+.metrics+.review-followup-banner{margin-top:20px}

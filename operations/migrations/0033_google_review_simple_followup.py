@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("operations", "0031_visit_submit_tokens"),
+        ("operations", "0032_simple_visit_flow"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

@@ -166,3 +166,10 @@
 [data-theme="dark"] .task-button.complete:disabled{background:#2a3832;color:#96a69e}
 [data-theme="dark"] .report-table-wrap,[data-theme="dark"] .service-combobox-menu,[data-theme="dark"] .combobox-option{background:var(--card);border-color:var(--line)}
 [data-theme="dark"] .visit-facts span,[data-theme="dark"] .report-stat-list span,[data-theme="dark"] .combobox-option:hover,[data-theme="dark"] .combobox-option.active{background:#24352e}
+.notification-reminders{margin:10px 0 4px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.notification-reminder-head{display:flex;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:.875rem}
+.notification-reminder-head span{color:#9d2c17;font-weight:750}
+.notification-reminders [data-reminder-list]{display:grid;gap:8px}
+.notification-reminder{text-decoration:none;border-left:3px solid #d9822b}
+.notification-reminder.is-overdue{border-left-color:#c0392b;background:#fff4f1}
+.notification-reminder.is-overdue small{color:#9d2c17;font-weight:750}

@@ -1,0 +1,6 @@
+{% if reminder_count %}
+<a class="review-followup-banner{% if overdue_count %} is-overdue{% endif %}" href="{% url 'google_review_inbox' %}">
+  <strong>{{ reminder_count }} negative Google review{{ reminder_count|pluralize }} waiting for follow-up</strong>
+  <span>{% if overdue_count %}{{ overdue_count }} overdue · {% endif %}Call the customer and add a short note →</span>
+</a>
+{% endif %}

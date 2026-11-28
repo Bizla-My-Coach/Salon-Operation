@@ -10,7 +10,7 @@
   <div><span class="eyebrow">{{ dashboard_branch.name }}</span><h1>Live operations</h1></div>
   <a href="{% url 'new_visit' %}" class="button primary">{% if simple_flow %}+ New customer{% else %}+ New service visit{% endif %}</a>
 </header>
-{% load review_target_tags %}{% review_target_bars dashboard_branch %}
+{% load review_target_tags %}{% review_followup_banner %}{% review_target_bars dashboard_branch %}
 {% if simple_flow %}
 <nav class="sv-board-tabs" aria-label="Board view">
   <a href="?" class="{% if board_view != 'finished' %}active{% endif %}"{% if board_view != 'finished' %} aria-current="page"{% endif %}>Live <span>{{ visits|length }}</span></a>

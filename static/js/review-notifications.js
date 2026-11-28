@@ -10,12 +10,40 @@
       error.hidden = !message;
     });
   }
+  function renderReminders(menu, feed) {
+    var box = menu.querySelector('[data-notification-reminders]');
+    if (!box) return;
+    var total = feed.reminder_count || 0;
+    box.hidden = total === 0;
+    box.querySelector('[data-reminder-title]').textContent =
+      total + ' negative review' + (total === 1 ? '' : 's') + ' to follow up';
+    var overdue = box.querySelector('[data-reminder-overdue]');
+    overdue.textContent = (feed.overdue_count || 0) + ' overdue';
+    overdue.hidden = !feed.overdue_count;
+    var list = box.querySelector('[data-reminder-list]');
+    if (list.contains(document.activeElement)) return;
+    var fragment = document.createDocumentFragment();
+    (feed.reminders || []).forEach(function (item) {
+      var link = document.createElement('a');
+      link.className = 'notification-item notification-reminder' + (item.overdue ? ' is-overdue' : '');
+      link.href = item.url;
+      [['strong', '\u2605 ' + item.stars + ' \u00b7 ' + item.name], ['span', item.branch], ['small', item.label]].forEach(function (entry) {
+        var element = document.createElement(entry[0]);
+        element.textContent = entry[1];
+        link.appendChild(element);
+      });
+      fragment.appendChild(link);
+    });
+    list.replaceChildren(fragment);
+  }
   function render(feed) {
     menus.forEach(function (menu) {
+      var badge = feed.badge_count === undefined ? feed.unread_count : feed.badge_count;
       var count = menu.querySelector('[data-notification-count]');
-      count.textContent = feed.unread_count > 99 ? '99+' : String(feed.unread_count);
-      count.hidden = feed.unread_count === 0;
-      menu.querySelector('summary').setAttribute('aria-label', 'Review notifications, ' + feed.unread_count + ' unread');
+      count.textContent = badge > 99 ? '99+' : String(badge);
+      count.hidden = badge === 0;
+      menu.querySelector('summary').setAttribute('aria-label', 'Review notifications, ' + badge + ' need attention');
+      renderReminders(menu, feed);
       menu.querySelector('[data-notification-total]').textContent = feed.unread_count + ' unread';
       menu.querySelector('[data-notifications-read-all] button').disabled = !feed.unread_count;
       var list = menu.querySelector('[data-notification-list]');

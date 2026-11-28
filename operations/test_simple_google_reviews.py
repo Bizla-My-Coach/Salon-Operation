@@ -181,6 +181,27 @@ class SimpleGoogleReviewTests(TestCase):
         self.assertIsNone(review.visit_id)
         self.assertTrue(review.customer_not_found)
 
+    def test_bell_and_dashboard_remind_until_negative_followup_is_done(self):
+        self.add('reminder-five', rating=5)
+        feed = self.client.get(reverse('review_notifications')).json()
+        self.assertEqual(feed['reminder_count'], 1)
+        self.assertEqual(feed['reminders'][0]['url'], reverse('google_review_detail', args=[self.review.pk]))
+        self.assertEqual(feed['badge_count'], feed['unread_count'] + 1)
+        self.age(self.review, 30)
+        feed = self.client.get(reverse('review_notifications')).json()
+        self.assertEqual(feed['overdue_count'], 1)
+        self.assertTrue(feed['reminders'][0]['label'].startswith('Overdue by'))
+        page = self.client.get(reverse('manager_dashboard'))
+        self.assertContains(page, '1 negative Google review waiting for follow-up')
+        self.assertContains(page, '1 overdue')
+        self.client.force_login(self.people['other'])
+        self.assertEqual(self.client.get(reverse('review_notifications')).json()['reminder_count'], 0)
+        self.client.force_login(self.people['manager'])
+        self.assertEqual(self.update(intent='close').status_code, 302)
+        feed = self.client.get(reverse('review_notifications')).json()
+        self.assertEqual((feed['reminder_count'], feed['reminders']), (0, []))
+        self.assertNotContains(self.client.get(reverse('manager_dashboard')), 'waiting for follow-up')
+
     def test_invalid_values_save_nothing_and_csrf_is_required(self):
         for values in [{'call_outcome': 'BOGUS'}, {'justification': 'x' * 3001}, {'action': 'close'}, {'intent': 'bogus'}]:
             self.assertEqual(self.update(**values).status_code, 400)
