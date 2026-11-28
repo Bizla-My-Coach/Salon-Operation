@@ -5,8 +5,41 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
+from .customer_types import simple_flow_enabled
 from .daily_reports import DailyReportProblem
-from .models import Invoice, InvoiceSettings, SalesInvoice, SalesInvoiceLine, SalesReportUpload
+from .models import Invoice, InvoiceSettings, SalesInvoice, SalesInvoiceLine, SalesReportUpload, Visit
+
+
+def phone_key(value):
+    """Compare phones by their last 10 digits: +91 98470 12345 and 9847012345 are the same."""
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    return digits[-10:] if len(digits) >= 10 else ''
+
+
+def simple_visits(branch, days):
+    """Simple-flow visits (staff cards, no bill) of a branch on the given days."""
+    return (Visit.objects.filter(branch=branch, created_at__date__in=days, category_assignments__isnull=False)
+            .exclude(status='CANCELLED').select_related('customer').prefetch_related('guests').distinct()
+            .order_by('created_at', 'pk'))
+
+
+def match_by_phone(rows):
+    """Simple visit flow: a bill matches the visit with the same customer phone on the same day."""
+    branch_id = rows[0].branch_id
+    visits = defaultdict(list)
+    for visit in simple_visits(branch_id, {row.sale_date for row in rows}):
+        key = phone_key(visit.customer.mobile)
+        if key:
+            visits[(timezone.localtime(visit.created_at).date(), key)].append(visit)
+    for row in rows:
+        key = phone_key(row.phone)
+        found = visits.get((row.sale_date, key), []) if key else []
+        row.app_invoice, row.app_amount = None, None
+        row.app_visit = found[0] if found else None
+        row.app_visits = len(found)
+        row.match_status = 'NO_PHONE' if not key else ('MATCHED' if found else 'NOT_IN_APP')
+    SalesInvoice.objects.bulk_update(rows, ['match_status', 'app_invoice', 'app_amount', 'app_visit'])
+    return rows
 
 
 def match_invoices(rows, settings=None):
@@ -14,6 +47,8 @@ def match_invoices(rows, settings=None):
     rows = list(rows)
     if not rows:
         return rows
+    if simple_flow_enabled():
+        return match_by_phone(rows)
     settings = settings or InvoiceSettings.current()
     numbers = {row.invoice_number for row in rows}
     app = defaultdict(list)
@@ -84,5 +119,6 @@ def save_sales_upload(branch, user, file_name, parsed):
     upload.not_in_app_count = counts['NOT_IN_APP']
     upload.amount_diff_count = counts['AMOUNT_DIFF']
     upload.format_count = counts['FORMAT']
-    upload.save(update_fields=['matched_count', 'not_in_app_count', 'amount_diff_count', 'format_count'])
+    upload.no_phone_count = counts['NO_PHONE']
+    upload.save(update_fields=['matched_count', 'not_in_app_count', 'amount_diff_count', 'format_count', 'no_phone_count'])
     return upload

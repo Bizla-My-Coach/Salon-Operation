@@ -414,6 +414,9 @@ class Visit(TimeStamped):
     status = models.CharField(max_length=30, choices=STATUS, default="WAITING")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="visits_created")
     closed_at = models.DateTimeField(null=True, blank=True)
+    # Simple visit flow: family or friends on the same bill.  Each is their own
+    # Customer (sharing the main person's phone) so their types are tracked.
+    guests = models.ManyToManyField(Customer, blank=True, related_name="guest_visits")
     # One-time tokens from the create and assignment forms.  A repeated press
     # of the same form (slow network, double tap) carries the same token, so
     # the server can recognise it and avoid creating a second visit or a
@@ -444,6 +447,8 @@ class VisitAssignment(TimeStamped):
     """
     STATUS = [("ASSIGNED", "Assigned"), ("DONE", "Type recorded"), ("CANCELLED", "Cancelled")]
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="category_assignments")
+    # The person on the visit this card is for: the main customer or a family / friend guest.
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="type_cards", null=True, blank=True)
     # Blank until the staff member chooses Hair, Skin or Mani / Pedi on the card.
     category = models.CharField(max_length=10, blank=True)
     employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="category_assignments")
@@ -475,6 +480,10 @@ class VisitAssignment(TimeStamped):
     def concern_labels(self):
         from .customer_types import concern_labels
         return concern_labels(self.category, self.concerns)
+
+    @property
+    def person(self):
+        return self.customer or self.visit.customer
 
     @property
     def self_assigned(self):
@@ -631,6 +640,19 @@ class FeedbackQuestion(TimeStamped):
 
     def __str__(self):
         return self.text
+
+
+class VisitRating(TimeStamped):
+    """Simple visit flow: the customer taps 1-5 stars on the staff member's phone after the visit."""
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="ratings")
+    employee = models.ForeignKey(User, on_delete=models.PROTECT, related_name="visit_ratings")
+    stars = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["visit", "employee"], name="one_rating_per_visit_staff")]
+
+    def __str__(self):
+        return f"{self.stars}/5 - visit #{self.visit_id}"
 
 
 class Feedback(TimeStamped):
@@ -1090,6 +1112,7 @@ class SalesReportUpload(models.Model):
     not_in_app_count = models.PositiveIntegerField(default=0)
     amount_diff_count = models.PositiveIntegerField(default=0)
     format_count = models.PositiveIntegerField(default=0)
+    no_phone_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['-uploaded_at']
@@ -1100,7 +1123,7 @@ class SalesReportUpload(models.Model):
 
 class SalesInvoice(models.Model):
     MATCH = [('MATCHED', 'Matched'), ('AMOUNT_DIFF', 'Amount differs'),
-             ('NOT_IN_APP', 'Not in app'), ('FORMAT', 'Wrong number format')]
+             ('NOT_IN_APP', 'Not in app'), ('FORMAT', 'Wrong number format'), ('NO_PHONE', 'No phone on bill')]
     upload = models.ForeignKey(SalesReportUpload, on_delete=models.CASCADE, related_name='invoices')
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='sales_invoices')
     sale_date = models.DateField()
@@ -1122,6 +1145,8 @@ class SalesInvoice(models.Model):
     match_status = models.CharField(max_length=12, choices=MATCH, default='NOT_IN_APP')
     app_invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_rows')
     app_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # Simple visit flow: visits carry no bill, so a bill is matched to the visit with the same phone that day.
+    app_visit = models.ForeignKey('Visit', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_rows')
 
     class Meta:
         ordering = ['sale_date', 'sold_at', 'pk']

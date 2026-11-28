@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ visit.customer.name }} · Hairship{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
+{% block extra_js %}<script src="{% static 'js/simple-people.js' %}" defer></script><script src="{% static 'js/record-visit.js' %}" defer></script>{% endblock %}
+{% block content %}
+<div class="service-back-nav"><a class="button outline" href="{% url 'employee_dashboard' %}">← My customers</a></div>
+<header class="page-head">
+  <span class="eyebrow">Visit #{{ visit.pk }} · arrived {{ visit.created_at|date:'H:i' }}</span>
+  <h1>{{ visit.customer.name }}</h1>
+  <p>Tap what you are doing, then the picture that matches. Submit once at the end.</p>
+</header>
+<form method="post" data-single-submit data-people data-record-form data-next-guest="{{ next_guest }}" class="sv-picker">
+  {% csrf_token %}
+  {% if errors %}<div class="notice error">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+  <div class="sv-people-tabs" role="tablist" aria-label="People on this visit">
+    {% for p in panels %}<button type="button" role="tab" class="sv-person-tab{% if forloop.first %} active{% endif %}" data-tab="{{ p.key }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"><span data-tab-name>{{ p.name }}</span> <em data-tab-count></em></button>{% endfor %}
+    <button type="button" class="sv-person-add" data-add-person>+ Add family/friend</button>
+  </div>
+  {% for p in panels %}{% include 'operations/includes/sv_record_panel.html' %}{% endfor %}
+  <template data-panel-template>{% with p=blank_panel active=True %}{% include 'operations/includes/sv_record_panel.html' %}{% endwith %}</template>
+  <div class="sv-save-bar"><button type="submit" class="button primary large block" data-submit>Submit</button></div>
+</form>
+{% endblock %}

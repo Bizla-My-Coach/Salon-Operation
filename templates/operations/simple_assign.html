@@ -2,32 +2,23 @@
 {% load static %}
 {% block title %}Assign staff · Hairship{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/simple-visit.css' %}">{% endblock %}
-{% block extra_js %}<script src="{% static 'js/simple-assign.js' %}" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/simple-people.js' %}" defer></script><script src="{% static 'js/simple-assign.js' %}" defer></script>{% endblock %}
 {% block content %}
 <div class="workflow-page sv-assign-page">
 <header class="page-head split">
   <div><span class="eyebrow">Step 2 of 2 · Assign staff</span><h1>{{ visit.customer.name }}</h1><p>{{ visit.customer.mobile|default:'No phone' }} · Tap a name, or tap one or more of Hair, Skin and Mani / Pedi next to it.</p></div>
   <a href="{% url 'manager_dashboard' %}" class="button outline workflow-back">Back to visits</a>
 </header>
-<form method="post" data-single-submit data-assign-form>
+<form method="post" data-single-submit data-assign-form data-people data-next-guest="{{ panels|length }}">
   {% csrf_token %}
   {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
-  {% if show_search %}<input type="search" class="form-control sv-staff-search" placeholder="Search staff" aria-label="Search staff" data-staff-search>{% endif %}
-  <div class="sv-pick-grid" role="group" aria-label="Staff on duty">
-    {% for row in rows %}
-    <div class="sv-tile" data-staff-tile data-name="{{ row.name|lower }}">
-      <label class="sv-tile-name">
-        <input type="checkbox" name="staff_{{ row.person.pk }}" value="1" data-staff="{{ row.person.pk }}"{% if row.checked %} checked{% endif %}>
-        <span class="sv-avatar" aria-hidden="true">{{ row.initial }}</span>
-        <span class="sv-pick-text"><b>{{ row.name }}</b><small>{% if row.saved %}Saved: {{ row.saved }}{% elif row.busy %}{{ row.busy }} waiting{% else %}Free{% endif %}</small></span>
-      </label>
-      <div class="sv-tile-cats" role="group" aria-label="Categories for {{ row.name }}">
-        {% for c in row.cats %}<label title="{{ c.label }}"><input type="checkbox" name="category_{{ row.person.pk }}" value="{{ c.key }}"{% if c.checked %} checked{% endif %}{% if c.locked %} disabled{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
-      </div>
-    </div>
-    {% empty %}<div class="empty-state"><b>No staff on duty</b><span>Set today's roster first.</span></div>
-    {% endfor %}
+  <div class="sv-people-tabs" role="tablist" aria-label="People on this visit">
+    {% for p in panels %}<button type="button" role="tab" class="sv-person-tab{% if forloop.first %} active{% endif %}" data-tab="{{ p.key }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"><span data-tab-name>{{ p.name }}</span> <em data-tab-count>{{ p.count }}</em></button>{% endfor %}
+    <button type="button" class="sv-person-add" data-add-person>+ Add family/friend</button>
   </div>
+  {% if show_search %}<input type="search" class="form-control sv-staff-search" placeholder="Search staff" aria-label="Search staff" data-staff-search>{% endif %}
+  {% for p in panels %}{% include 'operations/includes/sv_assign_panel.html' %}{% endfor %}
+  <template data-panel-template>{% with p=blank_panel active=True %}{% include 'operations/includes/sv_assign_panel.html' %}{% endwith %}</template>
   <p class="sv-hint">No category tapped = staff choose Hair, Skin or Mani / Pedi themselves.</p>
   <div class="sv-save-bar"><button type="submit" class="button primary large block" data-send>Send to staff</button></div>
 </form>

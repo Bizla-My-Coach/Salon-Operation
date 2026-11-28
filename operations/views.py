@@ -25,7 +25,7 @@ from .decorators import roles_required
 from .sop_flow_views import service_flow_digest
 from .roster import employee_services, working_branch
 from .customer_types import simple_flow_enabled
-from .simple_visit_views import card_image, employee_cards, unassigned_visits
+from .simple_visit_views import card_image, employee_cards, people_rows, unassigned_visits
 from .staff_names import display_names
 from .staff_access import resettable_employees
 from .workflow import (
@@ -625,15 +625,18 @@ def manager_dashboard(request):
     visits=(Visit.objects.filter(branch=branch).exclude(status__in=['CLOSED','CANCELLED'])
             .select_related('customer')
             .prefetch_related(Prefetch('services',queryset=services),'invoice',
-                              Prefetch('category_assignments',queryset=VisitAssignment.objects.select_related('employee').exclude(status='CANCELLED')))
+                              Prefetch('category_assignments',queryset=VisitAssignment.objects.select_related('employee').exclude(status='CANCELLED')),
+                              'guests')
             .order_by('created_at','id'))
     simple = simple_flow_enabled()
     staff_names = display_names(working_employees(branch)) if simple else {}
     for visit in visits:
         visit.simple_assignments = list(visit.category_assignments.all())
         for item in visit.simple_assignments:
-            item.image = card_image(item)
+            item.image = card_image(item, show_type=False)  # managers see the category, not the type
             item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
+        if simple:
+            visit.people_rows = people_rows(visit, visit.simple_assignments)
         active_services = [item for item in visit.services.all() if item.status != 'CANCELLED']
         visit.active_services = active_services
         visit.active_service_count = len(active_services)
@@ -652,11 +655,15 @@ def manager_dashboard(request):
     finished_today = (Visit.objects.filter(branch=branch, status='CLOSED', closed_at__date=timezone.localdate(),
                                            category_assignments__isnull=False)
                       .select_related('customer').prefetch_related(Prefetch(
-                          'category_assignments', queryset=VisitAssignment.objects.filter(status='DONE').select_related('employee')))
+                          'category_assignments', queryset=VisitAssignment.objects.filter(status='DONE').select_related('employee')),
+                          'guests', 'ratings')
                       .distinct().order_by('-closed_at')[:30]) if simple and branch else []
     for visit in finished_today:
         for item in visit.category_assignments.all():
             item.staff_name = staff_names.get(item.employee_id, item.employee.get_full_name() or item.employee.username)
+        visit.people_rows = people_rows(visit, visit.category_assignments.all(), skip_empty=True)
+        stars = [r.stars for r in visit.ratings.all()]
+        visit.stars = round(sum(stars) / len(stars), 1) if stars else None
     return render(request, 'operations/manager_dashboard.html', {
         'dashboard_branch': branch, 'visits': visits, 'simple_flow': simple, 'finished_today': finished_today,
         'board_view': 'finished' if simple and request.GET.get('view') == 'finished' else 'live',

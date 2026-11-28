@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from openpyxl import Workbook
@@ -11,7 +11,7 @@ from openpyxl import Workbook
 from .daily_reports import DailyReportProblem, parse_sales_workbook
 from .forms import CompleteInvoiceForm
 from .models import (
-    Branch, Customer, Invoice, InvoiceSettings, SalesInvoice, SalesReportUpload, Visit,
+    Branch, Customer, Invoice, InvoiceSettings, SalesInvoice, SalesReportUpload, Visit, VisitAssignment,
 )
 
 BILL_HEADERS = ['Sr No', 'Invoice #', 'Customer', 'Customer No.', 'Gender', 'Date', 'Sale Type', 'UPI/QR', 'Cash',
@@ -90,6 +90,7 @@ class SalesWorkbookParserTests(TestCase):
         self.assertEqual(self.read(no_date, fallback_date=date(2026, 4, 3))['invoices'][0]['sale_date'], date(2026, 4, 3))
 
 
+@override_settings(SIMPLE_VISIT_FLOW=False)
 class DailyReportViewTests(TestCase):
     def setUp(self):
         self.north = Branch.objects.create(code='N', name='North')
@@ -196,6 +197,7 @@ class InvoiceSettingsTests(TestCase):
         self.assertEqual(form.cleaned_data.get('invoice_number'), 'INV/27-28/977')
 
 
+@override_settings(SIMPLE_VISIT_FLOW=False)
 class SharedInvoiceTests(TestCase):
     """Two visits paid on one bill: the second visit is entered as 977/2."""
 
@@ -248,3 +250,67 @@ class SharedInvoiceTests(TestCase):
         page = self.client.get(reverse('daily_report'), {'date': '2026-04-10'})
         self.assertEqual(page.context['app_only'], [])
         self.assertContains(page, '2 visits on this bill')
+
+
+@override_settings(SIMPLE_VISIT_FLOW=True,
+                   STORAGES={'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
+class DailyReportPhoneMatchTests(TestCase):
+    """Simple visit flow: visits have no bill, so bills are matched by phone on the same day."""
+
+    def setUp(self):
+        self.north = Branch.objects.create(code='N', name='North')
+        self.manager = self.person('manager', 'MANAGER', self.north)
+        self.admin = self.person('boss', 'ADMIN')
+        self.staff = self.person('anu', 'EMPLOYEE', self.north)
+        day = timezone.make_aware(timezone.datetime(2026, 4, 10, 12))
+        # Bill A's customer came with a friend; bill B has "+91" in front; C (no phone) and D are not in the app.
+        a = self.visit('Test Customer A', '9000000001', day)
+        a.guests.add(Customer.objects.create(name='Guest 1', mobile='9000000001'))
+        self.visit('Test Customer B', '+91 90000 00002', day)
+        self.visit('Walk in', '9111111111', day)  # in the app, but no bill
+        self.visit('Yesterday', '9000000001', day - timedelta(days=1))
+
+    def person(self, username, role, branch=None):
+        user = User.objects.create_user(username, password='pw')
+        user.profile.role = role
+        user.profile.branch = branch
+        user.profile.save()
+        return user
+
+    def visit(self, name, mobile, when):
+        visit = Visit.objects.create(branch=self.north, customer=Customer.objects.create(name=name, mobile=mobile),
+                                     status='CLOSED', created_by=self.manager)
+        VisitAssignment.objects.create(visit=visit, customer=visit.customer, category='HAIR', employee=self.staff,
+                                       assigned_by=self.manager, status='DONE', selected_type='WAVY')
+        Visit.objects.filter(pk=visit.pk).update(created_at=when)
+        return visit
+
+    def test_bills_match_visits_by_phone_and_manager_sees_customer_counts(self):
+        self.client.force_login(self.manager)
+        rows = bill_rows() + [[4, 'INV/26-27/14', 'Test Customer D', '9222222222', 'Male', '10/04/2026 07:00 PM',
+                               'SALE', 100, 0, 100, 0, 100, 5, 0, 105]]
+        response = self.client.post(reverse('daily_report'), {'date': '2026-04-10', 'report_file': workbook(BILL_HEADERS, rows)})
+        self.assertRedirects(response, reverse('daily_report') + '?date=2026-04-10', fetch_redirect_response=False)
+        status = dict(SalesInvoice.objects.values_list('customer_name', 'match_status'))
+        self.assertEqual(status, {'Test Customer A': 'MATCHED', 'Test Customer B': 'MATCHED',
+                                  'Test Customer C': 'NO_PHONE', 'Test Customer D': 'NOT_IN_APP'})
+        self.assertEqual(SalesInvoice.objects.get(customer_name='Test Customer A').app_visit.customer.name, 'Test Customer A')
+        upload = SalesReportUpload.objects.get()
+        self.assertEqual((upload.matched_count, upload.not_in_app_count, upload.no_phone_count), (2, 1, 1))
+
+        page = self.client.get(reverse('daily_report'), {'date': '2026-04-10'})
+        self.assertEqual((page.context['people_count'], page.context['visit_count'], page.context['guest_count']), (4, 3, 1))
+        self.assertEqual([v.customer.name for v in page.context['unbilled']], ['Walk in'])
+        self.assertEqual(page.context['needs_check'], 3)
+        self.assertContains(page, 'Customers in app')
+        self.assertContains(page, 'Visits with no bill')
+        # The manager gets the single customer-count dashboard: no sales split or bill table, no types.
+        self.assertNotContains(page, 'Sales by staff')
+        self.assertNotContains(page, 'Bills and match result')
+        self.assertNotContains(page, 'Wavy')
+
+        self.client.force_login(self.admin)
+        full = self.client.get(reverse('daily_report'), {'date': '2026-04-10', 'branch': self.north.pk})
+        self.assertContains(full, 'Customers in app')
+        self.assertContains(full, 'Bills and match result')
+        self.assertContains(full, 'No phone on bill')

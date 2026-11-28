@@ -154,3 +154,65 @@
 .sv-board-tabs a.active{background:#033a30;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .sv-board-tabs a.active span{background:rgba(255,255,255,.2);color:#fff}
 @media (max-width:640px){.sv-board-tabs{max-width:none}}
+
+/* People on one visit: the customer plus family / friends */
+.sv-people-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 0 6px;scrollbar-width:none}
+.sv-people-tabs::-webkit-scrollbar{display:none}
+.sv-person-tab,.sv-person-add{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-weight:800;font-size:.95rem;cursor:pointer;white-space:nowrap}
+.sv-person-tab em{font-style:normal;min-width:22px;padding:0 7px;border-radius:999px;background:#e6efeb;font-size:.8rem;text-align:center}
+.sv-person-tab em:empty{display:none}
+.sv-person-tab.active{background:#033a30;border-color:#033a30;color:#fff}
+.sv-person-tab.active em{background:rgba(255,255,255,.22);color:#fff}
+.sv-person-add{border-style:dashed;color:var(--brand)}
+.sv-person-panel[hidden]{display:none}
+.sv-person-name{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:end;margin:0 0 14px}
+.workflow-page .sv-person-name label,.sv-person-name label{grid-column:1/-1;display:block;font-weight:800;margin:0}
+.sv-person-name label small{color:var(--muted);font-weight:600}
+.sv-person-name .sv-remove{min-height:44px}
+.sv-person-meta{color:var(--muted);margin:0 0 8px}
+.sv-person-hint{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fff6e5;color:#6b4a00;font-weight:700}
+.sv-cat-toggle{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.sv-cat-toggle label{position:relative;cursor:pointer}
+.sv-cat-toggle input{position:absolute;opacity:0;pointer-events:none}
+.sv-cat-toggle span{display:inline-flex;align-items:center;min-height:44px;padding:8px 16px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:800}
+.sv-cat-toggle span::before{content:"+";margin-right:6px;font-weight:900;color:var(--brand)}
+.sv-cat-toggle input:checked+span{background:#033a30;border-color:#033a30;color:#fff}
+.sv-cat-toggle input:checked+span::before{content:"✓";color:#fff}
+.sv-cat-toggle input:focus-visible+span{outline:3px solid rgba(23,107,91,.35)}
+.sv-section{margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fbfdfc}
+.sv-section[hidden]{display:none}
+.sv-section .sv-question small{color:var(--muted);font-weight:600}
+.sv-concern-q{margin:14px 0 8px}
+.sv-card-line{margin:2px 0}
+.sv-person-row{margin-top:10px}
+.sv-person-row .sv-chips{margin-top:4px}
+.sv-person-label{display:block;font-weight:800;font-size:.9rem}
+.sv-finished-row .sv-person-row{grid-column:1/-1}
+
+/* Customer star rating, handed over on the staff phone */
+.sv-rate-page{min-height:70vh;display:grid;place-items:center;text-align:center;padding:24px 0}
+.sv-rate-form,.sv-rate-thanks{display:grid;gap:22px;justify-items:center;width:100%;max-width:460px}
+.sv-rate-page h1{margin:0;font-size:clamp(1.6rem,6vw,2.2rem)}
+.sv-stars{display:flex;justify-content:center;gap:6px;border:0;margin:0;padding:0}
+.sv-stars label{cursor:pointer;line-height:1}
+.sv-stars input{position:absolute;opacity:0;pointer-events:none}
+.sv-stars label span[aria-hidden]{display:block;font-size:clamp(3rem,15vw,4.4rem);color:#d6dfdb;transition:transform .12s,color .12s}
+.sv-stars label:active span[aria-hidden]{transform:scale(1.15)}
+.sv-stars:has(input[value="1"]:checked) label:nth-of-type(-n+1) span[aria-hidden],
+.sv-stars:has(input[value="2"]:checked) label:nth-of-type(-n+2) span[aria-hidden],
+.sv-stars:has(input[value="3"]:checked) label:nth-of-type(-n+3) span[aria-hidden],
+.sv-stars:has(input[value="4"]:checked) label:nth-of-type(-n+4) span[aria-hidden],
+.sv-stars:has(input[value="5"]:checked) label:nth-of-type(-n+5) span[aria-hidden]{color:#f5a524}
+.sv-stars input:focus-visible+span{outline:3px solid rgba(23,107,91,.35);border-radius:8px}
+.sv-rate-submit{min-width:220px}
+.sv-rate-form:not(:has(input:checked)) .sv-rate-submit{opacity:.45;pointer-events:none}
+.sv-rate-skip{color:var(--muted)}
+.sv-stars-show span{font-size:3rem;color:#d6dfdb}
+.sv-stars-show span.on{color:#f5a524}
+.sv-done-wrap{position:relative}
+.sv-done-wrap .sv-customer-card{padding-right:76px}
+.sv-rate-btn{position:absolute;top:50%;right:14px;transform:translateY(-50%);display:grid;place-items:center;min-width:52px;height:52px;padding:0 8px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:#c98200;font-weight:800;font-size:.85rem;text-decoration:none}
+.sv-rate-btn b{font-size:1.5rem;line-height:1;color:#f5a524}
+.sv-rate-btn.rated{background:#fff8e8;border-color:#f5d48a}
+.sv-stars-chip{color:#c98200;font-weight:800}
+.sv-rate-page .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

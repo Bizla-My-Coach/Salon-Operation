@@ -50,7 +50,6 @@
         <a href="{% url 'manager_summary' %}"{% if request.resolver_match.url_name == 'manager_summary' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Dashboard</span></a>
         <a href="{% url 'branch_reports' %}"{% if request.resolver_match.url_name == 'branch_reports' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='branch' only %}<span>Branch reports</span></a>
         <a href="{% url 'daily_report' %}"{% if request.resolver_match.url_name == 'daily_report' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='sheet' only %}<span>Daily report</span></a>
-        {% if simple_flow %}<a href="{% url 'customer_types' %}"{% if request.resolver_match.url_name == 'customer_types' %} aria-current="page"{% endif %}>{% include 'includes/nav_icon.html' with icon='reports' only %}<span>Customer types</span></a>{% endif %}
       {% endif %}
       {% if user.is_superuser or user.profile.role == 'ADMIN' %}
         <p>Administration</p>
